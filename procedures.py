@@ -9,9 +9,51 @@ import sys
 import json
 import numpy as np
 import logging
+import socket
+import base64
 
 ##Selivanova  
 "Функция для вычисления значения полинома"
+def calculate_final_files(pars,file,mode):
+    try:
+        if file:
+            with open(file) as f:
+                all_data = f.readlines()
+                data = all_data[1:]
+            if mode=='ZD':
+                corrects = [] # Новые корректировки
+                lines_arr_raw_to_file = [] # Массив старых строк с лишними \t с делением на \t
+                lines_arr_new_to_file = [] # Массив новых  строк с лишними \t с делением на \t
+                o3s = [] # Весь озон
+                o3s_tmp = [] # 600> Озон >150 (Первая корректировка при измерении)
+                for line in data:
+                    line_arr_raw = line.split('\t')
+                    lines_arr_raw_to_file.append(line_arr_raw)
+                    line_arr = [i for i in line_arr_raw if i]
+                    correct = int(line_arr[-1])
+                    o3 = int(line_arr[-2])
+                    o3s.append(o3)
+                    if correct==1:
+                        o3s_tmp.append(o3)
+                if o3s_tmp:
+                    sigma = round(np.std(o3s_tmp),3)
+                    mean = int(np.mean(o3s_tmp))
+                    for i in o3s:
+                        if mean - pars['calibration']['sigma_count']*sigma < i < mean + pars['calibration']['sigma_count']*sigma:
+                            corrects.append('1')
+                        else:
+                            corrects.append('0')
+   
+                with open(os.path.join(os.path.dirname(file),'mean_'+os.path.basename(file)),'w') as f:
+                    print('\t'.join(all_data[:1]),file=f,end='')
+                    for line,correct in zip(lines_arr_raw_to_file,corrects):
+                        print('\t'.join(line[:-1]+[correct]),file=f)
+                    print('Среднее значение ОСО: {}\nСтандартное отклонение: {}'.format(mean,sigma),file=f)
+            elif mode=='SD':
+                pass
+    except Exception as err:
+        print(err,sys.exc_info()[-1].tb_lineno)
+
 def get_polynomial_result(coefficients,x):
     if type(coefficients[0])==float:
         return(coefficients[2] * float(x)**2 + coefficients[1] * float(x) + coefficients[0])
@@ -28,9 +70,9 @@ def sumarize(a):
     except:
         return(0)
     
-def read_nomographs(home, mueff_list, r12_list, ozone_list):
-    if os.path.exists(os.path.join(home, r'nomograph.txt')):
-        file_n = open(os.path.join(home, r'nomograph.txt'), 'r')
+def read_nomographs(home, mueff_list, r12_list, ozone_list, dev_id):
+    if os.path.exists(os.path.join(home, r'nomograph{}.txt'.format(dev_id))):
+        file_n = open(os.path.join(home, r'nomograph{}.txt'.format(dev_id)), 'r')
         ozone_number = 0
         mueff_number = 0
         mueff_step = 0.05
@@ -74,12 +116,12 @@ def find_index_value_greater_x(list, x):
         index_value_high = 1
     return index_value_high
 
-def get_ozone_by_nomographs(home, r12clear, mueff):
+def get_ozone_by_nomographs(home, r12clear, mueff, dev_id):
     "Чтение номограммы"
     ozone_list = []
     r12_list = []
     mueff_list = []
-    read_nomographs(home, mueff_list, r12_list, ozone_list)
+    read_nomographs(home, mueff_list, r12_list, ozone_list, dev_id)
     "Найти значения mueff, между которыми находится наше значение"
     index_mueff_high = find_index_value_greater_x (mueff_list, mueff)
     index_mueff_low = index_mueff_high - 1
@@ -91,6 +133,17 @@ def get_ozone_by_nomographs(home, r12clear, mueff):
     ozone = ozone_list[r12low_index] + ((ozone_list[r12high_index] - ozone_list[r12low_index])*(r12clear - r12low))/(r12high - r12low)
     return ozone
 # ==========================================================
+
+def read_connect(home):
+    with open(os.path.join(home,'connect.ini')) as f:
+        data = f.readlines()
+        new_data = {}
+        for i in data:
+            if i[0] not in ['\n',' ','#']:
+                line = i.replace(' ','').replace('\n','').split('=')
+                new_data[line[0]] = line[1]
+        return(new_data)
+    
 def erithema(x,c):
     nm = (x**2) * eval(c[0]) + x * eval(c[1]) + eval(c[2])
     a = 0
@@ -184,11 +237,10 @@ def pre_calc_o3(lambda_consts,lambda_consts_pix,spectrum,prom,mu,var_settings,ho
     else:
         r23clean = get_polynomial_result(var_settings['calibration2']['kzLarger2'], mueff)
     kz_obl_f = get_polynomial_result(var_settings['calibration2']['kz_obl'], (r23clean/r23m))
-##    r12clear = r12m
     r12clear = kz_obl_f*r12m                                                    
 #      print(mueff,r12m,r23m,r23clean,kz_obl_f,r12clear)
     try:
-        o3 = int(get_ozone_by_nomographs(home, r12clear, mueff))
+        o3 = int(get_ozone_by_nomographs(home, r12clear, mueff, var_settings['device']['id']))
     except Exception as err:
         print('Plotter: ',err)
         o3 = -1
@@ -244,9 +296,9 @@ class Calculate_only:
         self.p_uva1,self.p_uva2 = nm2pix(315,self.confS,0),nm2pix(400,self.confS,0)
         self.p_uvb1,self.p_uvb2 = nm2pix(280,self.confS,0),nm2pix(315,self.confS,0)
         self.p_uve1,self.p_uve2 = 0,3691 #nm2pix(290),nm2pix(420)
-        self.p_zero1 = nm2pix(280,self.confZ,0)
-        self.p_zero2 = nm2pix(285,self.confZ,0)
-        self.p_lamst = nm2pix(280,self.confZ,0)
+        self.p_zero1 = nm2pix(290,self.confZ,0)
+        self.p_zero2 = nm2pix(295,self.confZ,0)
+        self.p_lamst = nm2pix(290,self.confZ,0)
         self.lambda_consts_pix = [] #Массив констант лямбда в пикселях
         for i in self.lambda_consts:
             self.lambda_consts_pix.append(nm2pix(i, self.confZ, 0)) 
@@ -444,6 +496,7 @@ def get_time_next_start(latitude,longitude,timezone,sun_height_min):
 
 def make_dirs(dirs,home):
     path = home
+    # dirs = ['1','2','2'] > home\1\2\3
     for i in dirs:
         path = os.path.join(path,str(i))
         if not os.path.exists(path):
@@ -500,10 +553,14 @@ class Main:
         self.mesure_count = 0
         self.last_file_o3 = ''
         self.last_file_uv = ''
+        self.mesure_data = {'ZD':{},'SD':{}}
+        self.calc_result = {'ZD':{},'SD':{}}
+        self.file2send = {}
         self.t1 = ''
         self.t2 = ''
         self.pars = pars
         self.home = os.getcwd()
+        self.connect_pars = read_connect(self.home)
         self.sensitivity = read_sensitivity(self.home,self.pars['device']['id'])
         self.sensitivity_eritem = read_sensitivity_eritem(self.home,self.pars['device']['id'])
         self.time_now = datetime.datetime.now()
@@ -609,7 +666,7 @@ class Main:
             o3,correct = calco.calc_ozon(spectr,mu)
             out = {'o3':o3,
                    'correct':correct}
-            print('=> OZONE = {}'.format(o3))        
+            print('=> OZONE = {}'.format(o3))
         elif self.chan == 'SD':
             uva = calco.calc_uv('uva',spectr,expo,sensitivity,sensitivity_eritem)
             uvb = calco.calc_uv('uvb',spectr,expo,sensitivity,sensitivity_eritem)
@@ -617,7 +674,7 @@ class Main:
             out = {'uva':uva,
                    'uvb':uvb,
                    'uve':uve}
-        return({self.chan:out})
+        self.calc_result[self.chan] = out
             
     def write_file(self):
         try:
@@ -626,7 +683,11 @@ class Main:
                          datetime.datetime.strftime(self.time_now_local,'%Y'),
                          datetime.datetime.strftime(self.time_now_local,'%Y-%m'),
                          datetime.datetime.strftime(self.time_now_local,'%Y-%m-%d')]
+            dirs_sending = ['Ufos_{}'.format(self.pars['device']['id']),
+                            'Sending']
             self.path = make_dirs(dirs,self.home)
+            self.path_sending = make_dirs(dirs_sending,self.home)
+            
             self.name = 'm{}_{}_{}_{}.txt'.format(self.pars['device']['id'],
                                              str(self.mesure_count).zfill(3),
                                              self.chan,
@@ -637,21 +698,24 @@ class Main:
                 print('>>> {}'.format(self.name))
                 logging.info('>>> {}'.format(self.name))
             if self.chan in ['ZD','SD']:
-                calc_result = self.calc_final_file(self.pars,
-                                                   self.home,
-                                                   self.text['spectr'],
-                                                   self.text['calculated']['mu'],
-                                                   self.text['mesurement']['exposition'],
-                                                   self.sensitivity,
-                                                   self.sensitivity_eritem)
+                self.file2send[self.chan] = self.name
+                # self.calc_result[self.chan] <<
+                self.calc_final_file(self.pars,
+                                   self.home,
+                                   self.text['spectr'],
+                                   self.text['calculated']['mu'],
+                                   self.text['mesurement']['exposition'],
+                                   self.sensitivity,
+                                   self.sensitivity_eritem)
                 path_file = write_final_file(self.pars,
                                              self.home,
                                              self.chan,
                                              self.text["mesurement"]["datetime"],
                                              round(self.text["calculated"]["sunheight"],1),
-                                             calc_result[self.chan],
+                                             self.calc_result[self.chan],
                                              '',
                                              False)
+                
                 if self.chan=='ZD':
                     self.last_file_o3 = path_file
                 elif self.chan=='SD':
@@ -665,51 +729,152 @@ class Main:
         logging.debug('Переключение на канал {}.'.format(self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8')))
         data,t1,t2,text = Ufos_data(50,self.pars['device']['accummulate'],chan, 'N').device_ask()
 
-##    def send_file(self,file):
-##        data = "#{};{};{}".format(self.pars["device"]["id"],self.pars["station"]["id"],channel)+
-##        ";{};{};{}".format(date_time,exp,gain)+
-##        ";{};{};{}".format(temp,ozone,uva)+
-##        ";{};{};{}".format(uvb,uve,spect)+
-##        "@{};{};{}".format(expo1,channel1,accum1)+
-##        ";{};{};{}".format(gain1,set_run,dev_id1)+
-##        ";{};{};{}".format(time1,repeat1,max1)+
-##        ";{};{};{}".format(latitude1,longitude1,pix2nm1)+
-##        ";{};{};{}".format(kz1,kz_obl1,omega1)+
-##        ";{};{};{}".format(hs1,points1,pixels1)+
-##        ";{};{}#".format(hour_pelt1,auto_exp1)
-##
-##    def send_all_files(self,home,date):
-##        """Отправка всех неотправленных файлов"""
-##        # date = '1900-12-12 13:14:15.0000000' to date
-##        y = datetime.datetime.strftime(date,'%Y')
-##        m = datetime.datetime.strftime(date,'%m')
-##        d = datetime.datetime.strftime(date,'%d')
-##        count = 0
-##        flag = True
-##        path = os.path.join(home,'ZEN',y,m,d)
-##        next_st = datetime.datetime.strptime(main.next_start,'%Y-%m-%d %H:%M')
-##        while flag and next_st>datetime.datetime.now():
-##            if os.path.exists(path):
-##                for file in os.listdir(path):
-##                    if file.count('-D')>0:
-##                        file2send = os.path.join(path,file)
-##                        file_time = get_datetime(home,file2send)
-##                        if file_time>date:
-##                            tex = send_files(home,file2send) # отправка файла
-##                            if tex!='OK':
-##                                print(tex)
-##                                return(count)
-##                            count += 1
-##            new_date = datetime.datetime.strptime('{0}-{1}-{2}'.format(y,m,d),'%Y-%m-%d') + datetime.timedelta(days=1)
-##            if new_date<datetime.datetime.now():
-##                y = datetime.datetime.strftime(new_date,'%Y')
-##                m = datetime.datetime.strftime(new_date,'%m')
-##                d = datetime.datetime.strftime(new_date,'%d')
-##            else:
-##                break
-##            path = os.path.join(home,'ZEN',y,m,d)
-##        return(count)               
+    def write_file4send(self,chan,data4send):
+        with open(os.path.join(self.path_sending,self.file2send[chan]),'w') as f:
+            f.write(data4send)
     
+    def make_line(self):
+        try:
+            debug = 0
+            encode = 0
+            if debug:
+                with open('test.txt','w') as f:
+                    print(self.mesure_data,file=f)  # mesurement
+                    print('==========================================',file=f)
+                    print(self.pars,file=f)         # settings
+                    print('==========================================',file=f)
+                    print(self.connect_pars,file=f) # connect settings
+                    print('==========================================',file=f)
+                    print(self.calc_result,file=f)  # o3 + uv
+            if encode:
+                points2send = base64.b64encode(str(self.pars['calibration']['points']).encode('ascii')).decode('ascii')
+                pars2send = base64.b64encode(str(self.pars).encode('ascii')).decode('ascii')
+            else:
+                points2send = str(self.pars['calibration']['points']).replace("'",'"')
+                pars2send = str(self.pars).replace("'",'"')
+            for chan in self.calc_result.keys():
+                if chan=='ZD':
+                    correct = self.calc_result[chan]['correct']
+                    o3 = self.calc_result[chan]['o3']
+                    uva,uvb,uve = 0,0,0
+                elif chan=='SD':
+                    correct = -1
+                    o3 = 0
+                    uva = self.calc_result[chan]['uva']
+                    uvb = self.calc_result[chan]['uvb']
+                    uve = self.calc_result[chan]['uve']
+                    
+                data4send = """#{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};\
+{11}@{12};{13};{14};{15};{16};{17};{18};{19};{20};\
+{21};{22};{23};{24};{25};{26};{27};{28};{29};{30};{31}#""".format(self.mesure_data[chan]['id']['device'],
+                                                                 self.mesure_data[chan]['id']['station'],
+                                                                 self.mesure_data[chan]['mesurement']['channel'][0]+'-'+self.mesure_data[chan]['mesurement']['channel'][1],
+                                                                 self.mesure_data[chan]['mesurement']['datetime'],
+                                                                 self.mesure_data[chan]['mesurement']['exposition'],
+                                                                 'NULL', #gain = 0
+                                                                 self.mesure_data[chan]['mesurement']['temperature_ccd'],
+                                                                 o3, #mesure
+                                                                 uva, #mesure
+                                                                 uvb, #mesure
+                                                                 uve, #mesure
+                                                                 self.mesure_data[chan]['spectr'],
+                                                                 correct, #gain = 0
+                                                                 # ==== Additional parameters ====
+                                                                 self.mesure_data[chan]['mesurement']['datetime_local'],
+                                                                 self.mesure_data[chan]['mesurement']['timezone'],
+                                                                 self.pars['station']['sun_height_min'],
+                                                                 self.mesure_data[chan]['mesurement']['accummulate'],
+                                                                 'NULL', #set_run
+                                                                 self.mesure_data[chan]['id']['device'], #dev_id1
+                                                                 self.pars['station']['interval'],
+                                                                 self.pars['device']['auto_exposition'], #repeat1
+                                                                 self.pars['device']['amplitude_max'],
+                                                                 self.mesure_data[chan]['mesurement']['latitude'],
+                                                                 self.mesure_data[chan]['mesurement']['longitude'],
+                                                                 pars2send,#pix2nm1
+                                                                 'NULL',#kz1,
+                                                                 'NULL',#kz_obl1,
+                                                                 'NULL',#omega1,
+                                                                 'NULL',
+                                                                 points2send,
+                                                                 'NULL', #pixels1,
+                                                                 'NULL',
+                                                                 'NULL')
+##                    print(data4send)
+                
+                # Write file for next sending
+                self.write_file4send(chan,data4send)
+                    
+        except Exception as err:
+            print(err,sys.exc_info()[-1].tb_lineno)
+
+    def ftp_send(self,host,port,remote_dir,user,password,file2send):
+        file_name = os.path.basename(file2send)
+        path = file2send.split(file_name)[0][:-1]
+        ftp = FTP()
+    ##    print('Подключение к FTP...',end=' ')
+        try:
+            ftp.connect(host=host, port=port)
+            ftp.login(user=user, passwd=password)
+    ##        print('OK')
+            try:
+                dir_list = []
+                ftp.cwd(remote_dir)
+    ##            ftp.debug(1)
+                create_dirs(ftp,file2send)
+                ftp.storlines('STOR ' + file_name, open(file2send,'rb'))
+                tex = 'OK'
+            except Exception as err2:
+                tex = err2
+            finally:
+                ftp.close()
+        except:
+            tex = 'Ошибка подключения FTP!'
+        return(tex)
+            
+    def sock_send(self,host,port,data2send,buffer = 2048):
+        try:
+            t = 'ERR'
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((host, port))
+            sock.send(data2send.encode(encoding = 'utf-8'))
+            sock.close()
+            t = 'OK'
+        except Exception as err:
+            print('procedures.sock_send(): {} - line {}'.format(err,sys.exc_info()[2].tb_lineno))
+            t = 'ERR'
+        finally:
+            return(t)
+
+    def send_file(self,file2send):
+        try:
+            tex = {}
+            for send_type in ['socket','ftp']:
+                if self.connect_pars[send_type + '_ip']!='0':
+                    tex[send_type] = ''
+                    if send_type=='socket':
+                        with open(file2send) as f:
+                            data2send = ''.join(f.readlines())
+                            tex[send_type] = self.sock_send(self.connect_pars['socket_ip'],
+                                                int(self.connect_pars['socket_port']),
+                                                data2send)
+                    elif send_type=='ftp':
+                        tex[send_type] = self.ftp_send(self.connect_pars['ftp_ip'],
+                                       int(self.connect_pars['ftp_port']),
+                                       self.connect_pars['ftp_path'],
+                                       self.connect_pars['ftp_user'],
+                                       self.connect_pars['ftp_pass'],
+                                       file2send)
+                    if tex[send_type]=='OK':
+                        print('{} Отправлен {} (dev: {})'.format(file2send,send_type,self.text['id']['device']))
+                    else:
+                        print(tex[send_type])
+                    
+        except Exception as err:
+            print('procedures.send_file(): {} - line {}'.format(err,sys.exc_info()[2].tb_lineno))
+        finally:
+            return(tex)
+
     def mesure(self):
         """Определение номера последнего измерения"""
         try:
@@ -779,6 +944,7 @@ class Main:
                     self.ZDspectr = np.array(self.ZSspectr) - np.array(self.Dspectr)
                     self.analyze_spectr(self.ZDspectr)
                     self.write_file()
+                    self.mesure_data[self.chan] = self.text
 
             else:
                 for expo in self.pars['device']['manual_expo']:
@@ -819,88 +985,9 @@ class Main:
                         self.ZDspectr = np.array(self.ZSspectr) - np.array(self.Dspectr)
                         self.analyze_spectr(self.ZDspectr)
                         self.write_file()
-                        
+                        self.mesure_data[self.chan] = self.text
         except Exception as err:
             print(err,sys.exc_info()[-1].tb_lineno)
-
-    def calculate_final_files(self,file,mode):
-        try:
-            if file:
-                with open(file) as f:
-                    all_data = f.readlines()
-                    data = all_data[1:]
-                if mode=='ZD':
-                    corrects = [] # Новые корректировки
-                    lines_arr_raw_to_file = [] # Массив старых строк с лишними \t с делением на \t
-                    lines_arr_new_to_file = [] # Массив новых  строк с лишними \t с делением на \t
-                    o3s = [] # Весь озон
-                    o3s_tmp = [] # 600> Озон >150 (Первая корректировка при измерении)
-                    for line in data:
-                        line_arr_raw = line.split('\t')
-                        lines_arr_raw_to_file.append(line_arr_raw)
-                        line_arr = [i for i in line_arr_raw if i]
-                        correct = int(line_arr[-1])
-                        o3 = int(line_arr[-2])
-                        o3s.append(o3)
-                        if correct==1:
-                            o3s_tmp.append(o3)
-                    sigma = round(np.std(o3s_tmp),3)
-                    mean = int(np.mean(o3s_tmp))
-                    for i in o3s:
-                        if mean - self.pars['calibration']['sigma_count']*sigma < i < mean + self.pars['calibration']['sigma_count']*sigma:
-                            corrects.append('1')
-                        else:
-                            corrects.append('0')
-       
-                    with open(os.path.join(os.path.dirname(file),'mean_'+os.path.basename(file)),'w') as f:
-                        print('\t'.join(all_data[:1]),file=f,end='')
-                        for line,correct in zip(lines_arr_raw_to_file,corrects):
-                            print('\t'.join(line[:-1]+[correct]),file=f)
-                        print('Среднее значение ОСО: {}\nСтандартное отклонение: {}'.format(mean,sigma),file=f)
-                elif mode=='SD':
-                    pass
-        except Exception as err:
-            print(err,sys.exc_info()[-1].tb_lineno)
-            
-##    def calculate_final_files(self):
-##        try:
-##            for file,mode in zip([self.last_file_o3,self.last_file_uv],['ozone','uv']):
-##                if file:
-##                    with open(file) as f:
-##                        all_data = f.readlines()
-##                        data = all_data[1:]
-##                    if mode=='ozone':
-##                        corrects = [] # Новые корректировки
-##                        lines_arr_raw_to_file = [] # Массив старых строк с лишними \t с делением на \t
-##                        lines_arr_new_to_file = [] # Массив новых  строк с лишними \t с делением на \t
-##                        o3s = [] # Весь озон
-##                        o3s_tmp = [] # 600> Озон >150 (Первая корректировка при измерении)
-##                        for line in data:
-##                            line_arr_raw = line.split('\t')
-##                            lines_arr_raw_to_file.append(line_arr_raw)
-##                            line_arr = [i for i in line_arr_raw if i]
-##                            correct = int(line_arr[-1])
-##                            o3 = int(line_arr[-2])
-##                            o3s.append(o3)
-##                            if correct==1:
-##                                o3s_tmp.append(o3)
-##                        sigma = round(np.std(o3s_tmp),3)
-##                        mean = int(np.mean(o3s_tmp))
-##                        for i in o3s:
-##                            if mean - self.pars['calibration']['sigma_count']*sigma < i < mean + self.pars['calibration']['sigma_count']*sigma:
-##                                corrects.append('1')
-##                            else:
-##                                corrects.append('0')
-##           
-##                        with open(os.path.join(os.path.dirname(file),'mean_'+os.path.basename(file)),'w') as f:
-##                            print('\t'.join(all_data[:1]),file=f,end='')
-##                            for line,correct in zip(lines_arr_raw_to_file,corrects):
-##                                print('\t'.join(line[:-1]+[correct]),file=f)
-##                            print('Среднее значение ОСО: {}\nСтандартное отклонение: {}'.format(mean,sigma),file=f)
-##                    elif mode=='uv':
-##                        pass
-##        except Exception as err:
-##            print(err,sys.exc_info()[-1].tb_lineno)
 
 class check_sun_and_mesure():
     def __init__(self):
@@ -924,8 +1011,9 @@ class check_sun_and_mesure():
                     main.nms2pixs()
                     print('=== Запуск измерения ===')
                     main.mesure()
-                    main.calculate_final_files(main.last_file_o3,'ZD')
-##                    print('< calculated_final_files')
+                    calculate_final_files(self.pars,main.last_file_o3,'ZD')
+                    
+                    main.make_line()
                     
 ##                    time.sleep(1) # mesure
                     print('========================')
@@ -937,11 +1025,20 @@ class check_sun_and_mesure():
                     
 ##                    if self.sunheight >= self.pars["station"]["sun_height_min"]:
                     print('Следующее измерение: {}'.format(str(next_time).split('.')[0]))
+
+                    # Send files
+                    for file2send in os.listdir(main.path_sending):
+                        if datetime.datetime.now() < next_time:
+                            sending_file = os.path.join(main.path_sending,file2send)
+                            tex = main.send_file(sending_file)
+                            logging.debug(str(tex))
+                            for prot in tex.keys():
+                                if tex[prot]=='OK':
+                                    os.remove(sending_file)
                     while datetime.datetime.now() < next_time:
-##                        print('Wait',datetime.datetime.now())
                         time.sleep(1)
                 else:
-                    main.calculate_final_files(main.last_file_o3,'ZD')
+                    calculate_final_files(self.pars,main.last_file_o3,'ZD')
                     print('\rСледующее измерение: {}'.format(get_time_next_start(self.pars["station"]["latitude"],
                                                                                self.pars["station"]["longitude"],
                                                                                self.pars["station"]["timezone"],
