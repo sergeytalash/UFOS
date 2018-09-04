@@ -158,12 +158,26 @@ def erithema(x,c):
 def read_sensitivity(path,ufos_id):
     with open(os.path.join(path,'sensitivity{}.txt'.format(ufos_id))) as f:
         sens = f.readlines()
-    return([float(i.strip()) for i in sens])
+##        new = []
+##        for i in sens:
+##            i = i.strip()
+##            try:
+##                new.append(float(i))
+##            except:
+##                print([i])
+    return([float(i.strip()) for i in sens if i.strip()])
 
 def read_sensitivity_eritem(path,ufos_id):
     with open(os.path.join(path,'senseritem{}.txt'.format(ufos_id))) as f:
         sens = f.readlines()
-    return([float(i.strip()) for i in sens])
+##        new = []
+##        for i in sens:
+##            i = i.strip()
+##            try:
+##                new.append(float(i))
+##            except:
+##                print([i])
+    return([float(i.strip()) for i in sens if i.strip()])
 
 def nm2pix(nm,configure2,add):
     nm = float(nm)
