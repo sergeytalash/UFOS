@@ -545,38 +545,43 @@ def send_files(home,file2send):
         R34_01      = pars['R34_0']
         kdX1        = pars['kdX']
 ##        expo1,channel1,accum1,gain1,set_run,dev_id1,time1,repeat1,max1,latitude1,longitude1,pix2nm1,kz1,kz_obl1,omega1,hs1,points1,pixels1,hour_pelt1,auto_exp1 = pars['expo'],pars['channel'],pars['accummulate'],pars['gain'],pars['set_run'],pars['dev_id'],pars['time'],pars['repeat'],pars['max'],pars['latitude'],pars['longitude'],pars['pix2nm'],pars['kz'],pars['kz_obl'],pars['omega'],pars['hs'],pars['points'],pars['pix+-'],pars['hour_pelt'],pars['auto_exp']
-        data4send = """#{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11}@{12};{13};{14};{15};{16};{17};{18};{19};{20};{21};{22};{23};{24};{25};{26};{27};{28};{29};{30};{31}#""".format(dev_id,
-                                                                                                                                                                                                                    station_id,
-                                                                                                                                                                                         channel,
-                                                                                                                                                                                         date_time,
-                                                                                                                                                                                         exp,
-                                                                                                                                                                                         gain,
-                                                                                                                                                                                         temp,
-                                                                                                                                                                                         ozone,
-                                                                                                                                                                                         uva,
-                                                                                                                                                                                         uvb,
-                                                                                                                                                                                         uve,
-                                                                                                                                                                                         spect,
-                                                                                                                                                                                         expo1,
-                                                                                                                                                                                         channel1,
-                                                                                                                                                                                         accum1,
-                                                                                                                                                                                         gain1,
-                                                                                                                                                                                         set_run,
-                                                                                                                                                                                         dev_id1,
-                                                                                                                                                                                         time1,
-                                                                                                                                                                                         repeat1,
-                                                                                                                                                                                         max1,
-                                                                                                                                                                                         latitude1,
-                                                                                                                                                                                         longitude1,
-                                                                                                                                                                                         pix2nm1,
-                                                                                                                                                                                         kz1,
-                                                                                                                                                                                         kz_obl1,
-                                                                                                                                                                                         omega1,
-                                                                                                                                                                                         hs1,
-                                                                                                                                                                                         points1,
-                                                                                                                                                                                         pixels1,
-                                                                                                                                                                                         hour_pelt1,
-                                                                                                                                                                                         auto_exp1)
+        data4send = """#{0};{1};{2};{3};{4};{5};\
+{6};{7};{8};{9};{10};\
+{11}@{12};{13};{14};{15};\
+{16};{17};{18};{19};{20};\
+{21};{22};{23};{24};{25};\
+{26};{27};{28};{29};{30};{31}#""".format(dev_id,
+                                         station_id,
+                                         channel,
+                                         date_time,
+                                         exp,
+                                         gain,
+                                         temp,
+                                         ozone,
+                                         uva,
+                                         uvb,
+                                         uve,
+                                         spect,
+                                         expo1,
+                                         channel1,
+                                         accum1,
+                                         gain1,
+                                         set_run,
+                                         dev_id1,
+                                         time1,
+                                         repeat1,
+                                         max1,
+                                         latitude1,
+                                         longitude1,
+                                         pix2nm1,
+                                         kz1,
+                                         kz_obl1,
+                                         omega1,
+                                         hs1,
+                                         points1,
+                                         pixels1,
+                                         hour_pelt1,
+                                         auto_exp1)
         #-----------socket-------------
         s_type = ''
         tex = ''
@@ -728,16 +733,14 @@ def time_code(start):
         print(time_code.ct)
 
 def read_connect(home):
-    path = os.path.join(home,'connect.ini')
-    f = open(path,'r')
-    data = f.readlines()
-    f.close()
-    new_data = {}
-    for i in data:
-        if i[0] not in ['\n',' ','#']:
-            line = i.replace(' ','').replace('\n','').split('=')
-            new_data[line[0]] = line[1]
-    return(new_data)
+    with open(os.path.join(home,'connect.ini')) as f:
+        data = f.readlines()
+        new_data = {}
+        for i in data:
+            if i[0] not in ['\n',' ','#']:
+                line = i.replace(' ','').replace('\n','').split('=')
+                new_data[line[0]] = line[1]
+        return(new_data)
             
     
 def pix2nm(abc,pix,digs,add):
