@@ -38,10 +38,10 @@ class gui:
                 t2 = t
             if self.tree_dot==1:
 ##                t2 = ' ⮡ '+t
-                t2 = ' '+t
+                t2 = global_separator + t
             elif self.tree_dot>1:
                 t2 = self.tree_dot*' '+t
-##                t2 = self.tree_dot*'  '+' ⮡ '+t
+##                t2 = self.tree_dot*global_separator+' ⮡ '+t
             
             lab = ttk.Label(root,text=t2,font=self.font)
             lab.grid(column=self.column,row=self.row,sticky='w',padx=self.padx,pady=self.pady)
@@ -85,7 +85,7 @@ class gui:
                 continue
             if type(i)==ttk.Label:
                 t = str(Widget.cget(i,'text'))
-                fs = t.count(' ')
+                fs = t.count(global_separator)
                 if tmp_queue:
                     for k in range(old_fs-fs+1):
                         tmp_queue.pop()
@@ -161,6 +161,7 @@ def start_with_all_settings(*event):
 """============== GUI Structure =============="""
 ## Отображать только настройки для наблюдателей станции
 show_settings_for_station = True
+global_separator = '  '
 
 root = Tk()
 root.title('УФОС Настройка')
