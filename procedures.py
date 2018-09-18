@@ -893,7 +893,10 @@ class Main:
         """Определение номера последнего измерения"""
         try:
             files = os.listdir(self.path)
-            self.mesure_count = max(set([int(i.split('_')[1]) for i in files if i.count('_')==3]))
+            if files:
+                self.mesure_count = max(set([int(i.split('_')[1]) for i in files if i.count('_')==3]))
+            else:
+                self.mesure_count = 1
         except:
             pass
         try:
