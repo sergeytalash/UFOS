@@ -295,8 +295,8 @@ class Ufos_connection:
                     self.opened_serial.close()
                     return({'com_number':value,'com_obj':self.opened_serial})
         except WindowsError:
-            text = "Кабель UFOS не подключен к ПК"
-            print(text)
+            text = "Кабель не подключен к ПК!                   "
+            print(text, end='\r')
             logging.error(text)
             
 class Calculate_only:
@@ -372,8 +372,6 @@ class Ufos_data:
         accum - количество суммирований измерений (время измерения = expo * accum)
         mesure_type - тип измерений (Z=зенит, S=полусфера, D=темновой)
         start_mesure - S=запустить измерение, любой другой символ только переключит канал измерения."""
-
-        self.tries = 0
         self.expo = expo
         self.accum = accum
         self.start_mesure = start_mesure
@@ -397,7 +395,7 @@ class Ufos_data:
         for byte in parameters:
             self.data_send += byte
             
-    def device_ask(self):
+    def device_ask(self, tries):
         data = b''
         to = int(self.expo * self.accum / 1000) + 1
         self.com_obj = Ufos_connection(to).get_com()['com_obj']
@@ -413,6 +411,7 @@ class Ufos_data:
                 byte = self.com_obj.read(1)
             self.com_obj.close()
         if data:
+            tries = 0
             i = data[6:10]
             t1 = (i[0] * 255 + i[1]) / 10 #Линейка
             t2 = (i[2] * 255 + i[3]) / 10 #Полихроматор
@@ -427,15 +426,15 @@ class Ufos_data:
             else:
                 spectr = [0]
                 text = ''
-            self.tries = 0
-            return(spectr[:3691], t1, t2, text)
+            return(spectr[:3691], t1, t2, text, tries)
         else:
-            if self.tries>1:
+##            print(tries)
+            if tries>1:
                 text ='Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
                 print(text)
                 logging.error(text)
-            self.tries += 1
-            return([0],0,0,'')
+            tries += 1
+            return([0],0,0,'',tries)
     
 class settings:
     def get(home):
@@ -564,6 +563,7 @@ def write_final_file(pars,home,chan,date_utc,sunheight,calc_result,add_to_name,c
 class Main:
     """UFOS mesure class"""
     def __init__(self,pars):
+        self.tries = 0
         self.mesure_count = 0
         self.last_file_o3 = ''
         self.last_file_uv = ''
@@ -741,7 +741,8 @@ class Main:
     
     def change_channel(self,chan):
         logging.debug('Переключение на канал {}.'.format(self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8')))
-        data,t1,t2,text = Ufos_data(50,self.pars['device']['accummulate'],chan, 'N').device_ask()
+        data,t1,t2,text,self.tries = Ufos_data(50,self.pars['device']['accummulate'],chan, 'N').device_ask(self.tries)
+        return self.tries
 
     def write_file4send(self,chan,data4send):
         with open(os.path.join(self.path_sending,self.file2send[chan]),'w') as f:
@@ -907,12 +908,18 @@ class Main:
                 for chan in self.pars['device']['channel']:
                     self.expo = self.pars['device']['auto_expo_min']
                     self.ZSspectr = [0]
+                    self.tries = 0
                     self.change_channel(chan)
+                    if self.tries > 0:
+                        raise TypeError
+                    else:
+                        print()
                     while self.expo<self.pars['device']['auto_expo_max'] and max(self.ZSspectr)<self.pars['device']['amplitude_max']:
+                        
                         try:
                             text = 'Канал {}. Эксп = {}'.format(self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),self.expo)
                             print(text,end='')
-                            self.ZSspectr, self.t1, self.t2, text2 = Ufos_data(self.expo,self.pars['device']['accummulate'],chan,'S').device_ask()
+                            self.ZSspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,self.pars['device']['accummulate'],chan,'S').device_ask(self.tries)
                             text += ' ' + text2
                             print('\r{}'.format(text))
                             logging.info(text)
@@ -933,7 +940,7 @@ class Main:
                         self.expo = self.pars['device']['auto_expo_max']
                         text = 'Канал {}. Эксп = {}'.format(self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),self.expo)
                         print(text)
-                        self.ZSspectr, self.t1, self.t2, text2 = Ufos_data(self.expo,self.pars['device']['accummulate'],chan,'S').device_ask()
+                        self.ZSspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,self.pars['device']['accummulate'],chan,'S').device_ask(self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text),end=' ')
                         logging.info(text)
@@ -946,7 +953,7 @@ class Main:
                     self.change_channel('D')
                     text = 'Канал {}. Эксп = {}'.format(self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),self.expo)
                     print(text)
-                    self.Dspectr, self.t1, self.t2, text2 = Ufos_data(self.expo,self.pars['device']['accummulate'],'D','S').device_ask()
+                    self.Dspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,self.pars['device']['accummulate'],'D','S').device_ask(self.tries)
                     text += ' ' + text2
                     print('\r{}'.format(text),end=' ')
                     logging.info(text)
@@ -972,9 +979,9 @@ class Main:
                         self.change_channel(chan)
                         text ='Канал {}. Эксп = {}'.format(self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),self.expo)
                         print(text)
-                        self.ZSspectr, self.t1, self.t2, text2 = Ufos_data(self.expo,self.pars['device']['accummulate'],
+                        self.ZSspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,self.pars['device']['accummulate'],
                                                    chan,
-                                                   'S').device_ask()
+                                                   'S').device_ask(self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text),end=' ')
                         logging.info(text)
@@ -987,7 +994,7 @@ class Main:
                         self.change_channel('D')
                         text = 'Канал {}. Эксп = {}'.format(self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),self.expo)
                         print(text)
-                        self.Dspectr, self.t1, self.t2, text2 = Ufos_data(self.expo,self.pars['device']['accummulate'],'D','S').device_ask()
+                        self.Dspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,self.pars['device']['accummulate'],'D','S').device_ask(self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text),end=' ')
                         logging.info(text)
@@ -1003,7 +1010,11 @@ class Main:
                         self.analyze_spectr(self.ZDspectr)
                         self.write_file()
                         self.mesure_data[self.chan] = self.text
+        except TypeError:
+##            print("No data from UFOS")
+            pass
         except Exception as err:
+            print("procedures.Main.mesure:", end='')
             print(err,sys.exc_info()[-1].tb_lineno)
 
 class check_sun_and_mesure():
@@ -1026,34 +1037,35 @@ class check_sun_and_mesure():
                 if self.sunheight >= self.pars["station"]["sun_height_min"]:
                     
                     main.nms2pixs()
-                    print('=== Запуск измерения ===')
+                    print('=== Запуск измерения ===                      ',end='\r')
                     main.mesure()
-                    calculate_final_files(self.pars,main.last_file_o3,'ZD')
                     
-                    main.make_line()
-                    
-##                    time.sleep(1) # mesure
-                    print('========================')
-                    next_time = self.time_now_1 + datetime.timedelta(minutes=self.pars["station"]["interval"])
-                    self.mu,self.amas,self.sunheight = sunheight(self.pars["station"]["latitude"],
+                    if main.tries > 0:
+                        print('Кабель подключен к ПК, но не подключен к УФОС!',end='\r')
+                        time.sleep(10)
+                    else:
+                        calculate_final_files(self.pars,main.last_file_o3,'ZD')
+                        main.make_line()
+                        print('========================')
+                        next_time = self.time_now_1 + datetime.timedelta(minutes=self.pars["station"]["interval"])
+                        self.mu,self.amas,self.sunheight = sunheight(self.pars["station"]["latitude"],
                                                              self.pars["station"]["longitude"],
                                                              next_time,
                                                              self.pars["station"]["timezone"])
                     
-##                    if self.sunheight >= self.pars["station"]["sun_height_min"]:
-                    print('Следующее измерение: {}'.format(str(next_time).split('.')[0]))
+                        print('Следующее измерение: {}'.format(str(next_time).split('.')[0]))
 
-                    # Send files
-                    for file2send in os.listdir(main.path_sending):
-                        if datetime.datetime.now() < next_time:
-                            sending_file = os.path.join(main.path_sending,file2send)
-                            tex = main.send_file(sending_file)
-                            logging.debug(str(tex))
-                            for prot in tex.keys():
-                                if tex[prot]=='OK':
-                                    os.remove(sending_file)
-                    while datetime.datetime.now() < next_time:
-                        time.sleep(1)
+                        # Send files
+                        for file2send in os.listdir(main.path_sending):
+                            if datetime.datetime.now() < next_time:
+                                sending_file = os.path.join(main.path_sending,file2send)
+                                tex = main.send_file(sending_file)
+                                logging.debug(str(tex))
+                                for prot in tex.keys():
+                                    if tex[prot]=='OK':
+                                        os.remove(sending_file)
+                        while datetime.datetime.now() < next_time:
+                            time.sleep(1)
                 else:
                     calculate_final_files(self.pars,main.last_file_o3,'ZD')
                     print('\rСледующее измерение: {}'.format(get_time_next_start(self.pars["station"]["latitude"],
@@ -1064,7 +1076,11 @@ class check_sun_and_mesure():
                     time.sleep(5)
             except serial.serialutil.SerialException as err:
                 print(err)
+            except TypeError:
+##                print('.')
+                time.sleep(10)
             except Exception as err:
+##                print(sys.exc_info())
                 print(err,sys.exc_info()[-1].tb_lineno)
                 time.sleep(10)
             
