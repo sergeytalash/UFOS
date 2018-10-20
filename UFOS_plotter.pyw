@@ -870,6 +870,7 @@ def make_o3file():
     curr_time = []
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
+    mean_file = 0
     j = 1
     start = PlotClass(right_panel, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all_get, chk_var_with_sens.get())
     if chk_read_file_get==0: # Чтение из файла
@@ -884,21 +885,26 @@ def make_o3file():
         directory = mode.join(path_name[0].split('Mesurements'))
         name0 = 'm{}_{}_{}.txt'.format(start.var_settings['device']['id'],mode,path_name[1].replace('-',''))
         file = os.path.join(directory, name0)
-        # Mean file
-
-        if chk_show_correct1_get == 0:
-            mean_file = 1
-            name = 'mean_' + name0
-            file = os.path.join(directory, name)
-            if not os.path.exists(file):
-                # Read manual saved mean file
-                name = 'mean_New_' + name0
+        if mode == 'Ozone':
+            # Mean file
+            if chk_show_correct1_get == 0:
+                mean_file = 1
+                name = 'mean_' + name0
                 file = os.path.join(directory, name)
-        # Common file
-        elif chk_show_correct1_get==1:
-            mean_file = 0
-            name = name0
-            file = os.path.join(directory, name)
+                if not os.path.exists(file):
+                    # Read manual saved mean file
+                    name = 'mean_New_' + name0
+                    file = os.path.join(directory, name)
+            # Common file
+            elif chk_show_correct1_get==1:
+                mean_file = 0
+                name = name0
+                file = os.path.join(directory, name)
+                if not os.path.exists(file):
+                    # Read manual saved file
+                    name = 'New_' + name0
+                    file = os.path.join(directory, name)
+        elif mode == 'UV':
             if not os.path.exists(file):
                 # Read manual saved file
                 name = 'New_' + name0
@@ -906,35 +912,50 @@ def make_o3file():
         if os.path.exists(file):
             with open(file) as f:
                 data_raw = f.readlines()
-                use_correct = 1
-                if data_raw[0].count('Correct') == 0:
-                    column['ozone'] = -1
-                    use_correct = 0
-                    delimiter = '\t'
-                elif data_raw[0].count('Correct') == 1:
-                    column['ozone'] = -2
-
-                    delimiter = '\t'
-                elif data_raw[0].count('Correct') == 2:
-                    column['ozone'] = [-4, -2]
-                    delimiter = ';'
-                data = [i for i in data_raw if i[0].isdigit()]
-                for i in data:
-                    line_arr = [j for j in i.split(delimiter) if j!='']
-                    if o3_mode=='ozone':
+                if mode == 'Ozone':
+                    use_correct = 1
+                    if data_raw[0].count('Correct') == 0:
+                        column['ozone'] = -1
+                        use_correct = 0
+                        delimiter = '\t'
+                    elif data_raw[0].count('Correct') == 1:
+                        column['ozone'] = -2
+                        delimiter = '\t'
+                    elif data_raw[0].count('Correct') == 2:
+                        column['ozone'] = [-4, -2]
+                        delimiter = ';'
+                    data = [i for i in data_raw if i[0].isdigit()]
+                    for i in data:
+                        line_arr = [j for j in i.split(delimiter) if j!='']
                         if use_correct:
-                            if int(line_arr[-3]) or chk_show_all_get:
-                                start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
-                                start.y1.append(int(line_arr[column[o3_mode][0]]))
-                            if int(line_arr[-1]) or chk_show_all_get:
-                                start.x2.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
-                                start.y2.append(int(line_arr[column[o3_mode][1]]))
-                sr1, sr2 = 0, 0
-                if start.y1:
-                    sr1 = int(np.mean(start.y1))
-                if start.y2:
-                    sr2 = int(np.mean(start.y2))
-                tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
+                            if column['ozone'] == [-4, -2]:
+                                if int(line_arr[-3]) or chk_show_all_get:
+                                    start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+                                    start.y1.append(int(line_arr[column[o3_mode][0]]))
+                                if int(line_arr[-1]) or chk_show_all_get:
+                                    start.x2.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+                                    start.y2.append(int(line_arr[column[o3_mode][1]]))
+                            if column['ozone'] == -2:
+                                if int(line_arr[-1]) or chk_show_all_get:
+                                    start.x2.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+                                    start.y2.append(int(line_arr[column[o3_mode]]))
+                    sr1, sr2 = 0, 0
+                    if start.y1:
+                        sr1 = int(np.mean(start.y1))
+                    if start.y2:
+                        sr2 = int(np.mean(start.y2))
+                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
+                elif mode == 'UV':
+                    if data_raw[0].count('\t') > 0:
+                        delimiter = '\t'
+                    else:
+                        delimiter = ';'
+                    data = [i for i in data_raw if i[0].isdigit()]
+                    for i in data:
+                        line_arr = [j for j in i.split(delimiter) if j != '']
+                        start.x1.append(datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                        start.y1.append(int(line_arr[column[o3_mode]]))
+
 
         if len(start.x1) == 0 and len(start.x2) == 0:
             tex = """Конечного файла измерений не найдено!
