@@ -984,7 +984,126 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
     if not chk_read_file_get:
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
-      
+
+def make_all_o3files():
+    """Make all"""
+    global path
+    global curr_o3
+    global canvas
+    global canvs
+    global gr_ok
+    global curr_time
+    global ida
+    global o3_plotted
+    global root
+    global o3_mod
+    global file_name
+    global tmp_path
+    
+    def make_txt_list_ZSD(directory):
+        txtfiles = []
+        try:
+            for files in os.listdir(directory):
+                if files[-3:] == "txt" and files.count("-D")>0:
+                    txtfiles.append(files)
+                if files[0]=='m' and files.split('_')[2] in ['ZD','SD']:
+                    txtfiles.append(files)
+        except:
+            pass
+        return txtfiles
+    
+    chk_read_file_get = 1
+    chk_show_all  = 1
+    mode = 0
+    if mode==0:
+        o3_mode = 'ozone'
+        tex = 'Идет пересчёт озона'
+
+    o3_mod = o3_mode
+    currnt_data.configure(text = '')
+    lab_ozon.configure(text = tex)
+    root.update()
+    plotx, ploty = change_geometry(root)
+    curr_time = []
+    txt = make_txt_list_ZSD(path)
+    gr_ok = 0
+    j = 1
+    start = plot_class(right_panel,o3_mode,plotx,ploty,chk_read_file_get,chk_show_all,chk_var_with_sens.get())
+    if 1: # Пересчёт
+        mean_file = 0
+        global ts
+        global shs
+        global crs
+        ts,shs,crs = [],[],[]
+        saving = Final_File(start.var_settings,home,o3_mode)
+
+        try:
+            start_dir = r"\2018\2018-09"
+            ufos_number = "7"
+            for root_dir, dirs, files in os.walk(r"D:\UFOS\Ufos_{}\Mesurements{}".format(ufos_number,start_dir)):
+                txt = []
+                if files:
+                    for file_name in files:
+                        if file_name.count('ZD')>0 or file_name.count('Z-D')>0:
+                            file_path = os.path.join(root_dir,file_name)
+                            txt.append(file_path)
+                    for i in txt:
+                        start.uvs_or_o3['ZD'] = {}
+                        
+                        chan = ''
+                        file_name = i.split('_')[1]
+                        if i.count("Z-D")>0 or i.count("ZD")>0:
+                            color = 'black'
+                        else:
+                            color = 'blue'
+                        file = i
+                        if o3_mode=='ozone':
+                            chan = 'ZD'
+                            if i.count("Z-D")>0 or i.count("ZD")>0:
+                                start.get_spectr(file)
+                                start.calc_ozon()
+                                t,sh,cr = saving.prepare(start.data['datetime'],
+                                                            start.uvs_or_o3['ZD'])
+                                ts.append(t)
+                                shs.append(sh)
+                                crs.append(cr)
+                    if start.x:
+                        saving.save(start.var_settings,home,chan,ts,shs,crs)
+                        lab_currnt_data.configure(text = 'Идёт обработка'.format(start.x[0]))
+                        root.update()
+        except Exception as err:
+            print(err,sys.exc_info()[-1].tb_lineno)
+    try:
+        if start.x:
+            lab_currnt_data.configure(text = 'Дата: {0}'.format(start.x[0]))
+            if o3_mode=='ozone':
+                tex = 'Значение озона:\n{0} е.Д.'.format(int(sum(start.y)//len(start.y)))
+
+            o3_plotted = 1
+        else:
+            o3_plotted = 0
+        if mean_file:
+            tex += '::'
+        else:
+            tex += ':'
+##        print("OK")
+        
+    except Exception as err:
+        print('plotter.make_all_o3files():',end='')
+        print(err,sys.exc_info()[-1].tb_lineno)
+        
+    finally:
+        lab_ozon.configure(text = tex)
+        lab_uva.configure(text = '')
+        lab_uvb.configure(text = '')
+        lab_uve.configure(text = '')
+        lab_sun.configure(text = '')
+
+    for i in buttons:
+        i.configure(state=NORMAL)
+
+
+        
 if __name__ == '__main__':
     """============== <Main> =============="""
     root = Tk()
@@ -1073,6 +1192,7 @@ if __name__ == '__main__':
     chk_show_all = ttk.Checkbutton( admin_panel,    text = 'Показать все точки',variable = chk_var_show_all)
     but_save_to_final_file = ttk.Button(admin_panel,text = 'Сохранить в файл')
     but_make_mean_file = ttk.Button(admin_panel,    text = 'Сохранить в файл среднего')
+    all_o3files_btn = ttk.Button(   admin_panel,    text = 'Пересчёт всех файлов',command = make_all_o3files)
     var_top = IntVar()
     var_top.set(1)
     rad_4096 = ttk.Radiobutton(     admin_panel,    text = 'Единая шкала',variable = var_top,value = 0)
@@ -1083,7 +1203,7 @@ if __name__ == '__main__':
     uv.set(4)
     but_remake = ttk.Button(        admin_panel,    text = 'Новый формат Z-D',command = b_remake)
     but_send = ttk.Button(          admin_panel,    text = host,command = send_all_files_plotter)
-    admin_menu_obj = [chk_with_sens,chk_show_all,chk_read_file,but_save_to_final_file,but_make_mean_file,rad_4096,rad_ytop,but_plot_more,but_remake,but_send]
+    admin_menu_obj = [chk_with_sens,chk_show_all,chk_read_file,but_save_to_final_file,but_make_mean_file,all_o3files_btn,rad_4096,rad_ytop,but_plot_more,but_remake,but_send]
     
     # Main Menu
     but_refresh = ttk.Button(       menu_panel,     text = 'Обновить',command = refresh)
@@ -1093,6 +1213,7 @@ if __name__ == '__main__':
     rad_uva = ttk.Radiobutton(      menu_panel,     text = 'УФ-А',variable = uv,value = 1,command = make_o3file)
     rad_uvb = ttk.Radiobutton(      menu_panel,     text = 'УФ-Б',variable = uv,value = 2,command = make_o3file)
     rad_uve = ttk.Radiobutton(      menu_panel,     text = 'УФ-Э',variable = uv,value = 3,command = make_o3file)
+    
     ent_code = ttk.Entry(           menu_panel,  width = 2)
     main_menu_obj = [but_refresh,but_dir,rad_spectr,rad_o3file,rad_uva,rad_uvb,rad_uve,ent_code]
     
@@ -1161,7 +1282,7 @@ if __name__ == '__main__':
         
     ##Скрыть следующие кнопки
     common =        [rad_4096,rad_ytop,but_plot_more,but_remake]
-    sertification = [rad_4096,rad_ytop,but_plot_more,rad_uva,rad_uvb,rad_uve,but_remake,chk_read_file,but_save_to_final_file,but_make_mean_file]
+    sertification = [rad_4096,rad_ytop,but_plot_more,rad_uva,rad_uvb,rad_uve,but_remake,chk_read_file,but_save_to_final_file,but_make_mean_file,all_o3files_btn]
     change_privileges(common,0)
      
         
