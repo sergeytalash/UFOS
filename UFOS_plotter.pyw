@@ -402,7 +402,7 @@ def obj_grid():
     for i in admin_menu_obj:
         i.grid(row=r,column=c,sticky='we')
         c += 1
-        if admin_menu_obj.index(i) > 3 and bit:
+        if admin_menu_obj.index(i) > 4 and bit:
             r += 1
             c = 0
             bit = 0
@@ -568,7 +568,7 @@ def plot_spectr(*event):
     start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
-        lab_ozon.configure(text='Значение озона P1:P2 {}:{}'.format(start.o3_1, start.o3_2))
+        lab_ozon.configure(text='Значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(start.o3_1, start.o3_2))
     if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
         for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
             start.calc_uv(mode, False)
@@ -833,7 +833,8 @@ def make_o3file():
             pass
         return txtfiles
     chk_read_file_get = chk_var_read_file.get()
-    chk_show_all  = chk_var_show_all.get()
+    chk_show_all_get  = chk_var_show_all.get()
+    chk_show_correct1_get = chk_var_show_correct1.get()
     canvs_destroy(canvs)
     try:
         dir_list.dirs_window.destroy()
@@ -870,7 +871,7 @@ def make_o3file():
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
     j = 1
-    start = PlotClass(right_panel, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all, chk_var_with_sens.get())
+    start = PlotClass(right_panel, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all_get, chk_var_with_sens.get())
     if chk_read_file_get==0: # Чтение из файла
         column = {'ozone':-2,'uva':-3,'uvb':-2,'uve':-1}
 ##        datetime_index = 0 # UTC
@@ -881,44 +882,61 @@ def make_o3file():
             mode = 'UV'
         path_name = os.path.split(path)
         directory = mode.join(path_name[0].split('Mesurements'))
-        name = 'mean_m{}_{}_{}.txt'.format(start.var_settings['device']['id'],mode,path_name[1].replace('-',''))
-        file = os.path.join(directory,name)
-        mean_file = 1
-        if not os.path.exists(file):
-            name = name.replace('mean_','mean_New_')
-            file = os.path.join(directory,name)
-        if not os.path.exists(file):
+        name0 = 'm{}_{}_{}.txt'.format(start.var_settings['device']['id'],mode,path_name[1].replace('-',''))
+        file = os.path.join(directory, name0)
+        # Mean file
+
+        if chk_show_correct1_get == 0:
+            mean_file = 1
+            name = 'mean_' + name0
+            file = os.path.join(directory, name)
+            if not os.path.exists(file):
+                # Read manual saved mean file
+                name = 'mean_New_' + name0
+                file = os.path.join(directory, name)
+        # Common file
+        elif chk_show_correct1_get==1:
             mean_file = 0
-            name = name.replace('mean_New_','New_')
-            file = os.path.join(directory,name)
+            name = name0
+            file = os.path.join(directory, name)
+            if not os.path.exists(file):
+                # Read manual saved file
+                name = 'New_' + name0
+                file = os.path.join(directory, name)
         if os.path.exists(file):
             with open(file) as f:
                 data_raw = f.readlines()
+                use_correct = 1
                 if data_raw[0].count('Correct') == 0:
                     column['ozone'] = -1
                     use_correct = 0
                     delimiter = '\t'
                 elif data_raw[0].count('Correct') == 1:
                     column['ozone'] = -2
-                    use_correct = 1
+
                     delimiter = '\t'
                 elif data_raw[0].count('Correct') == 2:
                     column['ozone'] = [-4, -2]
-                    use_correct = 1
                     delimiter = ';'
                 data = [i for i in data_raw if i[0].isdigit()]
                 for i in data:
                     line_arr = [j for j in i.split(delimiter) if j!='']
                     if o3_mode=='ozone':
                         if use_correct:
-                            if int(line_arr[-3]):
+                            if int(line_arr[-3]) or chk_show_all_get:
                                 start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
                                 start.y1.append(int(line_arr[column[o3_mode][0]]))
-                            if int(line_arr[-1]):
+                            if int(line_arr[-1]) or chk_show_all_get:
                                 start.x2.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
                                 start.y2.append(int(line_arr[column[o3_mode][1]]))
+                sr1, sr2 = 0, 0
+                if start.y1:
+                    sr1 = int(np.mean(start.y1))
+                if start.y2:
+                    sr2 = int(np.mean(start.y2))
+                tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
 
-        if not start.x1:
+        if len(start.x1) == 0 and len(start.x2) == 0:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
 D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
@@ -981,7 +999,7 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
                     s2 = int(sum(start.y2) // len(start.y2))
                 except:
                     s2 = 0
-                tex = 'Значение озона:\nP1:P2 {}:{} е.Д.'.format(s1, s2)
+                tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s1, s2)
             elif o3_mode=='uva':
                 tex = 'УФ-А'
             elif o3_mode=='uvb':
@@ -992,9 +1010,9 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
         else:
             o3_plotted = 0
         if mean_file:
-            tex += '::'
+            tex += ' .'
         else:
-            tex += ':'
+            tex += ''
         start.plot(path)
         
     except Exception as err:
@@ -1100,7 +1118,10 @@ if __name__ == '__main__':
     chk_read_file = ttk.Checkbutton(admin_panel,    text = 'Пересчёт графика',variable = chk_var_read_file)
     chk_var_show_all = IntVar()
     chk_var_show_all.set(0)
-    chk_show_all = ttk.Checkbutton( admin_panel,    text = 'Показать все точки',variable = chk_var_show_all)
+    chk_show_all = ttk.Checkbutton( admin_panel,    text = 'Без корректировки',variable = chk_var_show_all)
+    chk_var_show_correct1 = IntVar()
+    chk_var_show_correct1.set(0)
+    chk_show_correct1 = ttk.Checkbutton(admin_panel,text = 'Корректировка 100-600', variable=chk_var_show_correct1)
     but_save_to_final_file = ttk.Button(admin_panel,text = 'Сохранить в файл')
     but_make_mean_file = ttk.Button(admin_panel,    text = 'Сохранить в файл среднего')
     var_top = IntVar()
@@ -1113,7 +1134,8 @@ if __name__ == '__main__':
     uv.set(4)
     but_remake = ttk.Button(        admin_panel,    text = 'Новый формат Z-D',command = b_remake)
     but_send = ttk.Button(          admin_panel,    text = host,command = send_all_files_plotter)
-    admin_menu_obj = [chk_with_sens, chk_show_all, chk_read_file, but_save_to_final_file, but_make_mean_file,
+    admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_read_file, but_save_to_final_file,
+                      but_make_mean_file,
                       rad_4096, rad_ytop, but_plot_more, but_remake, but_send]
     
     # Main Menu
