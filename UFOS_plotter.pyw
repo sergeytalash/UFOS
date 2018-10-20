@@ -2,9 +2,8 @@
 # Modified: 28.11.2017
 import matplotlib
 matplotlib.use('TkAgg')
-import os,datetime,time
-from PIL import ImageTk
-from time import sleep
+import os
+import datetime
 from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
@@ -16,7 +15,6 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import MultipleLocator
 from matplotlib.widgets import SpanSelector
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib import rc
 from shutil import copy
 import gc
 
@@ -32,9 +30,10 @@ def canvs_destroy(canvs):
         pass
     for i in canvs:
         i.get_tk_widget().destroy()
-        
-class plot_class:
-    def __init__(self,window,o3_mode,plotx,ploty,chk_read_file_get,chk_show_all,var_with_sens):
+
+
+class PlotClass:
+    def __init__(self, window, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all, var_with_sens):
         global timer
         global canvs
         self.chk_show_all = chk_show_all
@@ -62,45 +61,53 @@ class plot_class:
         self.hours = mdates.HourLocator()
         self.minutes = mdates.MinuteLocator()
         self.DateFmt = mdates.DateFormatter('%H:%M')
-        if self.o3_mode in ['ozone','uva','uvb','uve']:
+        if self.o3_mode in ['ozone', 'uva', 'uvb', 'uve']:
             self.point = 'o'
         elif self.o3_mode=='spectr':
             self.point = '-'
         # Calc ozone
-        self.o3 = 0
+        self.o3_1 = 0
+        self.o3_2 = 0
         self.uvs_or_o3['ZD'] = {}
         self.confZ = self.var_settings['calibration']['nm(pix)']['Z']
         self.prom = int(self.var_settings['calibration2']['pix+-'] / eval(self.confZ[1]))
         self.f = self.var_settings['station']['latitude']
         self.l = self.var_settings['station']['longitude']
         self.pelt = int(self.var_settings['station']['timezone'])
-        self.y = []
-        self.x = []
+        self.y1 = []
+        self.y2 = []
+        self.x1 = []
+        self.x2 = []
         # Calc UV
         self.uv = 0
         self.uvs_or_o3['SD'] = {}
-        self.curr_o3_dict = {'uva':[2,p_uva1,p_uva2],
-                             'uvb':[3,p_uvb1,p_uvb2],
-                             'uve':[4,p_uve1,p_uve2]}
-        self.sensitivity = read_sensitivity(home,self.var_settings['device']['id'])
-        self.sensitivity_eritem = read_sensitivity_eritem(home,self.var_settings['device']['id'])
+        self.curr_o3_dict = {'uva': [2, p_uva1, p_uva2],
+                             'uvb': [3, p_uvb1, p_uvb2],
+                             'uve': [4, p_uve1, p_uve2]}
+        self.sensitivity = read_sensitivity(home, self.var_settings['device']['id'])
+        self.sensitivity_eritem = read_sensitivity_eritem(home, self.var_settings['device']['id'])
         self.confS = self.var_settings['calibration']['nm(pix)']['S']
             
     def calc_ozon(self):
-        self.spectrum = spectr2zero(p_zero1,p_zero2,p_lamst,self.data['spectr'])
+        self.spectrum = spectr2zero(p_zero1, p_zero2, p_lamst, self.data['spectr'])
         """Расчет озона"""
-        self.o3,self.correct = pre_calc_o3(lambda_consts,lambda_consts_pix,self.spectrum,self.prom,self.data['mu'],self.var_settings,home)
-        self.uvs_or_o3['ZD'] = {'o3':self.o3,'correct':self.correct}
+        self.o3_1, self.correct1 = pre_calc_o3(lambda_consts1, lambda_consts_pix1, self.spectrum, self.prom, self.data['mu'],
+                                            self.var_settings, home)
+        self.o3_2, self.correct2 = pre_calc_o3(lambda_consts2, lambda_consts_pix2, self.spectrum, self.prom, self.data['mu'],
+                                            self.var_settings, home)
+        self.uvs_or_o3['ZD'] = {'o3_1': self.o3_1, 'o3_2': self.o3_2, 'correct1': self.correct1, 'correct2': self.correct2}
         if self.o3_mode!='spectr':
-            if self.chk_show_all or self.correct==1:
-                self.x.append(self.data['datetime'])
-                self.y.append(self.o3)
+            if self.chk_show_all or self.correct1==1 or self.correct2==1:
+                self.x1.append(self.data['datetime'])
+                self.x2.append(self.data['datetime'])
+                self.y1.append(self.o3_1)
+                self.y2.append(self.o3_2)
         
         
-    def calc_uv(self,uv_mode,add_point):
+    def calc_uv(self, uv_mode, add_point):
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
-        self.spectrum = spectr2zero(p_zero1,p_zero2,p_lamst,self.data['spectr'])
+        self.spectrum = spectr2zero(p_zero1, p_zero2, p_lamst, self.data['spectr'])
 ##        print(max(self.spectrum))
         try:
             if uv_mode in ['uva','uvb']:
@@ -121,8 +128,8 @@ class plot_class:
         self.uv = int(round(uv,0))
         self.uvs_or_o3['SD'][uv_mode] = self.uv
         if self.o3_mode!='spectr' and add_point:
-            self.x.append(self.data['datetime'])
-            self.y.append(self.uv)
+            self.x1.append(self.data['datetime'])
+            self.y1.append(self.uv)
         
     def get_spectr_new(self,file_path):
         """Get data from NEW file"""
@@ -199,7 +206,7 @@ class plot_class:
         plt.close()
         gc.collect()
 
-    def plot(self,path):
+    def plot(self, path):
         global timer
         global canvs
         
@@ -226,7 +233,7 @@ class plot_class:
                     count_z_d += 1
                     self.get_spectr(os.path.join(self.zen_path,i))
                     self.calc_ozon()
-##                    date,hs,ozon = plot_class.get_ozon(self,os.path.join(self.zen_path,i))
+##                    date,hs,ozon = PlotClass.get_ozon(self,os.path.join(self.zen_path,i))
                     if self.data['datetime'] and self.o3:
 ##                        print('+{}\t{}\t{}'.format([date],[hs],[ozon]))
                         ax.plot((self.data['datetime']),(self.o3), 'o', color='blue')
@@ -249,7 +256,8 @@ class plot_class:
                 del new_dates,new_hss,new_ozons,newfilelist
                 print('Graph updated at {}'.format(datetime.datetime.now()))
         ############################################################################
-        def set_xlim(ax,x,y,xmin,xmax,ymin,ymax,mode):
+        def set_xlim(ax, x, y, xmin, xmax, ymin, ymax, mode):
+            # print([x, y, xmin, xmax, ymin, ymax, mode])
             if self.o3_mode !='ozone':
                 if max(x)>xmax: xmax = max(x)
                 if min(x)<xmin: xmin = min(x)
@@ -336,11 +344,16 @@ class plot_class:
                 ax.set_ylabel('mWt/m^2')
                 print('new uve')
 ## ===================================================
-            if self.x:
-                #Plot 1
-                ax.plot(self.x,self.y, self.point, color='blue')
-                
-                set_xlim(ax,self.x,self.y,min(self.x),min(self.x)+datetime.timedelta(hours=2),100,600,'hour')
+            if len(self.y1) > 0 or len(self.y2) > 0:
+                # print(self.x1, self.y1,self.y2 )
+                if self.y1:
+                    #Plot 1
+                    ax.plot(self.x1, self.y1, self.point, color='blue')
+                    set_xlim(ax, self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100, 600, 'hour')
+                if self.y2:
+                    #Plot 2
+                    ax.plot(self.x2, self.y2, self.point, color='green')
+                    set_xlim(ax, self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100, 600, 'hour')
                 ax.grid(True)
             
                 self.fig.canvas.draw()
@@ -508,7 +521,7 @@ def analyze(text1,file):
 def first_clear_plot(plotx,ploty,some_root):
     refresh_txtlist(path)
     dir_list.opened = False
-    start = plot_class(some_root,'first',plotx,ploty,1,0,0)
+    start = PlotClass(some_root, 'first', plotx, ploty, 1, 0, 0)
     start.plot(path)
         
 def make_txt_list(directory):
@@ -541,24 +554,25 @@ def make_txt_list(directory):
 
 def plot_spectr(*event):
     # ===== SPECTR =====
+
     uv.set(4)
     for i in buttons:
         i.configure(state=DISABLED)
-    lab_ozon.configure(text = 'Значение озона: ')
-    for mode,var in zip(['uva','uvb','uve'],[lab_uva,lab_uvb,lab_uve]):
-        var.configure(text = 'Значение UV-{}: '.format(mode[-1].upper()))
+    lab_ozon.configure(text='Значение озона: ')
+    for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
+        var.configure(text='Значение UV-{}: '.format(mode[-1].upper()))
     root.update()
     plotx, ploty = change_geometry(root)
-    start = plot_class(right_panel,'spectr',plotx,ploty,1,0,chk_var_with_sens.get())
+    start = PlotClass(right_panel, 'spectr', plotx, ploty, 1, 0, chk_var_with_sens.get())
     file = file_list.selection_get()
-    start.get_spectr(os.path.join(path,file))
-    if start.data['channel'].count("Z-D")>0 or start.data['channel'].count("ZD")>0:
+    start.get_spectr(os.path.join(path, file))
+    if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
-        lab_ozon.configure(text = 'Значение озона: {}'.format(start.o3))
-    if start.data['channel'].count("S-D")>0 or start.data['channel'].count("SD")>0:
-        for mode,var in zip(['uva','uvb','uve'],[lab_uva,lab_uvb,lab_uve]):
-            start.calc_uv(mode,False)
-            var.configure(text = 'Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(),int(start.uv)))
+        lab_ozon.configure(text='Значение озона P1:P2 {}:{}'.format(start.o3_1, start.o3_2))
+    if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
+        for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
+            start.calc_uv(mode, False)
+            var.configure(text='Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(), int(start.uv)))
     data = ('Канал: {}\nДата Время: {}\nВысота Солнца: {} (mu={})\nТемп. CCD: {}\nТемп. Полихроматора: {}\nЭкспозиция: {}\nЧисло суммирований: {}'.format(start.data['channel'],
                                                                                                         start.data['datetime'],
                                                                                                         start.data['hs'],
@@ -567,11 +581,11 @@ def plot_spectr(*event):
                                                                                                         start.data['temperature_poly'],
                                                                                                         start.data['expo'],
                                                                                                         start.data['accumulate']))
-    currnt_data.configure(text = data)
+    currnt_data.configure(text=data)
 ##    start.x = range(len(start.data['spectr']))
 ##    start.y = start.data['spectr']
-    start.x = range(len(start.spectrum))
-    start.y = start.spectrum
+    start.x1 = range(len(start.spectrum))
+    start.y1 = start.spectrum
     start.plot(path)
     for i in buttons:
         i.configure(state=NORMAL)
@@ -689,7 +703,7 @@ def only_draw_dirs():
     t = path.split('\\')
     t2=t[0]+'\\'
     last_dir.append(t2)
-    i=1
+    i = 1
     while i<len(t)-1:
         t2 = os.path.join(t2, t[i])
         last_dir.append(t2)
@@ -748,26 +762,22 @@ def normalize(mdhminute):
     text = str(mdhminute)
     if len(text)==1:
         text = '0' + text
-    return(text)
-
-def plot_more2():
-    plot_more(main_func.data)
+    return text
 
 
-        
-class Final_File:
-    def __init__(self,pars,home,o3_mode):
+class FinalFile:
+    def __init__(self, pars, home, o3_mode):
         self.pars = pars
         self.home = home
         self.path_file = ''
         
-    def prepare(self,date_utc,cr):
+    def prepare(self, date_utc, cr):
         date_utc_str = datetime.datetime.strftime(date_utc,'%Y%m%d %H:%M:%S')
-        mu,amas,sh = sunheight(self.pars["station"]["latitude"],
-                                      self.pars["station"]["longitude"],
-                                      date_utc,
-                                      self.pars["station"]["timezone"])
-        return(date_utc_str,sh,cr)
+        mu, amas, sh = sunheight(self.pars["station"]["latitude"],
+                                 self.pars["station"]["longitude"],
+                                 date_utc,
+                                 self.pars["station"]["timezone"])
+        return date_utc_str, sh, cr
         
     def save(self,pars,home,chan,ts,shs,crs):
         create_new_file = True
@@ -782,8 +792,8 @@ class Final_File:
                              create_new_file)
             create_new_file = False
         print('File Saved: {}'.format(self.path_file))
-        self.path_file = self.path_file.replace('New_','')
-        but_make_mean_file.configure(command = lambda: calculate_final_files(pars,self.path_file,chan))
+        # self.path_file = self.path_file.replace('New_','')
+        but_make_mean_file.configure(command = lambda: calculate_final_files(pars, self.path_file, chan))
         but_make_mean_file.configure(state=NORMAL)
         
 def change_geometry(root):
@@ -795,7 +805,7 @@ def change_geometry(root):
     else:
         plotx = int(geom[0])-225
         ploty = int(geom[1])-70
-    return(plotx,ploty)
+    return plotx, ploty
     
 def make_o3file():
     global path
@@ -860,7 +870,7 @@ def make_o3file():
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
     j = 1
-    start = plot_class(right_panel,o3_mode,plotx,ploty,chk_read_file_get,chk_show_all,chk_var_with_sens.get())
+    start = PlotClass(right_panel, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all, chk_var_with_sens.get())
     if chk_read_file_get==0: # Чтение из файла
         column = {'ozone':-2,'uva':-3,'uvb':-2,'uve':-1}
 ##        datetime_index = 0 # UTC
@@ -875,28 +885,40 @@ def make_o3file():
         file = os.path.join(directory,name)
         mean_file = 1
         if not os.path.exists(file):
+            name = name.replace('mean_','mean_New_')
+            file = os.path.join(directory,name)
+        if not os.path.exists(file):
             mean_file = 0
-            name = name.replace('mean_','')
+            name = name.replace('mean_New_','New_')
             file = os.path.join(directory,name)
         if os.path.exists(file):
             with open(file) as f:
                 data_raw = f.readlines()
-                if not [j for j in data_raw[0].split('\t') if j!=''][-1].strip()=='Correct':
+                if data_raw[0].count('Correct') == 0:
                     column['ozone'] = -1
                     use_correct = 0
-                else:
+                    delimiter = '\t'
+                elif data_raw[0].count('Correct') == 1:
+                    column['ozone'] = -2
                     use_correct = 1
+                    delimiter = '\t'
+                elif data_raw[0].count('Correct') == 2:
+                    column['ozone'] = [-4, -2]
+                    use_correct = 1
+                    delimiter = ';'
                 data = [i for i in data_raw if i[0].isdigit()]
                 for i in data:
-                    line_arr = [j for j in i.split('\t') if j!='']
+                    line_arr = [j for j in i.split(delimiter) if j!='']
                     if o3_mode=='ozone':
                         if use_correct:
-                            if not int(line_arr[-1]):
-                                continue
-                    start.x.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
-                    start.y.append(int(line_arr[column[o3_mode]]))
-					
-        if not start.x:
+                            if int(line_arr[-3]):
+                                start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+                                start.y1.append(int(line_arr[column[o3_mode][0]]))
+                            if int(line_arr[-1]):
+                                start.x2.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+                                start.y2.append(int(line_arr[column[o3_mode][1]]))
+
+        if not start.x1:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
 D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
@@ -907,7 +929,7 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
         global shs
         global crs
         ts,shs,crs = [],[],[]
-        saving = Final_File(start.var_settings,home,o3_mode)
+        saving = FinalFile(start.var_settings, home, o3_mode)
         for i in txt:
             start.uvs_or_o3['ZD'] = {}
             start.uvs_or_o3['SD'] = {}
@@ -943,15 +965,23 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
                     ts.append(t)
                     shs.append(sh)
                     crs.append(cr)
-        if start.x:
+        if start.x1:
             but_save_to_final_file.configure(command = lambda: saving.save(start.var_settings,home,chan,ts,shs,crs))
         else:
             tex = 'Файлов измерений\nне найдено'
     try:
-        if start.x:
-            lab_currnt_data.configure(text = 'Дата: {0}'.format(start.x[0]))
+        if start.x1:
+            lab_currnt_data.configure(text = 'Дата: {0}'.format(start.x1[0]))
             if o3_mode=='ozone':
-                tex = 'Значение озона:\n{0} е.Д.'.format(int(sum(start.y)//len(start.y)))
+                try:
+                    s1 = int(sum(start.y1) // len(start.y1))
+                except:
+                    s1 = 0
+                try:
+                    s2 = int(sum(start.y2) // len(start.y2))
+                except:
+                    s2 = 0
+                tex = 'Значение озона:\nP1:P2 {}:{} е.Д.'.format(s1, s2)
             elif o3_mode=='uva':
                 tex = 'УФ-А'
             elif o3_mode=='uvb':
@@ -984,130 +1014,11 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
     if not chk_read_file_get:
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
-
-def make_all_o3files():
-    """Make all"""
-    global path
-    global curr_o3
-    global canvas
-    global canvs
-    global gr_ok
-    global curr_time
-    global ida
-    global o3_plotted
-    global root
-    global o3_mod
-    global file_name
-    global tmp_path
-    
-    def make_txt_list_ZSD(directory):
-        txtfiles = []
-        try:
-            for files in os.listdir(directory):
-                if files[-3:] == "txt" and files.count("-D")>0:
-                    txtfiles.append(files)
-                if files[0]=='m' and files.split('_')[2] in ['ZD','SD']:
-                    txtfiles.append(files)
-        except:
-            pass
-        return txtfiles
-    
-    chk_read_file_get = 1
-    chk_show_all  = 1
-    mode = 0
-    if mode==0:
-        o3_mode = 'ozone'
-        tex = 'Идет пересчёт озона'
-
-    o3_mod = o3_mode
-    currnt_data.configure(text = '')
-    lab_ozon.configure(text = tex)
-    root.update()
-    plotx, ploty = change_geometry(root)
-    curr_time = []
-    txt = make_txt_list_ZSD(path)
-    gr_ok = 0
-    j = 1
-    start = plot_class(right_panel,o3_mode,plotx,ploty,chk_read_file_get,chk_show_all,chk_var_with_sens.get())
-    if 1: # Пересчёт
-        mean_file = 0
-        global ts
-        global shs
-        global crs
-        ts,shs,crs = [],[],[]
-        saving = Final_File(start.var_settings,home,o3_mode)
-
-        try:
-            start_dir = r"\2018\2018-09"
-            ufos_number = "7"
-            for root_dir, dirs, files in os.walk(r"D:\UFOS\Ufos_{}\Mesurements{}".format(ufos_number,start_dir)):
-                txt = []
-                if files:
-                    for file_name in files:
-                        if file_name.count('ZD')>0 or file_name.count('Z-D')>0:
-                            file_path = os.path.join(root_dir,file_name)
-                            txt.append(file_path)
-                    for i in txt:
-                        start.uvs_or_o3['ZD'] = {}
-                        
-                        chan = ''
-                        file_name = i.split('_')[1]
-                        if i.count("Z-D")>0 or i.count("ZD")>0:
-                            color = 'black'
-                        else:
-                            color = 'blue'
-                        file = i
-                        if o3_mode=='ozone':
-                            chan = 'ZD'
-                            if i.count("Z-D")>0 or i.count("ZD")>0:
-                                start.get_spectr(file)
-                                start.calc_ozon()
-                                t,sh,cr = saving.prepare(start.data['datetime'],
-                                                            start.uvs_or_o3['ZD'])
-                                ts.append(t)
-                                shs.append(sh)
-                                crs.append(cr)
-                    if start.x:
-                        saving.save(start.var_settings,home,chan,ts,shs,crs)
-                        lab_currnt_data.configure(text = 'Идёт обработка'.format(start.x[0]))
-                        root.update()
-        except Exception as err:
-            print(err,sys.exc_info()[-1].tb_lineno)
-    try:
-        if start.x:
-            lab_currnt_data.configure(text = 'Дата: {0}'.format(start.x[0]))
-            if o3_mode=='ozone':
-                tex = 'Значение озона:\n{0} е.Д.'.format(int(sum(start.y)//len(start.y)))
-
-            o3_plotted = 1
-        else:
-            o3_plotted = 0
-        if mean_file:
-            tex += '::'
-        else:
-            tex += ':'
-##        print("OK")
-        
-    except Exception as err:
-        print('plotter.make_all_o3files():',end='')
-        print(err,sys.exc_info()[-1].tb_lineno)
-        
-    finally:
-        lab_ozon.configure(text = tex)
-        lab_uva.configure(text = '')
-        lab_uvb.configure(text = '')
-        lab_uve.configure(text = '')
-        lab_sun.configure(text = '')
-
-    for i in buttons:
-        i.configure(state=NORMAL)
-
-
-        
+      
 if __name__ == '__main__':
     """============== <Main> =============="""
     root = Tk()
-    host,port,data4send = "10.65.25.2", 20000, ''
+    host, port, data4send = "10.65.25.2", 20000, ''
     ida = ''
     img = ''
     last_dir = []
@@ -1115,7 +1026,7 @@ if __name__ == '__main__':
     file_name = ''
     timer = ''
     canvs = []
-    ts,shs,crs = [],[],[]
+    ts, shs, crs = [], [], []
     path = os.getcwd()
     home = os.getcwd()
     tmp_path = home
@@ -1133,7 +1044,7 @@ if __name__ == '__main__':
     ok = 1
     scale_printed = 0
     canvs = []
-    last_path = read_path(home,path,'r').split('\n')[0]
+    last_path = read_path(home, path, 'r').split('\n')[0]
     try:
         if path != last_path and os.path.exists(last_path):
             path = last_path
@@ -1141,16 +1052,16 @@ if __name__ == '__main__':
             pass
     except:
         path = home
-    curr_o3 = [0,0,0,0,0]
+    curr_o3 = [0, 0, 0, 0, 0]
 
     try:
-        ome = read_sensitivity(home,var_settings['device']['id']) #Чувствительность прибора
+        ome = read_sensitivity(home, var_settings['device']['id']) #Чувствительность прибора
     except Exception as err:
         print(err)
         input('Чувствительность прибора УФОС sensitivity{} - не найдена в каталоге программы!'.format(var_settings['device']['id']))
         raise
     try:
-        ome = read_sensitivity_eritem(home,var_settings['device']['id']) #Чувствительность прибора erithem
+        ome = read_sensitivity_eritem(home, var_settings['device']['id']) #Чувствительность прибора erithem
     except Exception as err:
         print(err)
         input('Чувствительность прибора УФОС senseritem{} - не найдена в каталоге программы!'.format(var_settings['device']['id']))
@@ -1192,7 +1103,6 @@ if __name__ == '__main__':
     chk_show_all = ttk.Checkbutton( admin_panel,    text = 'Показать все точки',variable = chk_var_show_all)
     but_save_to_final_file = ttk.Button(admin_panel,text = 'Сохранить в файл')
     but_make_mean_file = ttk.Button(admin_panel,    text = 'Сохранить в файл среднего')
-    all_o3files_btn = ttk.Button(   admin_panel,    text = 'Пересчёт всех файлов',command = make_all_o3files)
     var_top = IntVar()
     var_top.set(1)
     rad_4096 = ttk.Radiobutton(     admin_panel,    text = 'Единая шкала',variable = var_top,value = 0)
@@ -1203,7 +1113,8 @@ if __name__ == '__main__':
     uv.set(4)
     but_remake = ttk.Button(        admin_panel,    text = 'Новый формат Z-D',command = b_remake)
     but_send = ttk.Button(          admin_panel,    text = host,command = send_all_files_plotter)
-    admin_menu_obj = [chk_with_sens,chk_show_all,chk_read_file,but_save_to_final_file,but_make_mean_file,all_o3files_btn,rad_4096,rad_ytop,but_plot_more,but_remake,but_send]
+    admin_menu_obj = [chk_with_sens, chk_show_all, chk_read_file, but_save_to_final_file, but_make_mean_file,
+                      rad_4096, rad_ytop, but_plot_more, but_remake, but_send]
     
     # Main Menu
     but_refresh = ttk.Button(       menu_panel,     text = 'Обновить',command = refresh)
@@ -1213,7 +1124,6 @@ if __name__ == '__main__':
     rad_uva = ttk.Radiobutton(      menu_panel,     text = 'УФ-А',variable = uv,value = 1,command = make_o3file)
     rad_uvb = ttk.Radiobutton(      menu_panel,     text = 'УФ-Б',variable = uv,value = 2,command = make_o3file)
     rad_uve = ttk.Radiobutton(      menu_panel,     text = 'УФ-Э',variable = uv,value = 3,command = make_o3file)
-    
     ent_code = ttk.Entry(           menu_panel,  width = 2)
     main_menu_obj = [but_refresh,but_dir,rad_spectr,rad_o3file,rad_uva,rad_uvb,rad_uve,ent_code]
     
@@ -1258,17 +1168,19 @@ if __name__ == '__main__':
     ##change_mwt_dir()
     confZ = var_settings['calibration']['nm(pix)']['Z']
     confS = var_settings['calibration']['nm(pix)']['S']
-    lambda_consts = var_settings['calibration']['points']['o3_pair_2'] + var_settings['calibration']['points']['cloud_pair_2']
+    lambda_consts1 = var_settings['calibration']['points']['o3_pair_1'] \
+                    + var_settings['calibration']['points']['cloud_pair_1']
+    lambda_consts2 = var_settings['calibration']['points']['o3_pair_2'] \
+                    + var_settings['calibration']['points']['cloud_pair_2']
     points = var_settings['calibration']['points']
-    p_uva1,p_uva2 = nm2pix(315,confS,0),nm2pix(400,confS,0)
-    p_uvb1,p_uvb2 = nm2pix(280,confS,0),nm2pix(315,confS,0)
-    p_uve1,p_uve2 = 0,3691 #nm2pix(290),nm2pix(420)
-    p_zero1 = nm2pix(290,confZ,0)
-    p_zero2 = nm2pix(295,confZ,0)
-    p_lamst = nm2pix(290,confZ,0)
-    lambda_consts_pix = [] #Массив констант лямбда в пикселях
-    for i in lambda_consts:
-        lambda_consts_pix.append(nm2pix(i, confZ, 0)) 
+    p_uva1, p_uva2 = nm2pix(315, confS, 0), nm2pix(400, confS, 0)
+    p_uvb1, p_uvb2 = nm2pix(280, confS, 0), nm2pix(315, confS, 0)
+    p_uve1, p_uve2 = 0,3691 #nm2pix(290),nm2pix(420)
+    p_zero1 = nm2pix(290, confZ, 0)
+    p_zero2 = nm2pix(295, confZ, 0)
+    p_lamst = nm2pix(290, confZ, 0)
+    lambda_consts_pix1 = [nm2pix(i, confZ, 0) for i in lambda_consts1]  # Массив констант лямбда в пикселях
+    lambda_consts_pix2 = [nm2pix(i, confZ, 0) for i in lambda_consts2]  # Массив констант лямбда в пикселях
     psZ = {}
     psS = {}
     for key in points.keys():
@@ -1282,7 +1194,7 @@ if __name__ == '__main__':
         
     ##Скрыть следующие кнопки
     common =        [rad_4096,rad_ytop,but_plot_more,but_remake]
-    sertification = [rad_4096,rad_ytop,but_plot_more,rad_uva,rad_uvb,rad_uve,but_remake,chk_read_file,but_save_to_final_file,but_make_mean_file,all_o3files_btn]
+    sertification = [rad_4096,rad_ytop,but_plot_more,rad_uva,rad_uvb,rad_uve,but_remake,chk_read_file,but_save_to_final_file,but_make_mean_file]
     change_privileges(common,0)
      
         
