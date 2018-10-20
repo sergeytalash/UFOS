@@ -5,7 +5,7 @@ import json
 
 """============== <Main> =============="""
 class gui:
-    def __init__(self,pars,row,col,ignore):
+    def __init__(self, pars, row, col, ignore):
         self.pars = pars
         self.row = row
         self.tree_dot = 0
@@ -19,11 +19,11 @@ class gui:
             self.gui_ignore = []
             
     def make_admin_entry(self):
-        self.ent = ttk.Entry(root,width=1)
-        self.ent.grid(column=1,row=0,sticky='e',padx=self.padx,pady=self.pady)
-        self.ent.bind('<Return>',start_with_all_settings)
+        self.ent = ttk.Entry(root, width=1)
+        self.ent.grid(column=1, row=0, sticky='e', padx=self.padx, pady=self.pady)
+        self.ent.bind('<Return>', start_with_all_settings)
                 
-    def make_labels(self,par):
+    def make_labels(self, par):
         for t in par.keys():
             if t in self.gui_ignore:
                 continue
@@ -43,8 +43,8 @@ class gui:
                 t2 = self.tree_dot*' '+t
 ##                t2 = self.tree_dot*global_separator+' ⮡ '+t
             
-            lab = ttk.Label(root,text=t2,font=self.font)
-            lab.grid(column=self.column,row=self.row,sticky='w',padx=self.padx,pady=self.pady)
+            lab = ttk.Label(root, text=t2, font=self.font)
+            lab.grid(column=self.column, row=self.row, sticky='w', padx=self.padx, pady=self.pady)
             try:
                 par[t].keys()
                 self.row += 1
@@ -53,50 +53,50 @@ class gui:
                 self.tree_dot -= 1
             except:
                 self.column += 1
-                if type(par[t])==list:
+                if type(par[t]) == list:
                     t2 = '; '.join([str(i) for i in par[t]])
                 else:
                     t2 = par[t]
                 ent = ttk.Entry(root)
-                ent.insert(0,str(t2))
-                ent.grid(column=self.column,row=self.row,sticky='w',padx=self.padx,pady=self.pady)
+                ent.insert(0, str(t2))
+                ent.grid(column=self.column, row=self.row, sticky='w', padx=self.padx, pady=self.pady)
                 self.column -= 1
                 self.row += 1
                 
     def retype(self,data_need,type_of_data_to_change):
         typ = type(data_need)
-        if typ==int:
-            return(int(type_of_data_to_change))
-        elif typ==list:
+        if typ == int:
+            return int(type_of_data_to_change)
+        elif typ == list:
             type_of_data_to_change = [i.strip() for i in type_of_data_to_change.split(';')]
-            return([self.retype(need,change) for need,change in zip(data_need,type_of_data_to_change)])
+            return [self.retype(need,change) for need,change in zip(data_need, type_of_data_to_change)]
                 
         elif typ==float:
             return(float(type_of_data_to_change))
         else:
             return(str(type_of_data_to_change))
             
-    def save_params(self,*event):
+    def save_params(self, *event):
         self.new_pars = {}
         tmp_queue = []
         old_fs = 0
         for i in Widget.winfo_children(root):
             if self.ent is i:
                 continue
-            if type(i)==ttk.Label:
-                t = str(Widget.cget(i,'text'))
+            if type(i) == ttk.Label:
+                t = str(Widget.cget(i, 'text'))
                 fs = t.count(global_separator)
                 if tmp_queue:
                     for k in range(old_fs-fs+1):
                         tmp_queue.pop()
                 tmp_queue.append(t.strip())
-                if fs==0:
+                if fs == 0:
                     self.new_pars[tmp_queue[-1]] = {}
-                elif fs==1:
+                elif fs == 1:
                     self.new_pars[tmp_queue[-2]][tmp_queue[-1]] = {}
-                elif fs==2:
+                elif fs == 2:
                     self.new_pars[tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = {}
-                elif fs==3:
+                elif fs == 3:
                     self.new_pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = {}
                 old_fs = fs
 ##                print(i,t)
@@ -108,6 +108,7 @@ class gui:
                     self.new_pars[tmp_queue[-1]] = t
                     
                 elif len(tmp_queue)==2:
+                    print(tmp_queue, tmp_queue[-2], tmp_queue[-1])
                     old = self.pars[tmp_queue[-2]][tmp_queue[-1]]
                     t = self.retype(old,new)
                     self.new_pars[tmp_queue[-2]][tmp_queue[-1]] = t
@@ -161,7 +162,7 @@ def start_with_all_settings(*event):
 """============== GUI Structure =============="""
 ## Отображать только настройки для наблюдателей станции
 show_settings_for_station = True
-global_separator = '  '
+global_separator = ' '
 
 root = Tk()
 root.title('УФОС Настройка')
@@ -171,7 +172,7 @@ root.resizable(False, False)
 with open('settings.py') as f:
     params = json.load(f)
 
-a = gui(params,0,0,show_settings_for_station)
+a = gui(params, 0, 0, show_settings_for_station)
 a.make_labels(params)
 a.make_admin_entry()
 a.make_buttons()
