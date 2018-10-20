@@ -115,8 +115,8 @@ def sumarize(a):
 
 
 def read_nomographs(home, mueff_list, r12_list, ozone_list, dev_id):
-    if os.path.exists(os.path.join(home, r'nomograph{}.txt'.format(dev_id))):
-        file_n = open(os.path.join(home, r'nomograph{}.txt'.format(dev_id)), 'r')
+    if os.path.exists(os.path.join(home, 'Ufos_{0}\\Settings\\nomograph{0}.txt'.format(dev_id))):
+        file_n = open(os.path.join(home, 'Ufos_{0}\\Settings\\nomograph{0}.txt'.format(dev_id)), 'r')
         ozone_number = 0
         mueff_number = 0
         mueff_step = 0.05
@@ -208,33 +208,22 @@ def erithema(x,c):
         a = 10**(0.094 * (298 - nm))
 ##    elif nm>325:
 ##        a = 10**(-0.015 * (410 - nm))
-    return(a)
+    return a
 
-def read_sensitivity(path,ufos_id):
-    with open(os.path.join(path,'sensitivity{}.txt'.format(ufos_id))) as f:
+
+def read_sensitivity(path, ufos_id):
+    with open(os.path.join(path, 'Ufos_{0}\\Settings\\sensitivity{0}.txt'.format(ufos_id))) as f:
         sens = f.readlines()
-##        new = []
-##        for i in sens:
-##            i = i.strip()
-##            try:
-##                new.append(float(i))
-##            except:
-##                print([i])
-    return([float(i.strip()) for i in sens if i.strip()])
+    return [float(i.strip()) for i in sens if i.strip()]
 
-def read_sensitivity_eritem(path,ufos_id):
-    with open(os.path.join(path,'senseritem{}.txt'.format(ufos_id))) as f:
+
+def read_sensitivity_eritem(path, ufos_id):
+    with open(os.path.join(path, 'Ufos_{0}\\Settings\\senseritem{0}.txt'.format(ufos_id))) as f:
         sens = f.readlines()
-##        new = []
-##        for i in sens:
-##            i = i.strip()
-##            try:
-##                new.append(float(i))
-##            except:
-##                print([i])
-    return([float(i.strip()) for i in sens if i.strip()])
+    return [float(i.strip()) for i in sens if i.strip()]
 
-def nm2pix(nm,configure2,add):
+
+def nm2pix(nm, configure2, add):
     nm = float(nm)
     abc = configure2
     if 270 < nm < 350:
@@ -251,7 +240,8 @@ def nm2pix(nm,configure2,add):
             ans_nm = pix2nm(abc,pix,1,add)
     else:
         print(nm,'nm2pix: error')
-    return(pix)
+    return pix
+
 
 def pix2nm(abc,pix,digs,add):
     """
@@ -265,7 +255,8 @@ def pix2nm(abc,pix,digs,add):
         return round(eval(abc[0]) * pix**2 + eval(abc[1]) * pix + eval(abc[2]) + add,digs)
     except:
         return 0
-    
+
+
 def read_path(home,path,mode):
     """Чтение файла last_path"""
     last_path = os.path.join(home,'last_path.txt')
@@ -414,26 +405,19 @@ class CalculateOnly:
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
-       # print(uv_mode)
+
         spectrum = spectr2zero(self.p_zero1, self.p_zero2, self.p_lamst, spectr)
         try:
             if uv_mode in ['uva','uvb']:
                 uv = sum(np.array(spectrum[p1:p2]) * np.array(sensitivity[p1:p2]))
             elif uv_mode == 'uve':
                 uv = sum([float(spectrum[i]) * sens_eritem[i] * sensitivity[i] for i in range(p1,p2,1)])
-           #     print(uv)
-           # print(eval(self.confS[1]))
-           # print(self.var_sets['device']['graduation_expo'])
-           # print(data['mesurement']['exposition'])
             uv *= float(eval(self.confS[1])) * self.var_sets['device']['graduation_expo'] / expo
-           # uv *= float(self.var_sets['calibration']['{}_koef'.format(uv_mode)])
         except Exception as err:
             print('procedures.calc_uv: ',err)
             uv = 0
         return(int(round(uv,1)))
-       # if self.o3_mode!='spectr':
-       #     self.x.append(self.data['datetime'])
-       #     self.y.append(uv)
+
             
 class Ufos_data:
     """UFOS mesure class"""
@@ -498,23 +482,29 @@ class Ufos_data:
             else:
                 spectr = [0]
                 text = ''
-            return(spectr[:3691], t1, t2, text, tries)
+            return spectr[:3691], t1, t2, text, tries
         else:
-##            print(tries)
             if tries>1:
-                text ='Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
+                text = 'Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
                 print(text)
                 logger.error(text)
             tries += 1
             return([0],0,0,'',tries)
-    
-class settings:
+
+
+class Settings:
     def get(home):
-        with open(os.path.join(home,'settings.py'),'r') as f:
-            return(json.load(f))
-    def set(home,pars):
-        with open(os.path.join(home,'settings.py'),'w') as f:
-            return(json.dump(pars,f,ensure_ascii=False,indent='    ',sort_keys=True))
+        with open(os.path.join(home, 'common_settings.py'), 'r') as f:
+            return json.load(f)
+
+    def get_device(home, dev_id):
+        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.py'.format(dev_id)), 'r') as f:
+            return json.load(f)
+
+    def set(home, pars):
+        with open(os.path.join(home, 'Ufos_{0}\\Settings\\settings.py'), 'w') as f:
+            return json.dump(pars,f,ensure_ascii=False, indent='    ', sort_keys=True)
+
 
 def sunheight(altitude,longitude,date_time,timezone):
     f,l,timezone = float(altitude),float(longitude),int(timezone)
@@ -836,9 +826,9 @@ class Main:
                 with open('test.txt', 'w') as f:
                     print(self.mesure_data, file=f)   # mesurement
                     print('==========================================', file=f)
-                    print(self.pars, file=f)          # settings
+                    print(self.pars, file=f)          # Settings
                     print('==========================================', file=f)
-                    print(self.connect_pars, file=f)  # connect settings
+                    print(self.connect_pars, file=f)  # connect Settings
                     print('==========================================', file=f)
                     print(self.calc_result, file=f)   # o3 + uv
             if encode:
@@ -1106,7 +1096,8 @@ class check_sun_and_mesure():
             try:
                 
                 ufos_com = UfosConnection().get_com()['com_obj']
-                self.pars = settings.get(self.home)
+                self.common_pars = Settings.get(self.home)
+                self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
                 
                 self.time_now_1 = datetime.datetime.now()
                 self.mu, self.amas, self.sunheight = sunheight(self.pars["station"]["latitude"],
