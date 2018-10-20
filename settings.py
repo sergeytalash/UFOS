@@ -2,14 +2,14 @@
     "calibration": {
         "nm(pix)": {
             "S": [
-                "3.23553847*10**-8", 
-                "0.0393587546", 
-                "272.703981"
+                "1*10**-8", 
+                "0.040066014", 
+                "269.041909841"
             ], 
             "Z": [
-                "7.454057229*10**-8", 
-                "0.03923741803", 
-                "273.905099"
+                "1*10**-8", 
+                "0.040066014", 
+                "267.86"
             ]
         }, 
         "pix_interval": 25, 
@@ -76,27 +76,24 @@
         "Z": "Z"
     }, 
     "device": {
-        "accummulate": 1, 
-        "amplitude_max": 3200, 
-        "amplitude_min": 2800, 
+        "accummulate": 2, 
+        "amplitude_max": 2800, 
+        "amplitude_min": 2500, 
         "auto_expo_max": 4000, 
         "auto_expo_min": 50, 
         "auto_exposition": 1, 
         "channel": "ZS", 
         "graduation_expo": 4000, 
-        "id": 7, 
+        "id": 11, 
         "manual_expo": [
-            4000, 
-            4001, 
-            4002, 
-            4005
+            40
         ]
     }, 
     "station": {
         "id": "26077", 
-        "interval": 5, 
-        "latitude": 59.57, 
-        "longitude": -30.42, 
+        "interval": 15, 
+        "latitude": 51.42, 
+        "longitude": -39.13, 
         "sun_height_min": 5, 
         "timezone": "+3"
     }, 
