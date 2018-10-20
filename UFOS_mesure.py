@@ -12,6 +12,7 @@ import datetime
 # import json
 # import numpy as np
 import logging
+import logging.handlers as handlers
 # from math import *
 
 import procedures 
@@ -21,12 +22,13 @@ if __name__ == '__main__':
     date_time = datetime.datetime.now()
     if not os.path.exists('logs'):
         os.mkdir('logs')
+    settings = procedures.settings.get(os.getcwd())
     logger = logging.getLogger("Rotating Log")
     logger.setLevel(logging.INFO)
-    handler = logging.RotatingFileHandler('logs/ufos.log', maxBytes=10*1024*1024, backupCount=10)
+    handler = handlers.RotatingFileHandler('logs\\ufos_{}.log'.format(settings['device']['id']), maxBytes=10*1024*1024, backupCount=10)
     logger.addHandler(handler)
-##    mu,amas,hs = procedures.sunheight(71.35,-128.54,date_time,+9)
-##    print('mu= {}\namas= {}\nsunheight= {} (Данные не из settings.py)\n================'.format(mu,amas,hs))
+    mu, amas, hs = procedures.sunheight(settings['station']['latitude'], settings['station']['longitude'], date_time, int(settings['station']['timezone']))
+    print('Station: {}, (lat: {}, long: {})\nmu: {}\namas: {}\nsunheight: {}\n================'.format(settings['station']['id'], settings['station']['latitude'], settings['station']['longitude'], mu, amas, hs))
     version = '2.0'
     procedures.check_sun_and_mesure().start()
 
