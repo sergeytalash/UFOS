@@ -22,7 +22,8 @@ if __name__ == '__main__':
     date_time = datetime.datetime.now()
     if not os.path.exists('logs'):
         os.mkdir('logs')
-    settings = procedures.settings.get(os.getcwd())
+    common_pars = procedures.Settings.get(os.getcwd())
+    settings = procedures.Settings.get_device(os.getcwd(), common_pars['device']['id'])
     logger = logging.getLogger("Rotating Log")
     logger.setLevel(logging.INFO)
     handler = handlers.RotatingFileHandler('logs\\ufos_{}.log'.format(settings['device']['id']), maxBytes=10*1024*1024, backupCount=10)
