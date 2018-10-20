@@ -39,7 +39,8 @@ class PlotClass:
         self.chk_show_all = chk_show_all
         self.var_with_sens = var_with_sens
         self.chk_read_file_get = chk_read_file_get
-        self.var_settings = settings.get(home)
+        self.common_pars = Settings.get(home)
+        self.var_settings = Settings.get_device(home, self.common_pars['device']['id'])
         self.plotx = plotx
         self.ploty = ploty
         self.window = window
@@ -1069,7 +1070,8 @@ if __name__ == '__main__':
     path = os.getcwd()
     home = os.getcwd()
     tmp_path = home
-    var_settings = settings.get(home)
+    common_pars = Settings.get(home)
+    var_settings = Settings.get_device(home, common_pars['device']['id'])
     drive = os.getcwd()[:3]
     path2 = ''
     plotx, ploty = change_geometry(root)
