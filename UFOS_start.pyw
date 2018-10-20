@@ -2,8 +2,9 @@ import os
 from tkinter import *
 from tkinter import ttk
 import json
+import procedures
 
-"""============== <Main> =============="""
+
 class gui:
     def __init__(self, pars, row, col, ignore):
         self.pars = pars
@@ -99,7 +100,6 @@ class gui:
                 elif fs == 3:
                     self.new_pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = {}
                 old_fs = fs
-##                print(i,t)
             elif type(i)==ttk.Entry:
                 new = i.get()
                 if len(tmp_queue)==1:
@@ -108,7 +108,7 @@ class gui:
                     self.new_pars[tmp_queue[-1]] = t
                     
                 elif len(tmp_queue)==2:
-                    print(tmp_queue, tmp_queue[-2], tmp_queue[-1])
+                    # print(tmp_queue, tmp_queue[-2], tmp_queue[-1])
                     old = self.pars[tmp_queue[-2]][tmp_queue[-1]]
                     t = self.retype(old,new)
                     self.new_pars[tmp_queue[-2]][tmp_queue[-1]] = t
@@ -122,19 +122,15 @@ class gui:
                     old = self.pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]]
                     t = self.retype(old,new)
                     self.new_pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = t
-
-##                print(type(old)==type(t))
-##                print('{}:{}:{} => {}:{}'.format(i,old,type(old),t,type(t)))
-##                print(self.ent)
-##                print(i,t)
         for key in self.new_pars.keys():
             self.pars[key] = self.new_pars[key]
         self.new_pars = self.pars
 
         try:
-            aa = json.dumps(self.new_pars,indent='    ',sort_keys=True)
-            with open('settings.py','w') as f:
-                json.dump(self.new_pars,f,indent='    ',sort_keys=True)
+            # aa = json.dumps(self.new_pars,indent='    ',sort_keys=True)
+            procedures.Settings.set(os.getcwd(), self.new_pars, common_pars['device']['id'])
+            # with open('settings.py','w') as f:
+            #     json.dump(self.new_pars,f,indent='    ',sort_keys=True)
             print('New settings are written.')
         except Exception as err:
             print('ERROR! New settings are incorrect! {}'.format(err))
@@ -169,8 +165,8 @@ root.title('УФОС Настройка')
 root.geometry('300x200+200+100')
 root.resizable(False, False)
 
-with open('settings.py') as f:
-    params = json.load(f)
+common_pars = procedures.Settings.get(os.getcwd())
+params = procedures.Settings.get_device(os.getcwd(), common_pars['device']['id'])
 
 a = gui(params, 0, 0, show_settings_for_station)
 a.make_labels(params)
