@@ -50,7 +50,7 @@ def calculate_final_files(pars, file, mode):
                     o3_2 = int(line_arr[5])
                     correct2 = int(line_arr[6])
                     o3s_1.append(o3_1)
-                    o3s_2.append(o3_1)
+                    o3s_2.append(o3_2)
                     if correct1 == 1:
                         o3s_tmp1.append(o3_1)
                         k1.append(1)
@@ -271,16 +271,20 @@ def read_path(home,path,mode):
 
 
 def spectr2zero(p_zero1,p_zero2,p_lamst,spectr):
-    mv = 0
-    zero_count = 0
-    spectrum = [0] * len(spectr)
-    for i in range(p_zero1, p_zero2 + 1):
-        mv = mv + spectr[i]
-        zero_count += 1
-    mv = mv / zero_count
-    for i in range(p_lamst, len(spectr)-1):
-        spectrum[i] = round(spectr[i] - mv)
-    return spectrum
+    try:
+        mv = 0
+        zero_count = 0
+        spectrum = [0] * len(spectr)
+        for i in range(p_zero1, p_zero2 + 1):
+            mv = mv + spectr[i]
+            zero_count += 1
+        mv = mv / zero_count
+        for i in range(p_lamst, len(spectr)-1):
+            spectrum[i] = round(spectr[i] - mv)
+    except IndexError:
+        print("В файле отсутствует спектр")
+    finally:
+        return spectrum
 
 
 def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settings, home):
