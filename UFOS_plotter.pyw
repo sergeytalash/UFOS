@@ -129,6 +129,8 @@ class PlotClass:
         self.uv = int(round(uv,0))
         self.uvs_or_o3['SD'][uv_mode] = self.uv
         if self.o3_mode!='spectr' and add_point:
+##            self.x1.append(self.data['datetime'])
+##            self.y1.append(self.uv)
             self.x1.append(self.data['datetime'])
             self.y1.append(self.uv)
         
@@ -569,7 +571,8 @@ def plot_spectr(*event):
     start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
-        lab_ozon.configure(text='Значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(start.o3_1, start.o3_2))
+##        lab_ozon.configure(text='Значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(start.o3_1, start.o3_2))
+        lab_ozon.configure(text='Значение озона\n(P2): {} е.Д.'.format(start.o3_2))
     if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
         for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
             start.calc_uv(mode, False)
@@ -585,8 +588,8 @@ def plot_spectr(*event):
     currnt_data.configure(text=data)
 ##    start.x = range(len(start.data['spectr']))
 ##    start.y = start.data['spectr']
-    start.x1 = range(len(start.spectrum))
-    start.y1 = start.spectrum
+    start.x2 = range(len(start.spectrum))
+    start.y2 = start.spectrum
     start.plot(path)
     for i in buttons:
         i.configure(state=NORMAL)
@@ -624,50 +627,6 @@ def change_dir(event):
             dirs_list.insert(END,i)
     refresh_txtlist(path)
 
-def change_mwt_dir():
-    global last_path
-    global path
-    global o3_mode
-    
-    class sdi():
-        def add(path_loc):
-            new_path = path_loc
-##            new_path = path_loc.split(r'\UFOS\ZEN')
-##            new_path = new_path[0] + r'\UFOS\SDI' + new_path[1]
-            return(new_path)
-        def remove(path_loc):
-            new_path = path_loc
-##            new_path = path_loc.split(r'\UFOS\SDI')
-##            new_path = new_path[0] + r'\UFOS\ZEN' + new_path[1]
-            return(new_path)
-    old_path = path
-    try:
-        uv_get = uv.get()
-        chk_var_read_file_get = chk_var_read_file.get()
-    ##    print(last_path)
-        if uv_get==4: #Spectr
-            if chk_var_read_file_get: #chk_read_file = 1
-                if path.find('SDI')==-1: #Есть SDI
-                    path = sdi.add(path)
-                    chk_var_read_file.set(1)
-            else: #chk_read_file = 0
-                if path.find('SDI')!=-1: #Есть SDI
-                    path = sdi.remove(path)
-                    chk_var_read_file.set(0)
-        elif uv_get==0: #Ozon
-            if path.find('SDI')!=-1: #Есть SDI
-                path = sdi.remove(path)
-                chk_var_read_file.set(0)
-        elif uv_get in [1,2,3]: #UV
-            if path.find('SDI')==-1: #Есть SDI
-                path = sdi.add(path)
-                chk_var_read_file.set(1)
-        refresh_txtlist(path)
-        last_path = read_path(home,path,'w')
-    except:
-        path = old_path
-    return(path)
-    
 def refresh_txtlist(path):
     global last_path
     global lab_path
@@ -930,9 +889,9 @@ def make_o3file():
                         line_arr = [j for j in i.split(delimiter) if j!='']
                         if use_correct:
                             if column['ozone'] == [-4, -2]:
-                                if int(line_arr[-3]) or chk_show_all_get:
-                                    start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
-                                    start.y1.append(int(line_arr[column[o3_mode][0]]))
+##                                if int(line_arr[-3]) or chk_show_all_get:
+##                                    start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+##                                    start.y1.append(int(line_arr[column[o3_mode][0]]))
                                 if int(line_arr[-1]) or chk_show_all_get:
                                     start.x2.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
                                     start.y2.append(int(line_arr[column[o3_mode][1]]))
@@ -945,7 +904,8 @@ def make_o3file():
                         sr1 = int(np.mean(start.y1))
                     if start.y2:
                         sr2 = int(np.mean(start.y2))
-                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
+##                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
+                    tex = 'Среднее значение озона\n(P2): {}'.format(sr2)
                 elif mode == 'UV':
                     if data_raw[0].count('\t') > 0:
                         delimiter = '\t'
@@ -1021,7 +981,8 @@ D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
                     s2 = int(sum(start.y2) // len(start.y2))
                 except:
                     s2 = 0
-                tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s1, s2)
+##                tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s1, s2)
+                tex = 'Среднее значение озона\n(P2): {} е.Д.'.format(s2)
             elif o3_mode=='uva':
                 tex = 'УФ-А'
             elif o3_mode=='uvb':
@@ -1210,7 +1171,6 @@ if __name__ == '__main__':
     currnt_data.grid(           row=8,column=0,sticky='we',padx=1)
     """=============================================================="""
     ##main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
-    ##change_mwt_dir()
     confZ = var_settings['calibration']['nm(pix)']['Z']
     confS = var_settings['calibration']['nm(pix)']['S']
     lambda_consts1 = var_settings['calibration']['points']['o3_pair_1'] \
