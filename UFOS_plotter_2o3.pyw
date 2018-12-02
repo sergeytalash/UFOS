@@ -880,6 +880,7 @@ def make_o3file():
         column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
         ##        datetime_index = 0 # UTC
         datetime_index = 1  # Local time
+        file_opened = 0  # File with ozone was opened
         if o3_mode == 'ozone':
             mode = 'Ozone'
         elif o3_mode in ['uva', 'uvb', 'uve']:
@@ -914,6 +915,7 @@ def make_o3file():
                 file = os.path.join(directory, name)
         if os.path.exists(file):
             with open(file) as f:
+                file_opened = 1
                 data_raw = f.readlines()
                 if mode == 'Ozone':
                     use_correct = 1
@@ -963,10 +965,14 @@ def make_o3file():
                         start.x1.append(datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                         start.y1.append(int(line_arr[column[o3_mode]]))
 
-        if len(start.x1) == 0 and len(start.x2) == 0:
+        if file_opened:
+            if len(start.x1) == 0 and len(start.x2) == 0:
+                tex = "Корректных значений озона в файле не найдено!\nПопробуйте отключить корректировку\n({})".format(
+                    os.path.basename(file))
+        else:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
-D:\\UFOS\\Ufos_{}\\Mesurements?)""".format(start.var_settings['device']['id'])
+{}\\Ufos_{}\\Mesurements?)""".format(home, start.var_settings['device']['id'])
 
     else:  # Пересчёт
         mean_file = 0
