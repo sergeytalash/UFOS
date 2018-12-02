@@ -287,7 +287,7 @@ def spectr2zero(p_zero1,p_zero2,p_lamst,spectr):
         return spectrum
 
 
-def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settings, home):
+def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settings, home, o3_num):
     # print(lambda_consts, lambda_consts_pix)
     p_mas = []
     j = 0
@@ -302,11 +302,11 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     r12m = p_mas[0] / p_mas[1]
     r23m = p_mas[2] / p_mas[3]
     mueff = (1 + mu) / 2
-    if mueff < 2:
-        r23clean = get_polynomial_result(var_settings['calibration2']['kzLess2'], mueff)
+    if mueff < var_settings['calibration2']["mu_effect_" + o3_num]:
+        r23clean = get_polynomial_result(var_settings['calibration2']['kzLess' + o3_num], mueff)
     else:
-        r23clean = get_polynomial_result(var_settings['calibration2']['kzLarger2'], mueff)
-    kz_obl_f = get_polynomial_result(var_settings['calibration2']['kz_obl'], (r23clean/r23m))
+        r23clean = get_polynomial_result(var_settings['calibration2']['kzLarger' + o3_num], mueff)
+    kz_obl_f = get_polynomial_result(var_settings['calibration2']['kz_obl' + o3_num], (r23clean/r23m))
     r12clear = kz_obl_f * r12m
     try:
         o3 = int(get_ozone_by_nomographs(home, r12clear, mueff, var_settings['device']['id']))
@@ -402,9 +402,9 @@ class CalculateOnly:
         spectrum = spectr2zero(self.p_zero1, self.p_zero2, self.p_lamst, spectr)
         """Расчет озона"""
         o3_1, correct1 = pre_calc_o3(self.lambda_consts1, self.lambda_consts_pix1, spectrum, self.prom, mu, self.var_sets,
-                                     self.home)
+                                     self.home, '1')
         o3_2, correct2 = pre_calc_o3(self.lambda_consts2, self.lambda_consts_pix2, spectrum, self.prom, mu, self.var_sets,
-                                     self.home)
+                                     self.home, '2')
         return {'o3_1': int(round(o3_1)), 'o3_2': int(round(o3_2)), 'correct1': correct1, 'correct2': correct2}
 
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
