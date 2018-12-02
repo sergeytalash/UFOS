@@ -84,7 +84,6 @@
             1.3051
         ], 
         "pix+-": 2,
-        # Mu effective to divide polynom calculations kClearLarge and kClearLess
         "mu_effect_1": 2,
         "mu_effect_2": 2
     }, 
