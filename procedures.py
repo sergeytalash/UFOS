@@ -76,8 +76,8 @@ def calculate_final_files(pars, file, mode):
 
                     for pair in ["1", "2"]:
                         if corrects_first[pair] == 1:
-                            o3s_daily[pair][part_of_day]["o3"].append(o3s[pair])
-                            o3s_daily[pair]["all"]["o3"].append(o3s[pair])
+                            o3s_daily[pair][part_of_day]["o3"].append(int(line_arr[3]))
+                            o3s_daily[pair]["all"]["o3"].append(int(line_arr[5]))
                             o3s_daily[pair][part_of_day]["k"].append(1)
                             o3s_daily[pair]["all"]["k"].append(1)
                         else:
@@ -93,7 +93,7 @@ def calculate_final_files(pars, file, mode):
                 text_mean_divided = ''
                 for pair in ["1", "2"]:
                     corrects_second[pair] = {}
-                    corrects_actual[pair] = {}
+                    corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
                     o3s_mean[pair] = {}
                     o3s_sigma[pair] = {}
 
@@ -103,8 +103,7 @@ def calculate_final_files(pars, file, mode):
                             # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
                             # o3s_mean[pair][part_of_day] - int - среднее по первой корректировке
                             corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
-                                part_of_day] = get_new_corrects(
-                                o3s[pair][part_of_day], o3s_daily[pair][part_of_day], pars)
+                                part_of_day] = get_new_corrects(o3s[pair][part_of_day], o3s_daily[pair][part_of_day]["o3"], pars)
                         for i in o3s_daily[pair][part_of_day]["k"]:
                             if i == 1:
                                 corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
@@ -130,18 +129,19 @@ def calculate_final_files(pars, file, mode):
                     print(text_mean, file=f)
                     print('Mean File Saved: {}'.format(
                         os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file))))
-            out = {}
-            for pair in ["1", "2"]:
-                out[pair] = {}
-                for part_of_day in ["all", "morning", "evening"]:
-                    out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
-                    out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
-                    out[pair][part_of_day]["o3_count"] = len(o3s_daily[pair][part_of_day]["o3"])
-            return out
+                out = {}
+                for pair in ["1", "2"]:
+                    out[pair] = {"all": {}, "morning": {}, "evening": {}}
+                    for part_of_day in ["all", "morning", "evening"]:
+                        out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
+                        out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
+                        out[pair][part_of_day]["o3_count"] = len(o3s_daily[pair][part_of_day]["o3"])
+                return out
         elif mode == 'SD':
             pass
     except Exception as err:
         print(err, sys.exc_info()[-1].tb_lineno)
+        raise err
 
 # TODO: Procedure for annual ozone calculations
 # TODO: Place file in \Ufos_{}\Mesurements\<YEAR>
