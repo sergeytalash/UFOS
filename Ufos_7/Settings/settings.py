@@ -12,7 +12,7 @@
                 "273.905099"
             ]
         }, 
-        "pix_interval": 25, 
+        "pix_interval": 51, 
         "points": {
             "Fraunhofer_pair": [
                 393.37, 
