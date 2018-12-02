@@ -96,10 +96,10 @@ class PlotClass:
         """Расчет озона"""
         self.o3_1, self.correct1 = pre_calc_o3(lambda_consts1, lambda_consts_pix1, self.spectrum, self.prom,
                                                self.data['mu'],
-                                               self.var_settings, home)
+                                               self.var_settings, home, '1')
         self.o3_2, self.correct2 = pre_calc_o3(lambda_consts2, lambda_consts_pix2, self.spectrum, self.prom,
                                                self.data['mu'],
-                                               self.var_settings, home)
+                                               self.var_settings, home, '2')
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3_1, 'o3_2': self.o3_2, 'correct1': self.correct1,
                                 'correct2': self.correct2}
         if self.o3_mode != 'spectr':
