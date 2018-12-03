@@ -371,7 +371,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     except Exception as err:
         print('Plotter: ', err)
         o3 = -1
-    if 150 <= o3 <= 600:
+    if 100 <= o3 <= 600:
         correct = 1
     else:
         correct = 0
