@@ -34,6 +34,33 @@ def canvs_destroy(canvs):
         i.get_tk_widget().destroy()
 
 
+# Procedure for annual ozone calculations (make_annual_ozone_file)
+# TODO: Place file in \Ufos_{}\Mesurements\<YEAR>
+# TODO: Format of the file: Date\tMean_All\tSigma_All\tMean_Morning\tSigma_Morning\tMean_Evening\tSigma_Evening
+
+def make_annual_ozone_file(home, ent_year, data):
+    """data - PlotClass.init()"""
+    year = ent_year.get()
+    main = Main(data.var_settings)
+    main.chan = "ZD"
+    device_id = data.common_pars["device"]["id"]
+    for path, dirs, files in os.walk(os.path.join(home,
+                                                  "Ufos_{}".format(device_id),
+                                                  "Mesurements",
+                                                  year)):
+        for file in files:
+            if file.count("ZD") > 0:
+                file_path = os.path.join(path, file)
+                # print(file_path)
+                data.get_spectr(file_path)
+                main.calc_final_file(data.var_settings, home, data.spectrum, data.mu, 0, data.sensitivity,
+                                     data.sensitivity_eritem)
+                # print(main.calc_result[main.chan])
+                # print(out)
+    print("Done.")
+    # calculate_final_files(pars, file, mode)
+
+
 class PlotClass:
     def __init__(self, window, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all, var_with_sens):
         global timer
@@ -41,7 +68,7 @@ class PlotClass:
         self.chk_show_all = chk_show_all
         self.var_with_sens = var_with_sens
         self.chk_read_file_get = chk_read_file_get
-        self.common_pars = Settings.get(home)
+        self.common_pars = Settings.get_common(home)
         self.var_settings = Settings.get_device(home, self.common_pars['device']['id'])
         self.plotx = plotx
         self.ploty = ploty
@@ -157,7 +184,7 @@ class PlotClass:
             except:
                 new_data['temperature_ccd'] = 'None'
                 new_data['temperature_poly'] = 'None'
-        return (new_data)
+        return new_data
 
     def get_spectr(self, file_path):
         """Get data from OLD file"""
@@ -168,7 +195,7 @@ class PlotClass:
             else:
                 raise
         except Exception as err:
-            ##            print('ERROR',err)
+            print('ERROR',err)
             with open(file_path) as f:
                 line = '1'
                 while line:
@@ -415,6 +442,7 @@ def obj_grid():
     r += 1
     c = 0
     admin_panel.grid(row=r, column=c, sticky='nwe')
+    but_annual_ozone.configure(command=lambda: make_annual_ozone_file(home, ent_year, start))
     if not chk_var_read_file.get():
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
@@ -554,6 +582,7 @@ def first_clear_plot(plotx, ploty, some_root):
     dir_list.opened = False
     start = PlotClass(some_root, 'first', plotx, ploty, 1, 0, 0)
     start.plot(path)
+    return start
 
 
 def make_txt_list(directory):
@@ -793,7 +822,7 @@ class FinalFile:
             create_new_file = False
         print('File Saved: {}'.format(self.path_file))
         # self.path_file = self.path_file.replace('New_','')
-        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan))
+        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True))
         but_make_mean_file.configure(state=NORMAL)
 
 
@@ -880,7 +909,7 @@ def make_o3file():
         column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
         ##        datetime_index = 0 # UTC
         datetime_index = 1  # Local time
-        file_opened = 0 # File with ozone was opened
+        file_opened = 0  # File with ozone was opened
         if o3_mode == 'ozone':
             mode = 'Ozone'
         elif o3_mode in ['uva', 'uvb', 'uve']:
@@ -966,7 +995,8 @@ def make_o3file():
 
         if file_opened:
             if len(start.x1) == 0 and len(start.x2) == 0:
-                tex = "Корректных значений озона в файле не найдено!\nПопробуйте отключить корректировку\n({})".format(os.path.basename(file))
+                tex = "Корректных значений озона в файле не найдено!\nПопробуйте отключить корректировку\n({})".format(
+                    os.path.basename(file))
         else:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
@@ -1022,16 +1052,14 @@ def make_o3file():
         if start.x1:
             lab_currnt_data.configure(text='Дата: {0}'.format(start.x1[0]))
             if o3_mode == 'ozone':
-                try:
-                    s1 = int(sum(start.y1) // len(start.y1))
-                except:
-                    s1 = 0
-                try:
-                    s2 = int(sum(start.y2) // len(start.y2))
-                except:
-                    s2 = 0
-                ##                tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s1, s2)
-                tex = 'Среднее значение озона\n(P2): {} е.Д.'.format(s2)
+                s = {"1": {"o3": start.y1}, "2": {"o3": start.y2}}
+                for o3_pair in ["1", "2"]:
+                    try:
+                        s[o3_pair]["mean"] = int(sum(s[o3_pair]["o3"]) // len(s[o3_pair]["o3"]))
+                    except:
+                        s[o3_pair]["mean"] = 0
+                # tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s["1"]["mean"], s["2"]["mean"])
+                tex = 'Среднее значение озона\n(P2): {} е.Д.'.format(s["2"]["mean"])
             elif o3_mode == 'uva':
                 tex = 'УФ-А'
             elif o3_mode == 'uvb':
@@ -1081,7 +1109,7 @@ if __name__ == '__main__':
     path = os.getcwd()
     home = os.getcwd()
     tmp_path = home
-    common_pars = Settings.get(home)
+    common_pars = Settings.get_common(home)
     var_settings = Settings.get_device(home, common_pars['device']['id'])
     drive = os.getcwd()[:3]
     path2 = ''
@@ -1169,10 +1197,18 @@ if __name__ == '__main__':
     uv = IntVar()
     uv.set(4)
     but_remake = ttk.Button(admin_panel, text='Новый формат Z-D', command=b_remake)
-    but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
+    # but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
+
+    # Annual ozone calculations
+    ent_year = ttk.Entry(admin_panel)
+    but_annual_ozone = ttk.Button(admin_panel, text='Сохранить озон за год')
+
     admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_read_file, but_save_to_final_file,
                       but_make_mean_file,
-                      rad_4096, rad_ytop, but_plot_more, but_remake, but_send]
+                      rad_4096, rad_ytop, but_plot_more, but_remake,
+                      # but_send
+                      ent_year, but_annual_ozone
+                      ]
 
     # Main Menu
     but_refresh = ttk.Button(menu_panel, text='Обновить', command=refresh)
@@ -1208,7 +1244,7 @@ if __name__ == '__main__':
 
     obj_grid()
 
-    but_send.grid(row=0, column=10, sticky='w')
+    # but_send.grid(row=0, column=10, sticky='w')
     ent_code.grid(row=0, column=13, sticky='e')
     right_panel.grid(row=1, column=3, sticky='nwse', padx=1)
     left_panel.grid(row=1, column=0, sticky='nwse', padx=1)
@@ -1247,7 +1283,7 @@ if __name__ == '__main__':
             psZ[key].append(nm2pix(point, confZ, 0))
             psS[key].append(nm2pix(point, confS, 0))
 
-    first_clear_plot(plotx, ploty, right_panel)
+    start = first_clear_plot(plotx, ploty, right_panel)
 
     ##Скрыть следующие кнопки
     common = [rad_4096, rad_ytop, but_plot_more, but_remake]

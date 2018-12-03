@@ -41,7 +41,7 @@ class PlotClass:
         self.chk_show_all = chk_show_all
         self.var_with_sens = var_with_sens
         self.chk_read_file_get = chk_read_file_get
-        self.common_pars = Settings.get(home)
+        self.common_pars = Settings.get_common(home)
         self.var_settings = Settings.get_device(home, self.common_pars['device']['id'])
         self.plotx = plotx
         self.ploty = ploty
@@ -793,7 +793,7 @@ class FinalFile:
             create_new_file = False
         print('File Saved: {}'.format(self.path_file))
         # self.path_file = self.path_file.replace('New_','')
-        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan))
+        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True))
         but_make_mean_file.configure(state=NORMAL)
 
 
@@ -1083,7 +1083,7 @@ if __name__ == '__main__':
     path = os.getcwd()
     home = os.getcwd()
     tmp_path = home
-    common_pars = Settings.get(home)
+    common_pars = Settings.get_common(home)
     var_settings = Settings.get_device(home, common_pars['device']['id'])
     drive = os.getcwd()[:3]
     path2 = ''
@@ -1171,10 +1171,12 @@ if __name__ == '__main__':
     uv = IntVar()
     uv.set(4)
     but_remake = ttk.Button(admin_panel, text='Новый формат Z-D', command=b_remake)
-    but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
+    # but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
     admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_read_file, but_save_to_final_file,
                       but_make_mean_file,
-                      rad_4096, rad_ytop, but_plot_more, but_remake, but_send]
+                      rad_4096, rad_ytop, but_plot_more, but_remake,
+                      # but_send
+                      ]
 
     # Main Menu
     but_refresh = ttk.Button(menu_panel, text='Обновить', command=refresh)
@@ -1210,7 +1212,7 @@ if __name__ == '__main__':
 
     obj_grid()
 
-    but_send.grid(row=0, column=10, sticky='w')
+    # but_send.grid(row=0, column=10, sticky='w')
     ent_code.grid(row=0, column=13, sticky='e')
     right_panel.grid(row=1, column=3, sticky='nwse', padx=1)
     left_panel.grid(row=1, column=0, sticky='nwse', padx=1)

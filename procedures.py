@@ -30,14 +30,14 @@ def get_new_corrects(o3s, o3s_tmp, pars):
     return corrects, sigma, mean
 
 
-def calculate_final_files(pars, file, mode):
+def calculate_final_files(pars, file, mode, write_daily_file):
     """Функция для вычисления значения полинома"""
     try:
         if file:
             with open(file) as f:
                 all_data = f.readlines()
                 data = all_data[1:]
-            if mode == 'ZD':
+            if mode == "ZD":
                 # Массив старых строк с лишними \t с делением на \t
                 lines_arr_raw_to_file = []
                 # Весь озон
@@ -103,49 +103,54 @@ def calculate_final_files(pars, file, mode):
                             # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
                             # o3s_mean[pair][part_of_day] - int - среднее по первой корректировке
                             corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
-                                part_of_day] = get_new_corrects(o3s[pair][part_of_day], o3s_daily[pair][part_of_day]["o3"], pars)
+                                part_of_day] = get_new_corrects(o3s[pair][part_of_day],
+                                                                o3s_daily[pair][part_of_day]["o3"], pars)
                         for i in o3s_daily[pair][part_of_day]["k"]:
                             if i == 1:
                                 corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
                             else:
                                 corrects_actual[pair][part_of_day].append('0')
-                        text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
+                        try:
+                            text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
                                                                                                      o3s_mean[
                                                                                                          pair][
                                                                                                          part_of_day],
                                                                                                      o3s_sigma[
                                                                                                          pair][
                                                                                                          part_of_day])
+                        except KeyError as err:
+                            print(err, sys.exc_info()[-1].tb_lineno)
                         if part_of_day == "all":
                             text_mean += text
                         text_mean_divided += part_of_day + ": " + text
-
-                with open(os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file)), 'w') as f:
-                    print(';'.join(all_data[:1]), file=f, end='')
-                    for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"], corrects_actual["2"]["all"]):
-                        part1 = line[:-3]
-                        part2 = line[-2:-1]
-                        print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
-                    print(text_mean, file=f)
-                    print('Mean File Saved: {}'.format(
-                        os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file))))
+                if write_daily_file:
+                    with open(os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file)), 'w') as f:
+                        print(';'.join(all_data[:1]), file=f, end='')
+                        for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"],
+                                                            corrects_actual["2"]["all"]):
+                            part1 = line[:-3]
+                            part2 = line[-2:-1]
+                            print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
+                        print(text_mean, file=f)
+                        print('Mean File Saved: {}'.format(
+                            os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file))))
                 out = {}
                 for pair in ["1", "2"]:
                     out[pair] = {"all": {}, "morning": {}, "evening": {}}
                     for part_of_day in ["all", "morning", "evening"]:
-                        out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
-                        out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
-                        out[pair][part_of_day]["o3_count"] = len(o3s_daily[pair][part_of_day]["o3"])
+                        try:
+                            out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
+                            out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
+                            out[pair][part_of_day]["o3_count"] = len(o3s_daily[pair][part_of_day]["o3"])
+                        except KeyError as err:
+                            print(err, sys.exc_info()[-1].tb_lineno)
                 return out
-        elif mode == 'SD':
+        elif mode == "SD":
             pass
     except Exception as err:
         print(err, sys.exc_info()[-1].tb_lineno)
         raise err
 
-# TODO: Procedure for annual ozone calculations
-# TODO: Place file in \Ufos_{}\Mesurements\<YEAR>
-# TODO: Format of the file: Date\tMean_All\tSigma_All\tMean_Morning\tSigma_Morning\tMean_Evening\tSigma_Evening
 
 def get_polynomial_result(coefficients, x):
     if type(coefficients[0]) == float:
@@ -248,13 +253,12 @@ def get_ozone_by_nomographs(home, r12clear, mueff, dev_id, o3_num):
 
 def read_connect(home):
     with open(os.path.join(home, 'connect.ini')) as f:
-        data = f.readlines()
-        new_data = {}
-        for i in data:
+        connection_settings = {}
+        for i in f.readlines():
             if i[0] not in ['\n', ' ', '#']:
                 line = i.replace(' ', '').replace('\n', '').split('=')
-                new_data[line[0]] = line[1]
-        return new_data
+                connection_settings[line[0]] = line[1]
+        return connection_settings
 
 
 def erithema(x, c):
@@ -561,16 +565,19 @@ class Ufos_data:
 
 
 class Settings:
-    def get(home):
-        with open(os.path.join(home, 'common_settings.py'), 'r') as f:
+    @staticmethod
+    def get_common(home):
+        with open(os.path.join(home, 'common_settings.json'), 'r') as f:
             return json.load(f)
 
+    @staticmethod
     def get_device(home, dev_id):
-        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.py'.format(dev_id)), 'r') as f:
+        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.json'.format(dev_id)), 'r') as f:
             return json.load(f)
 
+    @staticmethod
     def set(home, pars, dev_id):
-        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.py'.format(dev_id)), 'w') as f:
+        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.json'.format(dev_id)), 'w') as f:
             return json.dump(pars, f, ensure_ascii=False, indent='    ', sort_keys=True)
 
 
@@ -615,15 +622,14 @@ def sunheight(altitude, longitude, date_time, timezone):
     z = sin(pi / 2 - hp) ** 2
     mu = 6391.229 / sqrt(6391.229 ** 2 - 6371.223 ** 2 * z)
     z1 = 1 / cos(pi / 2 - hp)
-    amas = 0
+    atmosphere_mas = 0
     if hg <= 0:
         pass
-    ##        hg = 0
     elif 0 < hg < 20:
-        amas = 45.022 * hg ** (-0.9137)
+        atmosphere_mas = 45.022 * hg ** (-0.9137)
     else:
-        amas = z1 - (z1 - 1) * (0.0018167 - 0.002875 * (z1 - 1) - 0.0008083 * (z1 - 1) ** 2)
-    return (round(mu, 3), round(amas, 3), round(hg, 3))
+        atmosphere_mas = z1 - (z1 - 1) * (0.0018167 - 0.002875 * (z1 - 1) - 0.0008083 * (z1 - 1) ** 2)
+    return round(mu, 3), round(atmosphere_mas, 3), round(hg, 3)
 
 
 def get_time_next_start(latitude, longitude, timezone, sun_height_min):
@@ -712,8 +718,9 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
 class Main:
     """UFOS mesure class"""
 
-    def __init__(self, pars, logger):
-        self.logger = logger
+    def __init__(self, pars, logger=False):
+        if logger:
+            self.logger = logger
         self.tries = 0
         self.mesure_count = 0
         self.last_file_o3 = ''
@@ -804,7 +811,8 @@ class Main:
         except Exception as err:
             print('analyze_spectr:', end='')
             print(err, sys.exc_info()[-1].tb_lineno)
-            self.logger.error(str(err))
+            if logger:
+                self.logger.error(str(err))
 
     def pix2nm(self, pix):
         nm = 0
@@ -818,7 +826,7 @@ class Main:
         pix = 0
         while self.pix2nm(pix) < nm:
             pix += 1
-        return (pix)
+        return pix
 
     def nms2pixs(self):
         self.pixs = {}
@@ -827,10 +835,10 @@ class Main:
             for nm in self.pars["calibration"]["points"][pair]:
                 self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    def calc_mon_o3_file(self, pars, home, year):
-        calco = CalculateOnly(pars, home)
-        year_path = "{}\\Ufos_{}\\Mesurements\\{}".foramt(home, pars["device"]["id"], year)
-        print(year_path)
+    # def calc_mon_o3_file(self, pars, home, year):
+    #     calco = CalculateOnly(pars, home)
+    #     year_path = "{}\\Ufos_{}\\Mesurements\\{}".foramt(home, pars["device"]["id"], year)
+    #     print(year_path)
 
         # spectr, mu = [], 0
         # if self.chan == 'ZD':
@@ -841,10 +849,10 @@ class Main:
         #     #        'correct': correct}
         #     print('=> OZONE: P1 = {}, P2 = {}'.format(o3_1, o3_2))
 
-    def calc_annual_o3_file(self, pars, home, year):
-        calco = CalculateOnly(pars, home)
-        year_path = "{}\\Ufos_{}\\Mesurements\\{}".foramt(home, pars["device"]["id"], year)
-        print(year_path)
+    # def calc_annual_o3_file(self, pars, home, year):
+    #     calco = CalculateOnly(pars, home)
+    #     year_path = "{}\\Ufos_{}\\Mesurements\\{}".foramt(home, pars["device"]["id"], year)
+    #     print(year_path)
 
         # spectr, mu = [], 0
         # if self.chan == 'ZD':
@@ -1046,7 +1054,7 @@ class Main:
             print('procedures.sock_send(): {} - line {}'.format(err, sys.exc_info()[2].tb_lineno))
             t = 'ERR'
         finally:
-            return (t)
+            return t
 
     def send_file(self, file2send):
         try:
@@ -1075,7 +1083,7 @@ class Main:
         except Exception as err:
             print('procedures.send_file(): {} - line {}'.format(err, sys.exc_info()[2].tb_lineno))
         finally:
-            return (tex)
+            return tex
 
     def mesure(self):
         """Определение номера последнего измерения"""
@@ -1101,9 +1109,8 @@ class Main:
                         raise TypeError
                     else:
                         print()
-                    while self.expo < self.pars['device']['auto_expo_max'] and max(self.ZSspectr) < self.pars['device'][
-                        'amplitude_max']:
-
+                    while self.expo < self.pars['device']['auto_expo_max'] \
+                            and max(self.ZSspectr) < self.pars['device']['amplitude_max']:
                         try:
                             text = 'Канал {}. Эксп = {}'.format(
                                 self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
@@ -1119,7 +1126,6 @@ class Main:
                             self.logger.info(text)
                             if max(self.ZSspectr) > self.pars['device']['amplitude_min']:
                                 break
-                            ##                        print()
                             k[chan] = max(self.ZSspectr) / self.pars['device']['amplitude_max']
                             if k[chan] != 0:
                                 self.expo = int(self.expo / k[chan])
@@ -1226,7 +1232,7 @@ class Main:
             print(err, sys.exc_info()[-1].tb_lineno)
 
 
-class check_sun_and_mesure():
+class CheckSunAndMesure():
     def __init__(self, logger):
         self.home = os.getcwd()
         self.logger = logger
@@ -1234,9 +1240,8 @@ class check_sun_and_mesure():
     def start(self):
         while 1:
             try:
-
                 ufos_com = UfosConnection(self.logger).get_com()['com_obj']
-                self.common_pars = Settings.get(self.home)
+                self.common_pars = Settings.get_common(self.home)
                 self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
 
                 self.time_now_1 = datetime.datetime.now()
@@ -1255,7 +1260,7 @@ class check_sun_and_mesure():
                         print('Кабель подключен к ПК, но не подключен к УФОС!', end='\r')
                         time.sleep(10)
                     else:
-                        calculate_final_files(self.pars, main.last_file_o3, 'ZD')
+                        calculate_final_files(self.pars, main.last_file_o3, 'ZD', True)
                         main.make_line()
                         print('========================')
                         next_time = self.time_now_1 + datetime.timedelta(minutes=self.pars["station"]["interval"])
@@ -1279,7 +1284,7 @@ class check_sun_and_mesure():
                             time.sleep(1)
                 else:
                     # Высота Солнца менее заданного параметра
-                    calculate_final_files(self.pars, main.last_file_o3, 'ZD')
+                    calculate_final_files(self.pars, main.last_file_o3, 'ZD', True)
 
                     print('\rСледующее измерение: {}'.format(get_time_next_start(self.pars["station"]["latitude"],
                                                                                  self.pars["station"]["longitude"],

@@ -578,15 +578,15 @@ def time_code(start):
         time_code.ct_start = time_code.ct_next
         print(time_code.ct)
 
-def read_connect(home):
-    with open(os.path.join(home,'connect.ini')) as f:
-        data = f.readlines()
-        new_data = {}
-        for i in data:
-            if i[0] not in ['\n',' ','#']:
-                line = i.replace(' ','').replace('\n','').split('=')
-                new_data[line[0]] = line[1]
-        return(new_data)
+# def read_connect(home):
+#     with open(os.path.join(home,'connect.ini')) as f:
+#         data = f.readlines()
+#         new_data = {}
+#         for i in data:
+#             if i[0] not in ['\n',' ','#']:
+#                 line = i.replace(' ','').replace('\n','').split('=')
+#                 new_data[line[0]] = line[1]
+#         return(new_data)
             
     
 def pix2nm(abc,pix,digs,add):
