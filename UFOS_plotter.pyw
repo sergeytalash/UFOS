@@ -53,6 +53,7 @@ def make_annual_ozone_file(home, ent_year, data):
                 file_path = os.path.join(path, file)
                 # print(file_path)
                 data.get_spectr(file_path)
+                print(data.mu)
                 main.calc_final_file(data.var_settings, home, data.spectrum, data.mu, 0, data.sensitivity,
                                      data.sensitivity_eritem)
                 # print(main.calc_result[main.chan])
