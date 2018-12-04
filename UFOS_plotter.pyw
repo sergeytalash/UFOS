@@ -51,12 +51,12 @@ def make_annual_ozone_file(home, ent_year, data):
         for file in files:
             if file.count("ZD") > 0:
                 file_path = os.path.join(path, file)
-                # print(file_path)
+                print(file_path)
                 data.get_spectr(file_path)
-                print(data.mu)
-                main.calc_final_file(data.var_settings, home, data.spectrum, data.mu, 0, data.sensitivity,
-                                     data.sensitivity_eritem)
-                # print(main.calc_result[main.chan])
+                # print(data.data["mu"])
+                main.calc_final_file(data.var_settings, home, data.spectrum, data.data["mu"], 0, data.sensitivity,
+                                     data.sensitivity_eritem, False)
+                print(main.calc_result[main.chan])
                 # print(out)
     print("Done.")
     # calculate_final_files(pars, file, mode)
@@ -823,7 +823,7 @@ class FinalFile:
             create_new_file = False
         print('File Saved: {}'.format(self.path_file))
         # self.path_file = self.path_file.replace('New_','')
-        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True))
+        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
         but_make_mean_file.configure(state=NORMAL)
 
 

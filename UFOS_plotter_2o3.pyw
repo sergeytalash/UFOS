@@ -793,7 +793,7 @@ class FinalFile:
             create_new_file = False
         print('File Saved: {}'.format(self.path_file))
         # self.path_file = self.path_file.replace('New_','')
-        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True))
+        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
         but_make_mean_file.configure(state=NORMAL)
 
 
