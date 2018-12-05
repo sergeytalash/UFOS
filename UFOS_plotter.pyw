@@ -57,47 +57,14 @@ def make_annual_ozone_file(home, ent_year, data):
                 root.update()
                 if day not in all_o3.keys():
                     all_o3[day] = []
-                print(file_path)
+
+                # TODO: Remove print
+                # print(file_path)
 
                 data.get_spectr(file_path, False)
-                # for k, v in data.data.items():
-                #     print(k, v)
-
-                # calculated
-                # {
-                # 'amas': 10.2137,
-                # 'dispersia': 504451.0743,
-                # 'mean': 1075.9709,
-                # 'mu': 8.4472,
-                # 'sko': 710.2472,
-                # 'sunheight': 5.071
-                # }
-
-                # id
-                # {
-                # 'device': 23,
-                # 'station': '26077'
-                # }
-
-                # mesurement
-                # {
-                # 'accummulate': 1,
-                # 'channel': 'ZD',
-                # 'datetime': '20180711 01:58:51',
-                # 'datetime_local': '20180711 04:58:51',
-                # 'exposition': 2156,
-                # 'latitude': 59.57,
-                # 'longitude': -30.42,
-                # 'status': 0,
-                # 'temperature_ccd': 22.2,
-                # 'temperature_poly': 20.0,
-                # 'timezone': '+3'
-                # }
-
                 main.calc_final_file(data.var_settings, home, data.data["spectr"], data.data["calculated"]["mu"],
                                      data.data["mesurement"]["exposition"], data.sensitivity,
                                      data.sensitivity_eritem, False)
-                # print(main.calc_result[main.chan])
                 all_o3[day].append(";".join([str(i) for i in [data.data["mesurement"]['datetime'],
                                                               data.data["mesurement"]["datetime_local"],
                                                               data.data["calculated"]["sunheight"],
@@ -109,12 +76,31 @@ def make_annual_ozone_file(home, ent_year, data):
                                              ]
                                             )
                                    )
-    print(all_o3[day])
+    annual_data = {}
+    for day in all_o3.keys():
+        daily_data = calculate_final_files(data.var_settings, all_o3[day], main.chan, False, "calculate")
+        # # TODO: Remove print
+        # print("calculate_final_files")
+        # print(daily_data)
+        annual_data[day] = daily_data
+
+    write_annual_ozone(home, device_id, year, annual_data)
+
     but_annual_ozone.configure(text="Сохранить озон за год")
     root.update()
     print("Done.")
 
-    # calculate_final_files(pars, file, mode)
+
+def write_annual_ozone(home, device_id, year, annual_data):
+    print(home, device_id, year, annual_data)
+    # dir_path = os.path.join(home, "Ufos_{}".format(device_id), "Mesurements", year)
+    # if os.path.exists(dir_path):
+    #     for pair in ["1", "2"]:
+    #         with open(os.path.join(dir_path, "annual_ozone_{}_pair_{}.txt".format(year, pair)), 'w') as f:
+    #             for day in sorted(annual_data.keys()):
+    #                 line =
+    #                 print()
+
 
 
 class PlotClass:

@@ -35,7 +35,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
     pars - parameters
     file - file to read
     mode - "ZD" or "SD"
-    write_daily_file - allow to write file with mean ozone, else just calculate
+    write_daily_file - True or False - allow to write file with mean ozone, else just calculate
     data_source_flag - "file" or "calculate" - select source of data: read from file or get ozone from variable
     """
     try:
@@ -44,9 +44,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                 all_data = f.readlines()
                 data = all_data[1:]
         elif data_source_flag == "calculate":
-            # TODO: Remove print
-            print(file, data_source_flag)
-
+            data = file
         if mode == "ZD":
             # Массив старых строк с лишними \t с делением на \t
             lines_arr_raw_to_file = []
@@ -109,10 +107,11 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                 corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
                 o3s_mean[pair] = {}
                 o3s_sigma[pair] = {}
-                no_data_for_part_of_day = ""
+                no_data_for_part_of_day = "None"
                 for part_of_day in ["all", "morning", "evening"]:
                     if no_data_for_part_of_day in part_of_day:
-                        no_data_for_part_of_day = ""
+                        print("no_data_for_part_of_day: ", no_data_for_part_of_day)
+                        no_data_for_part_of_day = "None"
                         continue
                     if o3s_daily[pair][part_of_day]["o3"]:
                         # corrects_second[pair][part_of_day] - list - для второй корректировки
@@ -159,7 +158,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
             out = {}
             for pair in ["1", "2"]:
                 out[pair] = {"all": {}, "morning": {}, "evening": {}, }
-                for part_of_day in ["all", "morning", "evening"]:
+                for part_of_day in o3s_mean[pair].keys():
                     try:
                         out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
                         out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
