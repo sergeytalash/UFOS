@@ -31,7 +31,13 @@ def get_new_corrects(o3s, o3s_first_corrected, pars):
 
 
 def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
-    """"""
+    """
+    pars - parameters
+    file - file to read
+    mode - "ZD" or "SD"
+    write_daily_file - allow to write file with mean ozone, else just calculate
+    data_source_flag - "file" or "calculate" - select source of data: read from file or get ozone from variable
+    """
     try:
         if data_source_flag == "file":
             with open(file) as f:
@@ -45,6 +51,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
             # Массив старых строк с лишними \t с делением на \t
             lines_arr_raw_to_file = []
             # Весь озон
+            current_o3 = {"1": 0, "2": 0}
             o3s = {"1": {"all": [], "morning": [], "evening": []},
                    "2": {"all": [], "morning": [], "evening": []}
                    }
@@ -70,18 +77,19 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                     part_of_day = "evening"
                 sh_previous = sh
                 # Озон без корректировок
-                o3s["1"][part_of_day].append(int(line_arr[3]))
-                o3s["2"][part_of_day].append(int(line_arr[5]))
-                o3s["1"]["all"].append(int(line_arr[3]))
-                o3s["2"]["all"].append(int(line_arr[5]))
+                current_o3["1"] = int(line_arr[3])
+                current_o3["2"] = int(line_arr[5])
+
                 corrects_first = {"1": int(line_arr[4]), "2": int(line_arr[6])}
 
                 # === First correction check ===
 
                 for pair in ["1", "2"]:
+                    o3s[pair][part_of_day].append(current_o3[pair])
+                    o3s[pair]["all"].append(current_o3[pair])
                     if corrects_first[pair] == 1:
-                        o3s_daily[pair][part_of_day]["o3"].append(int(line_arr[3]))
-                        o3s_daily[pair]["all"]["o3"].append(int(line_arr[5]))
+                        o3s_daily[pair][part_of_day]["o3"].append(current_o3[pair])
+                        o3s_daily[pair]["all"]["o3"].append(current_o3[pair])
                         o3s_daily[pair][part_of_day]["k"].append(1)
                         o3s_daily[pair]["all"]["k"].append(1)
                     else:
@@ -89,6 +97,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         o3s_daily[pair]["all"]["k"].append(0)
 
             # === Second correction check ===
+
             corrects_second = {}  # для второй корректировки
             corrects_actual = {}  # вторая корректировка
             o3s_sigma = {}
@@ -102,7 +111,6 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                 o3s_sigma[pair] = {}
 
                 for part_of_day in ["all", "morning", "evening"]:
-                    text = ''
                     if o3s_daily[pair][part_of_day]["o3"]:
                         # corrects_second[pair][part_of_day] - list - для второй корректировки
                         # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
@@ -110,9 +118,12 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
                             part_of_day] = get_new_corrects(o3s[pair][part_of_day],
                                                             o3s_daily[pair][part_of_day]["o3"], pars)
+                        print("o3s: {} {}".format(pair, part_of_day), o3s[pair][part_of_day])
+                        print("o3s_daily: {} {}".format(pair, part_of_day), o3s_daily[pair][part_of_day]["o3"])
                     for i in o3s_daily[pair][part_of_day]["k"]:
                         if i == 1:
                             corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
+
                         else:
                             corrects_actual[pair][part_of_day].append('0')
                     try:
@@ -124,12 +135,15 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                                                                                                          pair][
                                                                                                          part_of_day])
                     except KeyError as err:
-                        print("procedures.py: No data files for '{}' (line: {})".format(err,
-                                                                                        sys.exc_info()[-1].tb_lineno))
+                        text = '\n'
+                        print("procedures.py: INFO: No data files for '{}' (line: {})".format(err,
+                                                                                              sys.exc_info()[
+                                                                                                  -1].tb_lineno))
                     if part_of_day == "all":
                         text_mean += text
                     text_mean_divided += part_of_day + ": " + text
-            if write_daily_file:
+            print(text_mean_divided)
+            if write_daily_file is True and data_source_flag == "file":
                 with open(os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file)), 'w') as f:
                     print(';'.join(all_data[:1]), file=f, end='')
                     for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"],
@@ -149,8 +163,9 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
                         out[pair][part_of_day]["o3_count"] = len(o3s_daily[pair][part_of_day]["o3"])
                     except KeyError as err:
-                        print("procedures.py: No data files for '{}' (line: {})".format(err,
-                                                                                        sys.exc_info()[-1].tb_lineno))
+                        # print("procedures.py: INFO: No data files for '{}' (line: {})".format(err,
+                        #                                                                 sys.exc_info()[-1].tb_lineno))
+                        pass
             return out
         elif mode == "SD":
             pass
