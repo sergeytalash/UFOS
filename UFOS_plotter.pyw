@@ -3,12 +3,12 @@
 import matplotlib
 
 matplotlib.use('TkAgg')
-import os
-import datetime
+# import os
+# import datetime
 from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
-from math import *
+# from math import *
 from Shared_ import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -44,6 +44,7 @@ def make_annual_ozone_file(home, ent_year, data):
     main = Main(data.var_settings)
     main.chan = "ZD"
     device_id = data.common_pars["device"]["id"]
+    all_o3 = {}
     for path, dirs, files in os.walk(os.path.join(home,
                                                   "Ufos_{}".format(device_id),
                                                   "Mesurements",
@@ -51,14 +52,68 @@ def make_annual_ozone_file(home, ent_year, data):
         for file in files:
             if file.count("ZD") > 0:
                 file_path = os.path.join(path, file)
+                day = os.path.basename(path)
+                but_annual_ozone.configure(text=file[-16:-4])
+                root.update()
+                if day not in all_o3.keys():
+                    all_o3[day] = []
                 print(file_path)
-                data.get_spectr(file_path)
-                # print(data.data["mu"])
-                main.calc_final_file(data.var_settings, home, data.spectrum, data.data["mu"], 0, data.sensitivity,
+
+                data.get_spectr(file_path, False)
+                # for k, v in data.data.items():
+                #     print(k, v)
+
+                # calculated
+                # {
+                # 'amas': 10.2137,
+                # 'dispersia': 504451.0743,
+                # 'mean': 1075.9709,
+                # 'mu': 8.4472,
+                # 'sko': 710.2472,
+                # 'sunheight': 5.071
+                # }
+
+                # id
+                # {
+                # 'device': 23,
+                # 'station': '26077'
+                # }
+
+                # mesurement
+                # {
+                # 'accummulate': 1,
+                # 'channel': 'ZD',
+                # 'datetime': '20180711 01:58:51',
+                # 'datetime_local': '20180711 04:58:51',
+                # 'exposition': 2156,
+                # 'latitude': 59.57,
+                # 'longitude': -30.42,
+                # 'status': 0,
+                # 'temperature_ccd': 22.2,
+                # 'temperature_poly': 20.0,
+                # 'timezone': '+3'
+                # }
+
+                main.calc_final_file(data.var_settings, home, data.data["spectr"], data.data["calculated"]["mu"],
+                                     data.data["mesurement"]["exposition"], data.sensitivity,
                                      data.sensitivity_eritem, False)
-                print(main.calc_result[main.chan])
-                # print(out)
+                # print(main.calc_result[main.chan])
+                all_o3[day].append(";".join([str(i) for i in [data.data["mesurement"]['datetime'],
+                                                              data.data["mesurement"]["datetime_local"],
+                                                              data.data["calculated"]["sunheight"],
+                                                              main.calc_result[main.chan]["o3_1"],
+                                                              main.calc_result[main.chan]["correct1"],
+                                                              main.calc_result[main.chan]["o3_2"],
+                                                              main.calc_result[main.chan]["correct2"]
+                                                              ]
+                                             ]
+                                            )
+                                   )
+    print(all_o3[day])
+    but_annual_ozone.configure(text="Сохранить озон за год")
+    root.update()
     print("Done.")
+
     # calculate_final_files(pars, file, mode)
 
 
@@ -167,74 +222,85 @@ class PlotClass:
             self.x1.append(self.data['datetime'])
             self.y1.append(self.uv)
 
-    def get_spectr_new(self, file_path):
+    @staticmethod
+    def get_spectr_new(file_path, flag):
         """Get data from NEW file"""
         with open(file_path) as f:
             data = json.load(f)
-            new_data = {'spectr': data['spectr'],
-                        'datetime': datetime.datetime.strptime(data['mesurement']['datetime'], '%Y%m%d %H:%M:%S'),
-                        'hs': data['calculated']['sunheight'],
-                        'amas': data['calculated']['amas'],
-                        'mu': data['calculated']['mu'],
-                        'expo': data['mesurement']['exposition'],
-                        'accumulate': data['mesurement']['accummulate'],
-                        'channel': data['mesurement']['channel']}
-            try:
-                new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
-                new_data['temperature_poly'] = data['mesurement']['temperature_poly']
-            except:
-                new_data['temperature_ccd'] = 'None'
-                new_data['temperature_poly'] = 'None'
+            if flag:
+                new_data = {'spectr': data['spectr'],
+                            'datetime': datetime.datetime.strptime(data['mesurement']['datetime'], '%Y%m%d %H:%M:%S'),
+                            'hs': data['calculated']['sunheight'],
+                            'amas': data['calculated']['amas'],
+                            'mu': data['calculated']['mu'],
+                            'expo': data['mesurement']['exposition'],
+                            'accumulate': data['mesurement']['accummulate'],
+                            'channel': data['mesurement']['channel']
+                            }
+                try:
+                    new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
+                    new_data['temperature_poly'] = data['mesurement']['temperature_poly']
+                except:
+                    new_data['temperature_ccd'] = 'None'
+                    new_data['temperature_poly'] = 'None'
+            else:
+                new_data = data
         return new_data
 
-    def get_spectr(self, file_path):
+    @staticmethod
+    def get_spectr_old(file_path):
+        with open(file_path) as f:
+            line = '1'
+            while line:
+                if line.count('time') > 0:
+                    channel = line.split(' = ')[1].split(',')[0]
+                    date = line.split(' = ')[2].split(',')[0]
+                    time = line.split(' = ')[3].strip()
+                    date_time = datetime.datetime.strptime('{} {}'.format(date, time),
+                                                           '%d.%m.%Y %H:%M:%S')
+                elif line.count('Exposure') > 0:
+                    expo = line.split('=')[1].strip()
+                elif line.count('Temperature') > 0:
+                    temperature = line.split('=')[1].strip()
+                elif line.count('Accummulate') > 0:
+                    accummulate = line.split('=')[1].strip()
+                elif line.count('hs') > 0:
+                    hs = line.split()[0]
+                elif line.count('amas') > 0:
+                    amas = line.split()[0]
+                elif line.count('mu') > 0:
+                    mu = line.split()[0]
+                elif line.count('Value') > 0:
+                    spectr = []
+                    line = f.readline().strip()
+                    while line:
+                        spectr.append(int(line))
+                        line = f.readline().strip()
+                line = f.readline()
+
+            new_data = {'spectr': spectr,
+                        'datetime': date_time,
+                        'hs': float(hs),
+                        'amas': float(amas),
+                        'mu': float(mu),
+                        'expo': int(expo),
+                        'temperature_ccd': 'None',
+                        'temperature_poly': float(temperature),
+                        'accumulate': int(accummulate),
+                        'channel': channel}
+            return new_data
+
+    def get_spectr(self, file_path, flag=True):
         """Get data from OLD file"""
         self.data = {}
         try:
             if os.path.basename(file_path).split('_')[2] in ['ZD', 'Dz', 'Z', 'SD', 'Ds', 'S']:
-                self.data = self.get_spectr_new(file_path)
+                self.data = self.get_spectr_new(file_path, flag)
             else:
                 raise
         except Exception as err:
-            print('ERROR',err)
-            with open(file_path) as f:
-                line = '1'
-                while line:
-                    if line.count('time') > 0:
-                        self.channel = line.split(' = ')[1].split(',')[0]
-                        self.date = line.split(' = ')[2].split(',')[0]
-                        self.time = line.split(' = ')[3].strip()
-                        self.date_time = datetime.datetime.strptime('{} {}'.format(self.date, self.time),
-                                                                    '%d.%m.%Y %H:%M:%S')
-                    elif line.count('Exposure') > 0:
-                        self.expo = line.split('=')[1].strip()
-                    elif line.count('Temperature') > 0:
-                        self.temperature = line.split('=')[1].strip()
-                    elif line.count('Accummulate') > 0:
-                        self.accummulate = line.split('=')[1].strip()
-                    elif line.count('hs') > 0:
-                        self.hs = line.split()[0]
-                    elif line.count('amas') > 0:
-                        self.amas = line.split()[0]
-                    elif line.count('mu') > 0:
-                        self.mu = line.split()[0]
-                    elif line.count('Value') > 0:
-                        self.spectr = []
-                        line = f.readline().strip()
-                        while line:
-                            self.spectr.append(int(line))
-                            line = f.readline().strip()
-                    line = f.readline()
-                self.data = {'spectr': self.spectr,
-                             'datetime': self.date_time,
-                             'hs': float(self.hs),
-                             'amas': float(self.amas),
-                             'mu': float(self.mu),
-                             'expo': int(self.expo),
-                             'temperature_ccd': 'None',
-                             'temperature_poly': float(self.temperature),
-                             'accumulate': int(self.accummulate),
-                             'channel': self.channel}
+            print('ERROR', err)
+            self.data = self.get_spectr_old(file_path)
         finally:
             self.spectrum = self.data['spectr']
 
@@ -249,74 +315,75 @@ class PlotClass:
 
         self.zen_path = path
 
-        def update():
-            global last_path
-            ##            global timer
-            newfilelist = os.listdir(self.zen_path)
-            newfiles = list(set(newfilelist) - set(self.oldfilelist))
-            old_o3_mode = self.o3_mode
-            count_z_d = 0
-            newfiles.sort()
-            new_dates = []
-            new_hss = []
-            new_ozons = []
-
-            for i in newfiles:
-                if old_o3_mode != self.o3_mode:
-                    print(self.o3_mode)
-                    break
-
-                if ((i.count('Z-D') > 0 or i.count('ZD') > 0) and self.o3_mode == 'ozone') or (
-                        (i.count('S-D') > 0 or i.count('SD') > 0) and self.o3_mode in ['uva', 'uvb', 'uve']):
-                    ##                if i.count('Z-D')>0 and self.o3_mode=='ozone':
-                    count_z_d += 1
-                    self.get_spectr(os.path.join(self.zen_path, i))
-                    self.calc_ozon()
-                    ##                    date,hs,ozon = PlotClass.get_ozon(self,os.path.join(self.zen_path,i))
-                    if self.data['datetime'] and self.o3:
-                        ##                        print('+{}\t{}\t{}'.format([date],[hs],[ozon]))
-                        ax.plot((self.data['datetime']), (self.o3), 'o', color='blue')
-                        ##                        print('Graph updated at {}'.format(datetime.datetime.now()))
-                        ##                        self.dates.append(self.data['datetime'])
-                        new_dates.append(self.data['datetime'])
-                        ##                        self.hss.append(self.data['hs'])
-                        new_hss.append(self.data['hs'])
-                        ##                        self.ozons.append(self.o3)
-                        new_ozons.append(self.o3)
-                        # Print every point
-            ##                        canvas.draw()
-            ##                        root.update()
-            # Print all new points
-            if len(new_dates) == count_z_d > 0:
-                ax.plot(new_dates, new_ozons, self.point, color='blue')
-                ##                ax2.plot(new_hss,new_ozons, self.point, color='red')
-                self.oldfilelist = newfilelist
-                canvas.draw()
-                del new_dates, new_hss, new_ozons, newfilelist
-                print('Graph updated at {}'.format(datetime.datetime.now()))
+        # def update():
+        #     global last_path
+        #     ##            global timer
+        #     newfilelist = os.listdir(self.zen_path)
+        #     newfiles = list(set(newfilelist) - set(self.oldfilelist))
+        #     old_o3_mode = self.o3_mode
+        #     count_z_d = 0
+        #     newfiles.sort()
+        #     new_dates = []
+        #     new_hss = []
+        #     new_ozons = []
+        #
+        #     for i in newfiles:
+        #         if old_o3_mode != self.o3_mode:
+        #             print(self.o3_mode)
+        #             break
+        #
+        #         if ((i.count('Z-D') > 0 or i.count('ZD') > 0) and self.o3_mode == 'ozone') or (
+        #                 (i.count('S-D') > 0 or i.count('SD') > 0) and self.o3_mode in ['uva', 'uvb', 'uve']):
+        #             ##                if i.count('Z-D')>0 and self.o3_mode=='ozone':
+        #             count_z_d += 1
+        #             self.get_spectr(os.path.join(self.zen_path, i))
+        #             self.calc_ozon()
+        #             ##                    date,hs,ozon = PlotClass.get_ozon(self,os.path.join(self.zen_path,i))
+        #             if self.data['datetime'] and self.o3:
+        #                 ##                        print('+{}\t{}\t{}'.format([date],[hs],[ozon]))
+        #                 ax.plot((self.data['datetime']), (self.o3), 'o', color='blue')
+        #                 ##                        print('Graph updated at {}'.format(datetime.datetime.now()))
+        #                 ##                        self.dates.append(self.data['datetime'])
+        #                 new_dates.append(self.data['datetime'])
+        #                 ##                        self.hss.append(self.data['hs'])
+        #                 new_hss.append(self.data['hs'])
+        #                 ##                        self.ozons.append(self.o3)
+        #                 new_ozons.append(self.o3)
+        #                 # Print every point
+        #     ##                        canvas.draw()
+        #     ##                        root.update()
+        #     # Print all new points
+        #     if len(new_dates) == count_z_d > 0:
+        #         ax.plot(new_dates, new_ozons, self.point, color='blue')
+        #         ##                ax2.plot(new_hss,new_ozons, self.point, color='red')
+        #         self.oldfilelist = newfilelist
+        #         canvas.draw()
+        #         del new_dates, new_hss, new_ozons, newfilelist
+        #         print('Graph updated at {}'.format(datetime.datetime.now()))
 
         ############################################################################
-        def set_xlim(ax, x, y, xmin, xmax, ymin, ymax, mode):
-            # print([x, y, xmin, xmax, ymin, ymax, mode])
+
+        def set_x_limit(ax, x, y, x_min, x_max, y_min, y_max, mode):
+            # print([x, y, x_min, x_max, y_min, y_max, mode])
             if self.o3_mode != 'ozone':
-                if max(x) > xmax: xmax = max(x)
-                if min(x) < xmin: xmin = min(x)
-                ##                if max(y)>ymax: ymax = max(y)*1.05
-                ymax = max(y) * 1.05
-                if min(y) < ymin: ymin = min(y) * 0.95
+                if max(x) > x_max: x_max = max(x)
+                if min(x) < x_min: x_min = min(x)
+                ##                if max(y)>y_max: y_max = max(y)*1.05
+                if max(y) > y_max: y_max = max(y) * 1.05
+                if min(y) < y_min: y_min = min(y) * 0.95
             else:
-                if max(x) > xmax: xmax = max(x)
-                if min(x) < xmin: xmin = min(x)
-                ymax = 650
-                ymin = 100
+                if max(x) > x_max: x_max = max(x)
+                if min(x) < x_min: x_min = min(x)
+                y_max = 650
+                y_min = 100
             if mode == 'hour':
-                ax.set(xlim=[xmin - datetime.timedelta(minutes=15), xmax + datetime.timedelta(minutes=15)],
-                       ylim=[ymin, ymax])
+                ax.set(xlim=[x_min - datetime.timedelta(minutes=15), x_max + datetime.timedelta(minutes=15)],
+                       ylim=[y_min, y_max])
                 ax.xaxis.set_major_locator(mdates.HourLocator())
                 ax.xaxis.set_minor_locator(mdates.MinuteLocator(np.arange(0, 60, 10)))
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
             elif mode == 'degree':
-                ax.set(xlim=[xmin - 0.5, xmax + 0.5], ylim=[ymin, ymax])
+                ax.set(xlim=[x_min - 0.5, x_max + 0.5], ylim=[y_min, y_max])
                 ax.xaxis.set_minor_locator(MultipleLocator(0.1))
 
         try:
@@ -391,13 +458,15 @@ class PlotClass:
                 if self.y1:
                     # Plot 1
                     ax.plot(self.x1, self.y1, self.point, color='blue')
-                    set_xlim(ax, self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100, 600,
-                             'hour')
+                    set_x_limit(ax, self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100,
+                                600,
+                                'hour')
                 if self.y2:
                     # Plot 2
                     ax.plot(self.x2, self.y2, self.point, color='green')
-                    set_xlim(ax, self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100, 600,
-                             'hour')
+                    set_x_limit(ax, self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100,
+                                600,
+                                'hour')
                 ax.grid(True)
 
                 self.fig.canvas.draw()
@@ -1026,6 +1095,9 @@ def make_o3file():
                 if i.count("Z-D") > 0 or i.count("ZD") > 0:
                     start.get_spectr(file)
                     start.calc_ozon()
+                    # t - datetime utc
+                    # sh - sunheight
+                    # cr - o3
                     t, sh, cr = saving.prepare(start.data['datetime'],
                                                start.uvs_or_o3['ZD'])
                     ts.append(t)
@@ -1040,6 +1112,9 @@ def make_o3file():
                     for o3_m in arr:
                         start.calc_uv(o3_m, False)
                     start.calc_uv(o3_mode, True)
+                    # t - datetime utc
+                    # sh - sunheight
+                    # cr - uv
                     t, sh, cr = saving.prepare(start.data['datetime'],
                                                start.uvs_or_o3['SD'])
                     ts.append(t)
@@ -1202,6 +1277,7 @@ if __name__ == '__main__':
 
     # Annual ozone calculations
     ent_year = ttk.Entry(admin_panel)
+    ent_year.insert(0, "2018")
     but_annual_ozone = ttk.Button(admin_panel, text='Сохранить озон за год')
 
     admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_read_file, but_save_to_final_file,
@@ -1290,7 +1366,9 @@ if __name__ == '__main__':
     common = [rad_4096, rad_ytop, but_plot_more, but_remake]
     sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake, chk_read_file,
                      but_save_to_final_file, but_make_mean_file]
-    change_privileges(common, 0)
+
+    # TODO: Uncomment after debug will be finished
+    # change_privileges(common, 0)
 
     """=============================================================="""
     downline.grid(row=6, column=0, sticky='nswe', columnspan=4)
