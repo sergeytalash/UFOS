@@ -43,9 +43,9 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
             with open(file) as f:
                 all_data = f.readlines()
                 data = all_data[1:]
-                print(data)
         elif data_source_flag == "calculate":
-            print(data_source_flag)
+            # TODO: Remove print
+            print(file, data_source_flag)
 
         if mode == "ZD":
             # Массив старых строк с лишними \t с делением на \t
@@ -109,8 +109,11 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                 corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
                 o3s_mean[pair] = {}
                 o3s_sigma[pair] = {}
-
+                no_data_for_part_of_day = ""
                 for part_of_day in ["all", "morning", "evening"]:
+                    if no_data_for_part_of_day in part_of_day:
+                        no_data_for_part_of_day = ""
+                        continue
                     if o3s_daily[pair][part_of_day]["o3"]:
                         # corrects_second[pair][part_of_day] - list - для второй корректировки
                         # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
@@ -118,8 +121,6 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
                             part_of_day] = get_new_corrects(o3s[pair][part_of_day],
                                                             o3s_daily[pair][part_of_day]["o3"], pars)
-                        print("o3s: {} {}".format(pair, part_of_day), o3s[pair][part_of_day])
-                        print("o3s_daily: {} {}".format(pair, part_of_day), o3s_daily[pair][part_of_day]["o3"])
                     for i in o3s_daily[pair][part_of_day]["k"]:
                         if i == 1:
                             corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
@@ -134,15 +135,16 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                                                                                                      o3s_sigma[
                                                                                                          pair][
                                                                                                          part_of_day])
+                        text_mean_divided += part_of_day + ": " + text
                     except KeyError as err:
                         text = '\n'
-                        print("procedures.py: INFO: No data files for '{}' (line: {})".format(err,
-                                                                                              sys.exc_info()[
-                                                                                                  -1].tb_lineno))
+                        print("INFO: procedures.py: No data files for {} (line: {})".format(err,
+                                                                                            sys.exc_info()[
+                                                                                                -1].tb_lineno))
+                        no_data_for_part_of_day = part_of_day
                     if part_of_day == "all":
                         text_mean += text
-                    text_mean_divided += part_of_day + ": " + text
-            print(text_mean_divided)
+
             if write_daily_file is True and data_source_flag == "file":
                 with open(os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file)), 'w') as f:
                     print(';'.join(all_data[:1]), file=f, end='')
@@ -156,7 +158,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file))))
             out = {}
             for pair in ["1", "2"]:
-                out[pair] = {"all": {}, "morning": {}, "evening": {}}
+                out[pair] = {"all": {}, "morning": {}, "evening": {}, }
                 for part_of_day in ["all", "morning", "evening"]:
                     try:
                         out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
@@ -235,7 +237,7 @@ def read_nomographs(home, dev_id, o3_num):
                     mueff_list.append(float(mueff))
             return mueff_list, r12_list, ozone_list
     else:
-        print("File {} does not exists!".format(filename))
+        print("File {} does not exist!".format(filename))
         return [], [], []
 
 
@@ -290,8 +292,8 @@ def erithema(x, c):
         a = 1
     elif 298 < nm:  # <=325:
         a = 10 ** (0.094 * (298 - nm))
-    ##    elif nm>325:
-    ##        a = 10**(-0.015 * (410 - nm))
+    # elif nm>325:
+    #     a = 10**(-0.015 * (410 - nm))
     return a
 
 
@@ -372,7 +374,6 @@ def spectr2zero(p_zero1, p_zero2, p_lamst, spectr):
 
 
 def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settings, home, o3_num):
-    # print(lambda_consts, lambda_consts_pix)
     p_mas = []
     j = 0
     while j < len(lambda_consts):
@@ -395,7 +396,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     try:
         o3 = int(get_ozone_by_nomographs(home, r12clear, mueff, var_settings['device']['id'], o3_num))
     except Exception as err:
-        print('Plotter: ', err)
+        print('Plotter: {} (line: {})'.format(err, sys.exc_info()[-1].tb_lineno))
         o3 = -1
     if 100 <= o3 <= 600:
         correct = 1
