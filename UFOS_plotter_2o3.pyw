@@ -34,87 +34,6 @@ def canvs_destroy(canvs):
         i.get_tk_widget().destroy()
 
 
-class AnnualOzone:
-    # Procedure for annual ozone calculations (make_annual_ozone_file)
-
-    def __init__(self, home, ent_year, data):
-        self.home = home
-        self.year = ent_year.get()
-        self.data = data
-        self.device_id = 0
-        self.annual_data = {}
-
-    def run(self):
-        self.make_annual_ozone_file()
-        self.write_annual_ozone()
-        but_annual_ozone.configure(text="Сохранить озон за год")
-        root.update()
-        print("Done.")
-
-    def make_annual_ozone_file(self):
-        """data - PlotClass.init()"""
-        main = Main(self.data.var_settings)
-        main.chan = "ZD"
-        self.device_id = self.data.common_pars["device"]["id"]
-        all_o3 = {}
-        for dir_path, dirs, files in os.walk(os.path.join(self.home,
-                                                      "Ufos_{}".format(self.device_id),
-                                                      "Mesurements",
-                                                      self.year)):
-            for file in files:
-                if file.count("ZD") > 0:
-                    file_path = os.path.join(dir_path, file)
-                    day = os.path.basename(dir_path)
-                    but_annual_ozone.configure(text=file[-16:-4])
-                    root.update()
-                    if day not in all_o3.keys():
-                        all_o3[day] = []
-
-                    # TODO: Remove print
-                    # print(file_path)
-
-                    self.data.get_spectr(file_path, False)
-                    main.calc_final_file(self.data.var_settings, self.home, self.data.data["spectr"],
-                                         self.data.data["calculated"]["mu"],
-                                         self.data.data["mesurement"]["exposition"], self.data.sensitivity,
-                                         self.data.sensitivity_eritem, False)
-                    all_o3[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
-                                                                  self.data.data["mesurement"]["datetime_local"],
-                                                                  self.data.data["calculated"]["sunheight"],
-                                                                  main.calc_result[main.chan]["o3_1"],
-                                                                  main.calc_result[main.chan]["correct1"],
-                                                                  main.calc_result[main.chan]["o3_2"],
-                                                                  main.calc_result[main.chan]["correct2"]
-                                                                  ]
-                                                 ]
-                                                )
-                                       )
-        for day in all_o3.keys():
-            daily_data = calculate_final_files(self.data.var_settings, all_o3[day], main.chan, False, "calculate")
-            self.annual_data[day] = daily_data
-
-    def write_annual_ozone(self):
-        # Place file in \Ufos_{}\Mesurements\<YEAR>
-        # TODO: Format of the file: Date\tMean_All\tSigma_All\tMean_Morning\tSigma_Morning\tMean_Evening\tSigma_Evening
-        print(self.home, self.device_id, self.year, self.annual_data)
-        dir_path = os.path.join(self.home, "Ufos_{}".format(self.device_id), "Mesurements", self.year)
-        if os.path.exists(dir_path):
-            for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year, pair)
-                with open(os.path.join(dir_path, annual_file_name), 'w') as fw:
-                    for day in sorted(self.annual_data.keys()):
-                        d = self.annual_data[day][pair]
-                        line_data = [day]
-                        for part_of_day in ['all', 'morning', 'evening']:
-                            for item in ['mean', 'sigma', 'o3_count']:
-                                if item in d[part_of_day].keys():
-                                    line_data.append(d[part_of_day][item])
-                                else:
-                                    line_data.append('')
-                        print(";".join(line_data), file=fw)
-                    print("{} - Annual ozone file saved".format(annual_file_name))
-
-
 class PlotClass:
     def __init__(self, window, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all, var_with_sens):
         global timer
@@ -194,7 +113,6 @@ class PlotClass:
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
         self.spectrum = spectr2zero(p_zero1, p_zero2, p_lamst, self.data['spectr'])
-        ##        print(max(self.spectrum))
         try:
             if uv_mode in ['uva', 'uvb']:
                 if self.var_with_sens:
@@ -310,56 +228,7 @@ class PlotClass:
     def plot(self, path):
         global timer
         global canvs
-
         self.zen_path = path
-
-        # def update():
-        #     global last_path
-        #     ##            global timer
-        #     newfilelist = os.listdir(self.zen_path)
-        #     newfiles = list(set(newfilelist) - set(self.oldfilelist))
-        #     old_o3_mode = self.o3_mode
-        #     count_z_d = 0
-        #     newfiles.sort()
-        #     new_dates = []
-        #     new_hss = []
-        #     new_ozons = []
-        #
-        #     for i in newfiles:
-        #         if old_o3_mode != self.o3_mode:
-        #             print(self.o3_mode)
-        #             break
-        #
-        #         if ((i.count('Z-D') > 0 or i.count('ZD') > 0) and self.o3_mode == 'ozone') or (
-        #                 (i.count('S-D') > 0 or i.count('SD') > 0) and self.o3_mode in ['uva', 'uvb', 'uve']):
-        #             ##                if i.count('Z-D')>0 and self.o3_mode=='ozone':
-        #             count_z_d += 1
-        #             self.get_spectr(os.path.join(self.zen_path, i))
-        #             self.calc_ozon()
-        #             ##                    date,hs,ozon = PlotClass.get_ozon(self,os.path.join(self.zen_path,i))
-        #             if self.data['datetime'] and self.o3:
-        #                 ##                        print('+{}\t{}\t{}'.format([date],[hs],[ozon]))
-        #                 ax.plot((self.data['datetime']), (self.o3), 'o', color='blue')
-        #                 ##                        print('Graph updated at {}'.format(datetime.datetime.now()))
-        #                 ##                        self.dates.append(self.data['datetime'])
-        #                 new_dates.append(self.data['datetime'])
-        #                 ##                        self.hss.append(self.data['hs'])
-        #                 new_hss.append(self.data['hs'])
-        #                 ##                        self.ozons.append(self.o3)
-        #                 new_ozons.append(self.o3)
-        #                 # Print every point
-        #     ##                        canvas.draw()
-        #     ##                        root.update()
-        #     # Print all new points
-        #     if len(new_dates) == count_z_d > 0:
-        #         ax.plot(new_dates, new_ozons, self.point, color='blue')
-        #         ##                ax2.plot(new_hss,new_ozons, self.point, color='red')
-        #         self.oldfilelist = newfilelist
-        #         canvas.draw()
-        #         del new_dates, new_hss, new_ozons, newfilelist
-        #         print('Graph updated at {}'.format(datetime.datetime.now()))
-
-        ############################################################################
 
         def set_x_limit(ax, x, y, x_min, x_max, y_min, y_max, mode):
             # print([x, y, x_min, x_max, y_min, y_max, mode])
@@ -466,12 +335,8 @@ class PlotClass:
                                 600,
                                 'hour')
                 ax.grid(True)
-
                 self.fig.canvas.draw()
                 canvs_destroy(canvs)
-        ##                timer = self.fig.canvas.new_timer(interval=60000)
-        ##                timer.add_callback(update)
-        ##                timer.start()
 
         canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
@@ -510,7 +375,7 @@ def obj_grid():
     r += 1
     c = 0
     admin_panel.grid(row=r, column=c, sticky='nwe')
-    but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year, start).run())
+    but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year, start, root, but_annual_ozone).run())
     if not chk_var_read_file.get():
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
@@ -536,46 +401,6 @@ def window_closed():
 
 def plot_more():
     pass
-    # global plt
-    # global o3_plotted
-    # if not o3_plotted:
-    #     try:
-    #         plt.close()
-    #     except:
-    #         pass
-    #     try:
-    #         x = main_func.nm
-    #         y = main_func.data
-    #         i = 0
-    #         fig = plt.figure(figsize=(12, 8))
-    #         ax = fig.add_subplot(211, axisbg='#FFFFFF')
-    #         ax.plot(x, y, '-k')
-    #         ax.set_ylim(-10, max(y))
-    #         ax.set_title(main_func.date + ' ' + main_func.time)
-    #         ax2 = fig.add_subplot(212, axisbg='#FFFFFF')
-    #         ax2.set_ylim(-10, max(y))
-    #         ax.grid(True)  # координатную сетку рисовать
-    #         ax2.grid(True)  # координатную сетку рисовать
-    #         line2, = ax2.plot(x, y, '-k')
-    #
-    #         def onselect(xmin, xmax):
-    #             try:
-    #                 indmin, indmax = np.searchsorted(x, (xmin, xmax))
-    #                 indmax = min(len(x) - 1, indmax)
-    #                 thisx = x[indmin:indmax]
-    #                 thisy = y[indmin:indmax]
-    #                 line2.set_data(thisx, thisy)
-    #                 ax2.set_xlim(thisx[0], thisx[-1])
-    #                 ax2.set_ylim(min(thisy), max(thisy))
-    #                 fig.canvas.draw()
-    #             except:
-    #                 pass
-    #
-    #         span = SpanSelector(ax, onselect, 'horizontal', useblit=True,
-    #                             rectprops=dict(alpha=0.2, facecolor='red'))
-    #         plt.show()
-    #     except:
-    #         pass
 
 
 def set_disk_but(event):
@@ -1044,13 +869,16 @@ def make_o3file():
                                     start.x2.append(
                                         datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                     start.y2.append(int(line_arr[column[o3_mode]]))
-                    sr1, sr2 = 0, 0
+                    sr = {"1": 0, "2": 0}
                     if start.y1:
-                        sr1 = int(np.mean(start.y1))
+                        sr["1"] = int(np.mean(start.y1))
                     if start.y2:
-                        sr2 = int(np.mean(start.y2))
+                        sr["2"] = int(np.mean(start.y2))
+                    tex = "Среднее значение озона\n"
+                    for pair in show_ozone_pairs:
+                        tex += "(P{}): {} е.Д.\n".format(pair, sr[pair])
                     ##                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
-                    tex = 'Среднее значение озона\n(P2): {}'.format(sr2)
+                    # tex = 'Среднее значение озона\n(P2): {}'.format(sr2)
                 elif mode == 'UV':
                     if data_raw[0].count('\t') > 0:
                         delimiter = '\t'
@@ -1133,8 +961,11 @@ def make_o3file():
                         s[o3_pair]["mean"] = int(sum(s[o3_pair]["o3"]) // len(s[o3_pair]["o3"]))
                     except:
                         s[o3_pair]["mean"] = 0
+                tex = "Среднее значение озона\n"
+                for pair in show_ozone_pairs:
+                    tex += "(P{}): {} е.Д.\n".format(pair, s[pair]["mean"])
                 # tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s["1"]["mean"], s["2"]["mean"])
-                tex = 'Среднее значение озона\n(P2): {} е.Д.'.format(s["2"]["mean"])
+                #     tex = 'Среднее значение озона\n(P2): {} е.Д.'.format(s["2"]["mean"])
             elif o3_mode == 'uva':
                 tex = 'УФ-А'
             elif o3_mode == 'uvb':
@@ -1171,6 +1002,7 @@ def make_o3file():
 
 if __name__ == '__main__':
     """============== <Main> =============="""
+    show_ozone_pairs = ["1", "2"]
     root = Tk()
     host, port, data4send = "10.65.25.2", 20000, ''
     ida = ''
@@ -1366,8 +1198,8 @@ if __name__ == '__main__':
     sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake, chk_read_file,
                      but_save_to_final_file, but_make_mean_file]
 
-    # TODO: Uncomment after debug will be finished
-    # change_privileges(common, 0)
+    # Uncomment after debug will be finished
+    change_privileges(common, 0)
 
     """=============================================================="""
     downline.grid(row=6, column=0, sticky='nswe', columnspan=4)

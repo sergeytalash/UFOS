@@ -19,7 +19,7 @@ def get_new_corrects(o3s, o3s_first_corrected, pars):
     """Среднеквадратичное отклонение
     o3s - Весь озон
     o3s_tmp - Озон с первой корректировкой (100 - 600)"""
-    sigma = round(float(np.std(o3s_first_corrected)), 3)
+    sigma = round(float(np.std(o3s_first_corrected)), 2)
     mean = int(np.mean(o3s_first_corrected))
     corrects = []
     for i in o3s:
@@ -30,21 +30,102 @@ def get_new_corrects(o3s, o3s_first_corrected, pars):
     return corrects, sigma, mean
 
 
-def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
+class AnnualOzone:
+    # Procedure for annual ozone calculations (make_annual_ozone_file)
+
+    def __init__(self, home, ent_year, data, root, but_annual_ozone):
+        self.home = home
+        self.year = ent_year.get()
+        self.data = data
+        self.device_id = 0
+        self.annual_data = {}
+        self.root = root
+        self.but_annual_ozone = but_annual_ozone
+
+    def run(self):
+        self.make_annual_ozone_file()
+        self.write_annual_ozone()
+        self.but_annual_ozone.configure(text="Сохранить озон за год")
+        self.root.update()
+        print("Done.")
+
+    def make_annual_ozone_file(self):
+        """data - PlotClass.init()"""
+        main = Main(self.data.var_settings)
+        main.chan = "ZD"
+        self.device_id = self.data.common_pars["device"]["id"]
+        all_o3 = {}
+        for dir_path, dirs, files in os.walk(os.path.join(self.home,
+                                                          "Ufos_{}".format(self.device_id),
+                                                          "Mesurements",
+                                                          self.year)):
+            for file in files:
+                if file.count("ZD") > 0:
+                    file_path = os.path.join(dir_path, file)
+                    day = os.path.basename(dir_path)
+                    self.but_annual_ozone.configure(text=file[-16:-4])
+                    self.root.update()
+                    if day not in all_o3.keys():
+                        all_o3[day] = []
+                    self.data.get_spectr(file_path, False)
+                    main.calc_final_file(self.data.var_settings, self.home, self.data.data["spectr"],
+                                         self.data.data["calculated"]["mu"],
+                                         self.data.data["mesurement"]["exposition"], self.data.sensitivity,
+                                         self.data.sensitivity_eritem, False)
+                    all_o3[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
+                                                                  self.data.data["mesurement"]["datetime_local"],
+                                                                  self.data.data["calculated"]["sunheight"],
+                                                                  main.calc_result[main.chan]["o3_1"],
+                                                                  main.calc_result[main.chan]["correct1"],
+                                                                  main.calc_result[main.chan]["o3_2"],
+                                                                  main.calc_result[main.chan]["correct2"]
+                                                                  ]
+                                                 ]
+                                                )
+                                       )
+        for day in all_o3.keys():
+            daily_data = calculate_final_files(self.data.var_settings, all_o3[day], main.chan, False, "calculate")
+            self.annual_data[day] = daily_data
+
+    def write_annual_ozone(self):
+        dir_path = os.path.join(self.home, "Ufos_{}".format(self.device_id), "Mesurements", self.year)
+        if os.path.exists(dir_path):
+            for pair in ["1", "2"]:
+                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year, pair)
+                with open(os.path.join(dir_path, annual_file_name), 'w') as fw:
+                    print("Date\t" +
+                          "Mean_All\tSigma_All\tO3_Count\t" +
+                          "Mean_Morning\tSigma_Morning\tO3_Count\t" +
+                          "Mean_Evening\tSigma_Evening\tO3_Count", file=fw)
+                    for day in sorted(self.annual_data.keys()):
+                        d = self.annual_data[day][pair]
+                        line_data = [day]
+                        for part_of_day in ['all', 'morning', 'evening']:
+                            for item in ['mean', 'sigma', 'o3_count']:
+                                if item in d[part_of_day].keys():
+                                    line_data.append(str(d[part_of_day][item]))
+                                else:
+                                    line_data.append('')
+                        print("\t".join(line_data), file=fw)
+                    print("{} - Annual ozone file saved".format(annual_file_name))
+
+def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag):
     """
     pars - parameters
-    file - file to read
+    source - source to read
     mode - "ZD" or "SD"
     write_daily_file - True or False - allow to write file with mean ozone, else just calculate
     data_source_flag - "file" or "calculate" - select source of data: read from file or get ozone from variable
     """
+    all_data = []
+    data = []
     try:
         if data_source_flag == "file":
-            with open(file) as f:
+            with open(source) as f:
                 all_data = f.readlines()
                 data = all_data[1:]
         elif data_source_flag == "calculate":
-            data = file
+            data = source
         if mode == "ZD":
             # Массив старых строк с лишними \t с делением на \t
             lines_arr_raw_to_file = []
@@ -102,16 +183,15 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
             o3s_mean = {}
             text_mean = ''
             text_mean_divided = ''
+            no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
             for pair in ["1", "2"]:
                 corrects_second[pair] = {}
                 corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
                 o3s_mean[pair] = {}
                 o3s_sigma[pair] = {}
-                no_data_for_part_of_day = "None"
+
                 for part_of_day in ["all", "morning", "evening"]:
-                    if no_data_for_part_of_day in part_of_day:
-                        print("no_data_for_part_of_day: ", no_data_for_part_of_day)
-                        no_data_for_part_of_day = "None"
+                    if no_data_for_part_of_day[part_of_day]:
                         continue
                     if o3s_daily[pair][part_of_day]["o3"]:
                         # corrects_second[pair][part_of_day] - list - для второй корректировки
@@ -123,7 +203,6 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                     for i in o3s_daily[pair][part_of_day]["k"]:
                         if i == 1:
                             corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
-
                         else:
                             corrects_actual[pair][part_of_day].append('0')
                     try:
@@ -140,12 +219,12 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         print("INFO: procedures.py: No data files for {} (line: {})".format(err,
                                                                                             sys.exc_info()[
                                                                                                 -1].tb_lineno))
-                        no_data_for_part_of_day = part_of_day
+                        no_data_for_part_of_day[part_of_day] = True
                     if part_of_day == "all":
                         text_mean += text
 
             if write_daily_file is True and data_source_flag == "file":
-                with open(os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file)), 'w') as f:
+                with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
                     print(';'.join(all_data[:1]), file=f, end='')
                     for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"],
                                                         corrects_actual["2"]["all"]):
@@ -154,7 +233,7 @@ def calculate_final_files(pars, file, mode, write_daily_file, data_source_flag):
                         print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
                     print(text_mean, file=f)
                     print('Mean File Saved: {}'.format(
-                        os.path.join(os.path.dirname(file), 'mean_' + os.path.basename(file))))
+                        os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
             out = {}
             for pair in ["1", "2"]:
                 out[pair] = {"all": {}, "morning": {}, "evening": {}, }
