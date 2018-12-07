@@ -51,7 +51,7 @@ class Gui:
                 self.tree_dot += 1
                 self.make_labels(par[t])
                 self.tree_dot -= 1
-            except KeyError:
+            except AttributeError:
                 self.column += 1
                 if type(par[t]) == list:
                     t2 = '; '.join([str(i) for i in par[t]])
