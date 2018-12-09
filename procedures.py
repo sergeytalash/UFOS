@@ -51,7 +51,7 @@ class AnnualOzone:
 
     def make_annual_ozone_file(self):
         """data - PlotClass.init()"""
-        main = Main(self.data.var_settings)
+        main = Main(self.home, self.data.var_settings)
         main.chan = "ZD"
         self.device_id = self.data.common_pars["device"]["id"]
         all_o3 = {}
@@ -811,7 +811,7 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
 class Main:
     """UFOS mesure class"""
 
-    def __init__(self, pars, logger=False):
+    def __init__(self, home, pars, logger=False):
         self.logger = logger
         self.tries = 0
         self.mesure_count = 0
@@ -823,7 +823,7 @@ class Main:
         self.t1 = ''
         self.t2 = ''
         self.pars = pars
-        self.home = os.getcwd()
+        self.home = home
         self.connect_pars = read_connect(self.home)
         self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'])
         self.sensitivity_eritem = read_sensitivity_eritem(self.home, self.pars['device']['id'])
@@ -1346,7 +1346,7 @@ class CheckSunAndMesure():
                                                                self.pars["station"]["longitude"],
                                                                self.time_now_1,
                                                                self.pars["station"]["timezone"])
-                main = Main(self.pars, self.logger)
+                main = Main(self.home, self.pars, self.logger)
                 if self.sunheight >= self.pars["station"]["sun_height_min"]:
                     # Высота Солнца выше заданного параметра
                     main.nms2pixs()
