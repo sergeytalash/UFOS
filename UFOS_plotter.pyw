@@ -48,6 +48,10 @@ class PlotClass:
         self.window = window
         self.o3_mode = o3_mode
         self.date_time = ''
+        self.zen_path = ''
+        self.ozone_y_min = 0
+        self.ozone_y_max = 650
+        self.data = {}
         self.hs = 0
         self.mu = 0
         self.amas = 0
@@ -55,6 +59,7 @@ class PlotClass:
         self.uvs_or_o3 = {}
         self.ozon = 0
         self.fig = ''
+        self.ax = ''
         self.nexday_allow_flag = 0
         self.dates = []
         self.hss = []
@@ -133,8 +138,8 @@ class PlotClass:
         self.uv = int(round(uv, 0))
         self.uvs_or_o3['SD'][uv_mode] = self.uv
         if self.o3_mode != 'spectr' and add_point:
-            ##            self.x1.append(self.data['datetime'])
-            ##            self.y1.append(self.uv)
+            #            self.x1.append(self.data['datetime'])
+            #            self.y1.append(self.uv)
             self.x1.append(self.data['datetime'])
             self.y1.append(self.uv)
 
@@ -179,7 +184,7 @@ class PlotClass:
                 elif line.count('Temperature') > 0:
                     temperature = line.split('=')[1].strip()
                 elif line.count('Accummulate') > 0:
-                    accummulate = line.split('=')[1].strip()
+                    accumulate = line.split('=')[1].strip()
                 elif line.count('hs') > 0:
                     hs = line.split()[0]
                 elif line.count('amas') > 0:
@@ -202,79 +207,75 @@ class PlotClass:
                         'expo': int(expo),
                         'temperature_ccd': 'None',
                         'temperature_poly': float(temperature),
-                        'accumulate': int(accummulate),
+                        'accumulate': int(accumulate),
                         'channel': channel}
             return new_data
 
     def get_spectr(self, file_path, flag=True):
         """Get data from OLD file"""
-        self.data = {}
         try:
             if os.path.basename(file_path).split('_')[2] in ['ZD', 'Dz', 'Z', 'SD', 'Ds', 'S']:
                 self.data = self.get_spectr_new(file_path, flag)
             else:
-                raise
+                self.data = self.get_spectr_old(file_path)
+            self.spectrum = self.data['spectr']
         except Exception as err:
             print('ERROR', err)
-            self.data = self.get_spectr_old(file_path)
-        finally:
-            self.spectrum = self.data['spectr']
 
     def fig_destroy(self):
         self.fig.clf()
         plt.close()
         gc.collect()
 
+    def set_x_limit(self, x, y, x_min, x_max, y_min, y_max, mode):
+        # print([x, y, x_min, x_max, y_min, y_max, mode])
+        if self.o3_mode != 'ozone':
+            if max(x) > x_max: x_max = max(x)
+            if min(x) < x_min: x_min = min(x)
+            #                if max(y)>y_max: y_max = max(y)*1.05
+            if max(y) > y_max: y_max = max(y) * 1.05
+            if min(y) < y_min: y_min = min(y) * 0.95
+        else:
+            if max(x) > x_max: x_max = max(x)
+            if min(x) < x_min: x_min = min(x)
+            y_max = self.ozone_y_max
+            y_min = self.ozone_y_min
+        if mode == 'hour':
+            self.ax.set(xlim=[x_min - datetime.timedelta(minutes=15), x_max + datetime.timedelta(minutes=15)],
+                        ylim=[y_min, y_max])
+            self.ax.xaxis.set_major_locator(mdates.HourLocator())
+            self.ax.xaxis.set_minor_locator(mdates.MinuteLocator(np.arange(0, 60, 10)))
+            self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        elif mode == 'degree':
+            self.ax.set(xlim=[x_min - 0.5, x_max + 0.5], ylim=[y_min, y_max])
+            self.ax.xaxis.set_minor_locator(MultipleLocator(0.1))
+
     def plot(self, path):
         global timer
         global canvs
         self.zen_path = path
-
-        def set_x_limit(ax, x, y, x_min, x_max, y_min, y_max, mode):
-            # print([x, y, x_min, x_max, y_min, y_max, mode])
-            if self.o3_mode != 'ozone':
-                if max(x) > x_max: x_max = max(x)
-                if min(x) < x_min: x_min = min(x)
-                ##                if max(y)>y_max: y_max = max(y)*1.05
-                if max(y) > y_max: y_max = max(y) * 1.05
-                if min(y) < y_min: y_min = min(y) * 0.95
-            else:
-                if max(x) > x_max: x_max = max(x)
-                if min(x) < x_min: x_min = min(x)
-                y_max = 650
-                y_min = 100
-            if mode == 'hour':
-                ax.set(xlim=[x_min - datetime.timedelta(minutes=15), x_max + datetime.timedelta(minutes=15)],
-                       ylim=[y_min, y_max])
-                ax.xaxis.set_major_locator(mdates.HourLocator())
-                ax.xaxis.set_minor_locator(mdates.MinuteLocator(np.arange(0, 60, 10)))
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-            elif mode == 'degree':
-                ax.set(xlim=[x_min - 0.5, x_max + 0.5], ylim=[y_min, y_max])
-                ax.xaxis.set_minor_locator(MultipleLocator(0.1))
-
         try:
             self.fig_destroy()
         except:
             pass
-
-        self.fig, (ax) = plt.subplots(1)
+        self.fig, (self.ax) = plt.subplots(1)
+        # print(self.fig.get_size_inches())
         self.fig.set_size_inches(self.plotx / 80, self.ploty / 80)
         self.fig.set_dpi(80)
         plt.subplots_adjust(left=0.07, right=0.97, bottom=0.07, top=0.95)
         if self.o3_mode == 'first':
             pass
-        ## ====================== Spectr ======================
+        # ====================== Spectr ======================
         elif self.o3_mode == 'spectr':
             print('new spectr')
-            ax.set_xlabel('nm')
-            ax.set_ylabel('mV')
+            self.ax.set_xlabel('nm')
+            self.ax.set_ylabel('mV')
             conf = self.confZ
             if self.data['channel'].count('S') > 0:
                 conf = self.confS
-            ##            if self.data['channel'].count('Z')>0:
-            ##                conf = self.confZ
-            ax.set_ylabel('mWt/m^2*nm')
+            #            if self.data['channel'].count('Z')>0:
+            #                conf = self.confZ
+            self.ax.set_ylabel('mWt/m^2*nm')
             if self.var_with_sens:  # Use sensitivity
                 new_spectr = []
                 for i in range(len(self.spectrum)):
@@ -282,7 +283,8 @@ class PlotClass:
                         self.spectrum[i] * self.sensitivity[i] * var_settings['device']['graduation_expo'] / self.data[
                             'expo'])
                 self.spectrum = new_spectr
-            ax.plot([pix2nm(conf, i, 3, 0) for i in range(len(self.spectrum))], self.spectrum, self.point, color='k')
+            self.ax.plot([pix2nm(conf, i, 3, 0) for i in range(len(self.spectrum))], self.spectrum, self.point,
+                         color='k')
             if var_top.get():
                 self.max_y = max(self.spectrum) + 100
             else:
@@ -295,46 +297,46 @@ class PlotClass:
             for key in ps.keys():
                 for point in ps[key]:
                     point_nm = pix2nm(conf, point, 1, 0)
-                    ax.plot([point_nm] * 2, [0, self.max_y], '--', color='red')
-                    ax.text(point_nm, self.max_y - 50, str(point_nm), horizontalalignment='center')
+                    self.ax.plot([point_nm] * 2, [0, self.max_y], '--', color='red')
+                    self.ax.text(point_nm, self.max_y - 50, str(point_nm), horizontalalignment='center')
 
-            ax.set(xlim=[pix2nm(conf, 0, 1, 0), pix2nm(conf, 3692, 1, 0)], ylim=[0, self.max_y])
-            ax.grid(True)
+            self.ax.set(xlim=[pix2nm(conf, 0, 1, 0), pix2nm(conf, 3692, 1, 0)], ylim=[0, self.max_y])
+            self.ax.grid(True)
 
             self.fig.canvas.draw()
             canvs_destroy(canvs)
         else:
-            ax.set_xlabel('Time')
-            ## ====================== Ozone ======================
+            self.ax.set_xlabel('Time')
+            # ====================== Ozone ======================
             if self.o3_mode == 'ozone':
                 print('new ozone')
-                ax.set_ylabel('o3')
-            ## ====================== UV =========================
+                self.ax.set_ylabel('o3')
+            # ====================== UV =========================
             elif self.o3_mode == 'uva':
-                ax.set_ylabel('mWt/m^2')
+                self.ax.set_ylabel('mWt/m^2')
                 print('new uva')
             elif self.o3_mode == 'uvb':
-                ax.set_ylabel('mWt/m^2')
+                self.ax.set_ylabel('mWt/m^2')
                 print('new uvb')
             elif self.o3_mode == 'uve':
-                ax.set_ylabel('mWt/m^2')
+                self.ax.set_ylabel('mWt/m^2')
                 print('new uve')
-            ## ===================================================
+            # ===================================================
             if len(self.y1) > 0 or len(self.y2) > 0:
                 # print(self.x1, self.y1,self.y2 )
                 if self.y1:
                     # Plot 1
-                    ax.plot(self.x1, self.y1, self.point, color='blue')
-                    set_x_limit(ax, self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100,
-                                600,
-                                'hour')
+                    self.ax.plot(self.x1, self.y1, self.point, color='blue')
+                    self.set_x_limit(self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100,
+                                     600,
+                                     'hour')
                 if self.y2:
                     # Plot 2
-                    ax.plot(self.x2, self.y2, self.point, color='green')
-                    set_x_limit(ax, self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100,
-                                600,
-                                'hour')
-                ax.grid(True)
+                    self.ax.plot(self.x2, self.y2, self.point, color='green')
+                    self.set_x_limit(self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100,
+                                     600,
+                                     'hour')
+                self.ax.grid(True)
                 self.fig.canvas.draw()
                 canvs_destroy(canvs)
 
@@ -510,7 +512,6 @@ def make_txt_list(directory):
 
 def plot_spectr(*event):
     # ===== SPECTR =====
-
     uv.set(4)
     for i in buttons:
         i.configure(state=DISABLED)
@@ -520,18 +521,28 @@ def plot_spectr(*event):
     root.update()
     plotx, ploty = change_geometry(root)
     start = PlotClass(right_panel, 'spectr', plotx, ploty, 1, 0, chk_var_with_sens.get())
-    file = file_list.selection_get()
+    try:
+        file = file_list.selection_get()
+    except TclError:
+        file_list.selection_set(0)
+        file = file_list.selection_get()
     start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
-        ##        lab_ozon.configure(text='Значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(start.o3_1, start.o3_2))
+        #        lab_ozon.configure(text='Значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(start.o3_1, start.o3_2))
         lab_ozon.configure(text='Значение озона\n(P2): {} е.Д.'.format(start.o3_2))
     if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
         for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
             start.calc_uv(mode, False)
             var.configure(text='Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(), int(start.uv)))
     data = (
-        'Канал: {}\nДата Время: {}\nВысота Солнца: {} (mu={})\nТемп. CCD: {}\nТемп. Полихроматора: {}\nЭкспозиция: {}\nЧисло суммирований: {}'.format(
+        """Канал: {}
+Дата Время: {}
+Высота Солнца: {} (mu={})
+Темп. CCD: {}
+Темп. Полихроматора: {}
+Экспозиция: {}
+Число суммирований: {}""".format(
             start.data['channel'],
             start.data['datetime'],
             start.data['hs'],
@@ -541,8 +552,8 @@ def plot_spectr(*event):
             start.data['expo'],
             start.data['accumulate']))
     currnt_data.configure(text=data)
-    ##    start.x = range(len(start.data['spectr']))
-    ##    start.y = start.data['spectr']
+    #    start.x = range(len(start.data['spectr']))
+    #    start.y = start.data['spectr']
     start.x2 = range(len(start.spectrum))
     start.y2 = start.spectrum
     start.plot(path)
@@ -656,8 +667,8 @@ def dir_list(set_dir):
     dir_list.dirs_window.protocol('WM_DELETE_WINDOW', dirs_window_destroy)
     geom = root.geometry().split('+')
     AxB = '150x320+'
-    dA, dB = 25, 65
-    dir_list.dirs_window.geometry('{0}{1}+{2}'.format(AxB, int(geom[1]) + dA, int(geom[2]) + dB))
+    da, db = 25, 65
+    dir_list.dirs_window.geometry('{0}{1}+{2}'.format(AxB, int(geom[1]) + da, int(geom[2]) + db))
     dir_list.dirs_window.resizable(False, False)
     lab_disk = ttk.Label(dir_list.dirs_window, text='Выбор диска:')
     disk_list = ttk.Combobox(dir_list.dirs_window, values=make_list(), width=6)
@@ -775,7 +786,7 @@ def make_o3file():
         canvas.after_cancel(ida)
         ida = ''
     mode = uv.get()
-    ##    mode=0
+    #    mode=0
     if mode == 0:
         o3_mode = 'ozone'
         tex = 'Идет пересчёт озона'
@@ -797,11 +808,10 @@ def make_o3file():
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
     mean_file = 0
-    j = 1
     start = PlotClass(right_panel, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all_get, chk_var_with_sens.get())
     if chk_read_file_get == 0:  # Чтение из файла
         column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
-        ##        datetime_index = 0 # UTC
+        # datetime_index = 0 # UTC
         datetime_index = 1  # Local time
         file_opened = 0  # File with ozone was opened
         if o3_mode == 'ozone':
@@ -857,13 +867,21 @@ def make_o3file():
                         line_arr = [j for j in i.split(delimiter) if j != '']
                         if use_correct:
                             if column['ozone'] == [-4, -2]:
-                                ##                                if int(line_arr[-3]) or chk_show_all_get:
-                                ##                                    start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
-                                ##                                    start.y1.append(int(line_arr[column[o3_mode][0]]))
-                                if int(line_arr[-1]) or chk_show_all_get:
-                                    start.x2.append(
-                                        datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
-                                    start.y2.append(int(line_arr[column[o3_mode][1]]))
+                                #                                if int(line_arr[-3]) or chk_show_all_get:
+                                #                                    start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
+                                #                                    start.y1.append(int(line_arr[column[o3_mode][0]]))
+
+                                if "1" in show_ozone_pairs:
+                                    if int(line_arr[-1]) or chk_show_all_get:
+                                        start.x1.append(
+                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                        start.y1.append(int(line_arr[column[o3_mode][0]]))
+                                if "2" in show_ozone_pairs:
+                                    if int(line_arr[-1]) or chk_show_all_get:
+                                        start.x2.append(
+                                            datetime.datetime.strptime(line_arr[datetime_index],
+                                                                       '%Y%m%d %H:%M:%S'))
+                                        start.y2.append(int(line_arr[column[o3_mode][1]]))
                             if column['ozone'] == -2:
                                 if int(line_arr[-1]) or chk_show_all_get:
                                     start.x2.append(
@@ -877,7 +895,7 @@ def make_o3file():
                     tex = "Среднее значение озона\n"
                     for pair in show_ozone_pairs:
                         tex += "(P{}): {} е.Д.\n".format(pair, sr[pair])
-                    ##                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
+                    #                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
                     # tex = 'Среднее значение озона\n(P2): {}'.format(sr2)
                 elif mode == 'UV':
                     if data_raw[0].count('\t') > 0:
@@ -1001,8 +1019,10 @@ def make_o3file():
 
 
 if __name__ == '__main__':
-    """============== <Main> =============="""
     show_ozone_pairs = ["2"]
+else:
+    show_ozone_pairs = ["1", "2"]
+if True:
     root = Tk()
     host, port, data4send = "10.65.25.2", 20000, ''
     ida = ''
@@ -1068,7 +1088,7 @@ if __name__ == '__main__':
     root.title('УФОС Просмотр')
     root.protocol('WM_DELETE_WINDOW', window_closed)
     root.wm_state('zoomed')
-    ##root.geometry('908x530+200+100') #'908x530+200+100'
+    # root.geometry('908x530+200+100') #'908x530+200+100'
     root.resizable(True, True)
     appHighlightFont = font2.Font(family='Helvetica', size=14)  # , weight='bold')
     top_panel = ttk.Frame(root, padding=(1, 1), relief='solid')  # ,width=800
