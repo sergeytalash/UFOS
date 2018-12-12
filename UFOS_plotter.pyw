@@ -850,15 +850,14 @@ def make_o3file():
             with open(file) as f:
                 file_opened = 1
                 data_raw = f.readlines()
+                delimiter = '\t'
                 if mode == 'Ozone':
                     use_correct = 1
                     if data_raw[0].count('Correct') == 0:
                         column['ozone'] = -1
                         use_correct = 0
-                        delimiter = '\t'
                     elif data_raw[0].count('Correct') == 1:
                         column['ozone'] = -2
-                        delimiter = '\t'
                     elif data_raw[0].count('Correct') == 2:
                         column['ozone'] = [-4, -2]
                         delimiter = ';'
@@ -867,10 +866,6 @@ def make_o3file():
                         line_arr = [j for j in i.split(delimiter) if j != '']
                         if use_correct:
                             if column['ozone'] == [-4, -2]:
-                                #                                if int(line_arr[-3]) or chk_show_all_get:
-                                #                                    start.x1.append(datetime.datetime.strptime(line_arr[datetime_index],'%Y%m%d %H:%M:%S'))
-                                #                                    start.y1.append(int(line_arr[column[o3_mode][0]]))
-
                                 if "1" in show_ozone_pairs:
                                     if int(line_arr[-1]) or chk_show_all_get:
                                         start.x1.append(
@@ -898,9 +893,7 @@ def make_o3file():
                     #                    tex = 'Среднее значение озона\n(P1): {}\n(P2): {}'.format(sr1, sr2)
                     # tex = 'Среднее значение озона\n(P2): {}'.format(sr2)
                 elif mode == 'UV':
-                    if data_raw[0].count('\t') > 0:
-                        delimiter = '\t'
-                    else:
+                    if data_raw[0].count('\t') == 0:
                         delimiter = ';'
                     data = [i for i in data_raw if i[0].isdigit()]
                     for i in data:
