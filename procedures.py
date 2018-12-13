@@ -1336,6 +1336,7 @@ class CheckSunAndMesure():
     def __init__(self, logger):
         self.home = os.getcwd()
         self.logger = logger
+        self.end_calculation = True
 
     def start(self):
         while 1:
@@ -1351,6 +1352,7 @@ class CheckSunAndMesure():
                                                                self.pars["station"]["timezone"])
                 main = Main(self.home, self.pars, self.logger)
                 if self.sunheight >= self.pars["station"]["sun_height_min"]:
+                    self.end_calculation = True
                     # Высота Солнца выше заданного параметра
                     main.nms2pixs()
                     print('=== Запуск измерения ===                      ', end='\r')
@@ -1384,7 +1386,9 @@ class CheckSunAndMesure():
                             time.sleep(1)
                 else:
                     # Высота Солнца менее заданного параметра
-                    calculate_final_files(self.pars, main.last_file_o3, 'ZD', True, "file")
+                    if self.end_calculation:
+                        calculate_final_files(self.pars, main.last_file_o3, 'ZD', True, "file")
+                        self.end_calculation = False
 
                     print('\rСледующее измерение: {}'.format(get_time_next_start(self.pars["station"]["latitude"],
                                                                                  self.pars["station"]["longitude"],
