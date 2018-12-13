@@ -606,6 +606,7 @@ class Ufos_data:
         self.start_mesure = start_mesure
         self.logger = logger
         self.data_send = b''
+        self.accum = accummulate
         parameters = list()
         parameters.append(b'#')  # header = #
         parameters.append(b'\x00\x01')  # device id = 1
