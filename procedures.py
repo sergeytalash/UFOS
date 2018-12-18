@@ -106,7 +106,7 @@ class AnnualOzone:
         dir_path = make_dirs(["Ufos_{}".format(self.device_id), "Ozone"], self.home)
         if os.path.exists(dir_path):
             for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year, pair)
+                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year[:4], pair)
                 self.file_descriptors[pair] = open(os.path.join(dir_path, annual_file_name), 'w')
                 print("Date\t" +
                       "Mean_All\tSigma_All\tO3_Count\t" +
@@ -151,7 +151,7 @@ class AnnualOzone:
                         create_daily_files = False
                     if create_annual_files:
                         self.open_annual_files_for_write()
-                        create_files = False
+                        create_annual_files = False
                     file_path = os.path.join(dir_path, file)
                     self.but_annual_ozone.configure(text=file[-16:-4])
                     self.root.update()
