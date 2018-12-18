@@ -699,38 +699,6 @@ def normalize(mdhminute):
     return text
 
 
-class FinalFile:
-    def __init__(self, pars, home, o3_mode):
-        self.pars = pars
-        self.home = home
-        self.path_file = ''
-
-    def prepare(self, date_utc, cr):
-        date_utc_str = datetime.datetime.strftime(date_utc, '%Y%m%d %H:%M:%S')
-        mu, amas, sh = sunheight(self.pars["station"]["latitude"],
-                                 self.pars["station"]["longitude"],
-                                 date_utc,
-                                 self.pars["station"]["timezone"])
-        return date_utc_str, sh, cr
-
-    def save(self, pars, home, chan, ts, shs, crs):
-        create_new_file = True
-        for date_utc, sh, cr in zip(ts, shs, crs):
-            self.path_file = write_final_file(pars,
-                                              home,
-                                              chan,
-                                              date_utc,
-                                              round(sh, 1),
-                                              cr,
-                                              'New_',
-                                              create_new_file)
-            create_new_file = False
-        print('File Saved: {}'.format(self.path_file))
-        # self.path_file = self.path_file.replace('New_','')
-        but_make_mean_file.configure(command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
-        but_make_mean_file.configure(state=NORMAL)
-
-
 def change_geometry(root):
     geom = root.geometry().split('+')[0].split('x')
     if geom[0] == '1' or geom[1] == '1':
@@ -914,9 +882,9 @@ def make_o3file():
         mean_file = 0
         global ts
         global shs
-        global crs
-        ts, shs, crs = [], [], []
-        saving = FinalFile(start.var_settings, home, o3_mode)
+        global calc_results
+        ts, shs, calc_results = [], [], []
+        saving = FinalFile(start.var_settings, home, annual_file=False, but_make_mean_file=but_make_mean_file)
         for i in txt:
             start.uvs_or_o3['ZD'] = {}
             start.uvs_or_o3['SD'] = {}
@@ -940,7 +908,7 @@ def make_o3file():
                                                start.uvs_or_o3['ZD'])
                     ts.append(t)
                     shs.append(sh)
-                    crs.append(cr)
+                    calc_results.append(cr)
             elif o3_mode in ['uva', 'uvb', 'uve']:
                 chan = 'SD'
                 if i.count("S-D") > 0 or i.count("SD") > 0:
@@ -957,9 +925,9 @@ def make_o3file():
                                                start.uvs_or_o3['SD'])
                     ts.append(t)
                     shs.append(sh)
-                    crs.append(cr)
+                    calc_results.append(cr)
         if start.x1:
-            but_save_to_final_file.configure(command=lambda: saving.save(start.var_settings, home, chan, ts, shs, crs))
+            but_save_to_final_file.configure(command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
         else:
             tex = 'Файлов измерений\nне найдено'
     try:
@@ -1025,7 +993,7 @@ if True:
     file_name = ''
     timer = ''
     canvs = []
-    ts, shs, crs = [], [], []
+    ts, shs, calc_results = [], [], []
     path = os.getcwd()
     home = os.getcwd()
     tmp_path = home

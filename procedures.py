@@ -1,4 +1,6 @@
 from math import *
+from tkinter import NORMAL
+
 import serial
 import time
 import datetime
@@ -10,7 +12,6 @@ import json
 import numpy as np
 import socket
 import base64
-
 
 # Selivanova
 
@@ -30,6 +31,53 @@ def get_new_corrects(o3s, o3s_first_corrected, pars):
     return corrects, sigma, mean
 
 
+class FinalFile:
+    def __init__(self, pars, home, annual_file, but_make_mean_file):
+        """pars = settings.json
+        home =
+        o3_mode = NOT USED
+        annual_file = (True or False)
+        """
+        self.pars = pars
+        self.home = home
+        self.path_file = ''
+        self.annual_file = annual_file
+        self.but_make_mean_file = but_make_mean_file
+
+    def prepare(self, date_utc, calc_result):
+        if type(date_utc) is str:
+            date_utc_str = date_utc
+            date_utc_date = datetime.datetime.strptime(date_utc, '%Y%m%d %H:%M:%S')
+        else:
+            date_utc_str = datetime.datetime.strftime(date_utc, '%Y%m%d %H:%M:%S')
+            date_utc_date = date_utc
+        mu, amas, sh = sunheight(self.pars["station"]["latitude"],
+                                 self.pars["station"]["longitude"],
+                                 date_utc_date,
+                                 self.pars["station"]["timezone"])
+        return date_utc_str, sh, calc_result
+
+    def save(self, pars, home, chan, ts, shs, calc_results):
+        create_new_file = True
+        for date_utc, sh, calc_result in zip(ts, shs, calc_results):
+            self.path_file = write_final_file(pars,
+                                              home,
+                                              chan,
+                                              date_utc,
+                                              round(sh, 1),
+                                              calc_result,
+                                              'New_',
+                                              create_new_file)
+            create_new_file = False
+        if not self.annual_file:
+            print('File Saved: {}'.format(self.path_file))
+            # self.path_file = self.path_file.replace('New_','')
+            self.but_make_mean_file.configure(
+                command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
+            self.but_make_mean_file.configure(state=NORMAL)
+        return self.path_file
+
+
 class AnnualOzone:
     # Procedure for annual ozone calculations (make_annual_ozone_file)
 
@@ -41,79 +89,126 @@ class AnnualOzone:
         self.annual_data = {}
         self.root = root
         self.but_annual_ozone = but_annual_ozone
+        self.ts = []
+        self.shs = []
+        self.calc_results = []
+        self.file_descriptors = {}
+        self.debug = True
 
     def run(self):
         self.make_annual_ozone_file()
-        self.write_annual_ozone()
+        # self.write_annual_ozone()
         self.but_annual_ozone.configure(text="Сохранить озон за год")
         self.root.update()
         print("Done.")
 
+    def open_annual_files_for_write(self):
+        dir_path = make_dirs(["Ufos_{}".format(self.device_id), "Ozone"], self.home)
+        if os.path.exists(dir_path):
+            for pair in ["1", "2"]:
+                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year, pair)
+                self.file_descriptors[pair] = open(os.path.join(dir_path, annual_file_name), 'w')
+                print("Date\t" +
+                      "Mean_All\tSigma_All\tO3_Count\t" +
+                      "Mean_Morning\tSigma_Morning\tO3_Count\t" +
+                      "Mean_Evening\tSigma_Evening\tO3_Count", file=self.file_descriptors[pair])
+
+    @staticmethod
+    def write_annual_line(fw, day_string, line):
+        line_data = [day_string]
+        for part_of_day in ['all', 'morning', 'evening']:
+            for item in ['mean', 'sigma', 'o3_count']:
+                if item in line[part_of_day].keys():
+                    line_data.append(str(line[part_of_day][item]))
+                else:
+                    line_data.append('')
+        print("\t".join(line_data), file=fw)
+
     def make_annual_ozone_file(self):
         """data - PlotClass.init()"""
         main = Main(self.home, self.data.var_settings)
+        saving = FinalFile(self.data.var_settings, self.home, annual_file=True, but_make_mean_file=None)
         main.chan = "ZD"
         self.device_id = self.data.common_pars["device"]["id"]
-        all_o3 = {}
+        # all_o3 = {}
+        # daily_o3_to_file = {}
+        day = ""
+        create_annual_files = True
         for dir_path, dirs, files in os.walk(os.path.join(self.home,
                                                           "Ufos_{}".format(self.device_id),
                                                           "Mesurements",
                                                           self.year)):
+            daily_o3_to_file = {}
+            create_daily_files = True
+            self.ts = []
+            self.shs = []
+            self.calc_results = []
             for file in files:
                 if file.count("ZD") > 0:
-                    file_path = os.path.join(dir_path, file)
                     day = os.path.basename(dir_path)
+                    if create_daily_files:
+                        daily_o3_to_file[day] = []
+                        create_daily_files = False
+                    if create_annual_files:
+                        self.open_annual_files_for_write()
+                        create_files = False
+                    file_path = os.path.join(dir_path, file)
                     self.but_annual_ozone.configure(text=file[-16:-4])
                     self.root.update()
-                    if day not in all_o3.keys():
-                        all_o3[day] = []
                     self.data.get_spectr(file_path, False)
                     main.calc_final_file(self.data.var_settings, self.home, self.data.data["spectr"],
                                          self.data.data["calculated"]["mu"],
                                          self.data.data["mesurement"]["exposition"], self.data.sensitivity,
                                          self.data.sensitivity_eritem, False)
+                    # The file after Reformat (datetime_local do not present in file)
                     try:
                         self.data.data["mesurement"]["datetime_local"]
                     except KeyError:
                         self.data.data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
                             self.data.data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
                             hours=int(self.data.data["mesurement"]['timezone']))
-                    all_o3[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
-                                                                  self.data.data["mesurement"]["datetime_local"],
-                                                                  self.data.data["calculated"]["sunheight"],
-                                                                  main.calc_result[main.chan]["o3_1"],
-                                                                  main.calc_result[main.chan]["correct1"],
-                                                                  main.calc_result[main.chan]["o3_2"],
-                                                                  main.calc_result[main.chan]["correct2"]
-                                                                  ]
-                                                 ]
-                                                )
-                                       )
-        for day in all_o3.keys():
-            daily_data = calculate_final_files(self.data.var_settings, all_o3[day], main.chan, False, "calculate")
-            self.annual_data[day] = daily_data
 
-    def write_annual_ozone(self):
-        dir_path = os.path.join(self.home, "Ufos_{}".format(self.device_id), "Mesurements", self.year)
-        if os.path.exists(dir_path):
-            for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year, pair)
-                with open(os.path.join(dir_path, annual_file_name), 'w') as fw:
-                    print("Date\t" +
-                          "Mean_All\tSigma_All\tO3_Count\t" +
-                          "Mean_Morning\tSigma_Morning\tO3_Count\t" +
-                          "Mean_Evening\tSigma_Evening\tO3_Count", file=fw)
-                    for day in sorted(self.annual_data.keys()):
-                        d = self.annual_data[day][pair]
-                        line_data = [day]
-                        for part_of_day in ['all', 'morning', 'evening']:
-                            for item in ['mean', 'sigma', 'o3_count']:
-                                if item in d[part_of_day].keys():
-                                    line_data.append(str(d[part_of_day][item]))
-                                else:
-                                    line_data.append('')
-                        print("\t".join(line_data), file=fw)
-                    print("{} - Annual ozone file saved".format(annual_file_name))
+                    # Prepare daily ozone
+                    uvs_or_o3 = {'o3_1': main.calc_result[main.chan]["o3_1"],
+                                 'o3_2': main.calc_result[main.chan]["o3_2"],
+                                 'correct1': main.calc_result[main.chan]["correct1"],
+                                 'correct2': main.calc_result[main.chan]["correct2"]}
+                    date_utc_str, sh, calc_result = saving.prepare(self.data.data["mesurement"]['datetime'], uvs_or_o3)
+                    self.ts.append(date_utc_str)
+                    self.shs.append(sh)
+                    self.calc_results.append(calc_result)
+
+                    # Prepare day for annual ozone
+                    daily_o3_to_file[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
+                                                                            self.data.data["mesurement"][
+                                                                                "datetime_local"],
+                                                                            self.data.data["calculated"]["sunheight"],
+                                                                            main.calc_result[main.chan]["o3_1"],
+                                                                            main.calc_result[main.chan]["correct1"],
+                                                                            main.calc_result[main.chan]["o3_2"],
+                                                                            main.calc_result[main.chan]["correct2"]
+                                                                            ]
+                                                           ]
+                                                          )
+                                                 )
+            for day_string, day_data in daily_o3_to_file.items():
+                # Save ozone to daily file
+                path_file = saving.save(self.data.var_settings, self.home, main.chan, self.ts, self.shs, self.calc_results)
+                if self.debug:
+                    print('1) Daily File Saved: {}'.format(path_file))
+                # Save ozone to mean daily file
+                calculate_final_files(self.data.var_settings, path_file, main.chan, True, "file")
+
+                # Save ozone to annual file
+                for pair, fw in self.file_descriptors.items():
+                    daily_data = calculate_final_files(self.data.var_settings, day_data, main.chan, False,
+                                                       "calculate")
+                    self.write_annual_line(fw, day_string, daily_data[pair])
+                    print("3) Write to annual file. Pair {}".format(pair))
+        for pair, fw in self.file_descriptors.items():
+            fw.close()
+            if self.debug:
+                print('4) Annual File Saved: Pair {}'.format(pair))
 
 
 def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag):
@@ -124,6 +219,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
     write_daily_file - True or False - allow to write file with mean ozone, else just calculate
     data_source_flag - "file" or "calculate" - select source of data: read from file or get ozone from variable
     """
+    perform_second_correction = True
     all_data = []
     data = []
     if source:
@@ -174,74 +270,74 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                     for pair in ["1", "2"]:
                         o3s[pair][part_of_day].append(current_o3[pair])
                         o3s[pair]["all"].append(current_o3[pair])
+                        o3s_daily[pair][part_of_day]["o3"].append(current_o3[pair])
+                        o3s_daily[pair]["all"]["o3"].append(current_o3[pair])
                         if corrects_first[pair] == 1:
-                            o3s_daily[pair][part_of_day]["o3"].append(current_o3[pair])
-                            o3s_daily[pair]["all"]["o3"].append(current_o3[pair])
+
                             o3s_daily[pair][part_of_day]["k"].append(1)
                             o3s_daily[pair]["all"]["k"].append(1)
                         else:
                             o3s_daily[pair][part_of_day]["k"].append(0)
                             o3s_daily[pair]["all"]["k"].append(0)
-
                 # === Second correction check ===
+                if perform_second_correction:
+                    corrects_second = {}  # для второй корректировки
+                    corrects_actual = {}  # вторая корректировка
+                    o3s_sigma = {}
+                    o3s_mean = {}
+                    text_mean = ''
+                    text_mean_divided = ''
+                    no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
+                    for pair in ["1", "2"]:
+                        corrects_second[pair] = {}
+                        corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
+                        o3s_mean[pair] = {}
+                        o3s_sigma[pair] = {}
 
-                corrects_second = {}  # для второй корректировки
-                corrects_actual = {}  # вторая корректировка
-                o3s_sigma = {}
-                o3s_mean = {}
-                text_mean = ''
-                text_mean_divided = ''
-                no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
-                for pair in ["1", "2"]:
-                    corrects_second[pair] = {}
-                    corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
-                    o3s_mean[pair] = {}
-                    o3s_sigma[pair] = {}
+                        for part_of_day in ["all", "morning", "evening"]:
+                            if no_data_for_part_of_day[part_of_day]:
+                                continue
+                            if o3s_daily[pair][part_of_day]["o3"]:
+                                # corrects_second[pair][part_of_day] - list - для второй корректировки
+                                # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
+                                # o3s_mean[pair][part_of_day] - int - среднее по первой корректировке
+                                corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
+                                    part_of_day] = get_new_corrects(o3s[pair][part_of_day],
+                                                                    o3s_daily[pair][part_of_day]["o3"], pars)
+                            for i in o3s_daily[pair][part_of_day]["k"]:
+                                if i == 1:
+                                    corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
+                                else:
+                                    corrects_actual[pair][part_of_day].append('0')
+                            try:
+                                text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
+                                                                                                             o3s_mean[
+                                                                                                                 pair][
+                                                                                                                 part_of_day],
+                                                                                                             o3s_sigma[
+                                                                                                                 pair][
+                                                                                                                 part_of_day])
+                                text_mean_divided += part_of_day + ": " + text
+                            except KeyError as err:
+                                text = '\n'
+                                print("INFO: procedures.py: No data files for {} (line: {})".format(err,
+                                                                                                    sys.exc_info()[
+                                                                                                        -1].tb_lineno))
+                                no_data_for_part_of_day[part_of_day] = True
+                            if part_of_day == "all":
+                                text_mean += text
 
-                    for part_of_day in ["all", "morning", "evening"]:
-                        if no_data_for_part_of_day[part_of_day]:
-                            continue
-                        if o3s_daily[pair][part_of_day]["o3"]:
-                            # corrects_second[pair][part_of_day] - list - для второй корректировки
-                            # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
-                            # o3s_mean[pair][part_of_day] - int - среднее по первой корректировке
-                            corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
-                                part_of_day] = get_new_corrects(o3s[pair][part_of_day],
-                                                                o3s_daily[pair][part_of_day]["o3"], pars)
-                        for i in o3s_daily[pair][part_of_day]["k"]:
-                            if i == 1:
-                                corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
-                            else:
-                                corrects_actual[pair][part_of_day].append('0')
-                        try:
-                            text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
-                                                                                                         o3s_mean[
-                                                                                                             pair][
-                                                                                                             part_of_day],
-                                                                                                         o3s_sigma[
-                                                                                                             pair][
-                                                                                                             part_of_day])
-                            text_mean_divided += part_of_day + ": " + text
-                        except KeyError as err:
-                            text = '\n'
-                            print("INFO: procedures.py: No data files for {} (line: {})".format(err,
-                                                                                                sys.exc_info()[
-                                                                                                    -1].tb_lineno))
-                            no_data_for_part_of_day[part_of_day] = True
-                        if part_of_day == "all":
-                            text_mean += text
-
-                if write_daily_file is True and data_source_flag == "file":
-                    with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
-                        print(';'.join(all_data[:1]), file=f, end='')
-                        for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"],
-                                                            corrects_actual["2"]["all"]):
-                            part1 = line[:-3]
-                            part2 = line[-2:-1]
-                            print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
-                        print(text_mean, file=f)
-                        print('Mean File Saved: {}'.format(
-                            os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
+                    if write_daily_file is True and data_source_flag == "file":
+                        with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
+                            print(';'.join(all_data[:1]), file=f, end='')
+                            for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"],
+                                                                corrects_actual["2"]["all"]):
+                                part1 = line[:-3]
+                                part2 = line[-2:-1]
+                                print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
+                            print(text_mean, file=f)
+                            print('2) Mean File Saved: {}'.format(
+                                os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
                 out = {}
                 for pair in ["1", "2"]:
                     out[pair] = {"all": {}, "morning": {}, "evening": {}, }
@@ -254,6 +350,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                             # print("procedures.py: INFO: No data files for '{}' (line: {})".format(err,
                             #                                                                 sys.exc_info()[-1].tb_lineno))
                             pass
+
                 return out
             elif mode == "SD":
                 pass
@@ -747,7 +844,7 @@ def get_time_next_start(latitude, longitude, timezone, sun_height_min):
             else:
                 time_now -= datetime.timedelta(0, t)
                 mu, amas, sh = sunheight(latitude, longitude, time_now, timezone)
-    return (str(time_now).split('.')[0])
+    return str(time_now).split('.')[0]
 
 
 def make_dirs(dirs, home):
@@ -761,21 +858,21 @@ def make_dirs(dirs, home):
 
 
 def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_name, create_new_file):
-    # Ozone/UV calculation and write to final file 
+    """Ozone/UV calculation and write to final file
+    pars - settings.json
+    home - home directory (Default: D:\\UFOS)
+    chan - ZD or SD
+    date_utc - UTC datetime from measurement
+    sunheight - Sun height from measurement
+    calc_result - ...
+    add_to_name - Add text to the beginning of the filename
+    create_new_file - True"""
     try:
         date = datetime.datetime.strptime(date_utc, '%Y%m%d %H:%M:%S')
         date_local = datetime.datetime.strftime(date + datetime.timedelta(hours=int(pars["station"]["timezone"])),
                                                 '%Y%m%d %H:%M:%S')  # Local Datetime
         if chan == 'ZD':
             t = 'Ozone'
-            # header = 'DatetimeUTC\t\t\tDatetimeLocal\t\tSunheight[°]\tOzoneP1[D.u.]\tCorrectP1\tOzoneP2[D.u.]\tCorrectP2'
-            #             # text_out = '{}\t{}\t{}\t\t\t{}\t\t\t{}'.format(date_utc,
-            #             #                                                date_local,
-            #             #                                                sunheight,
-            #             #                                                calc_result['o3_1'],
-            #             #                                                calc_result['correct1'],
-            #             #                                                calc_result['o3_2'],
-            #             #                                                calc_result['correct2'])
             header = ';'.join(
                 ['DatetimeUTC', 'DatetimeLocal', 'Sunheight[°]', 'OzoneP1[D.u.]', 'CorrectP1', 'OzoneP2[D.u.]',
                  'CorrectP2'])
@@ -784,13 +881,6 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
                                   calc_result['o3_2'], calc_result['correct2']]])
         elif chan == 'SD':
             t = 'UV'
-            # header = 'DatetimeUTC\t\t\tDatetimeLocal\t\tSunheight[°]\tUV-A[mWt/m^2]\tUV-B[mWt/m^2]\tUV-E[mWt/m^2]'
-            # text_out = '{}\t{}\t{}\t\t\t{}\t\t\t{}\t\t\t{}'.format(date_utc,
-            #                                             date_local,
-            #                                             sunheight,
-            #                                             calc_result['uva'],
-            #                                             calc_result['uvb'],
-            #                                             calc_result['uve'])
             header = ';'.join(
                 ['DatetimeUTC', 'DatetimeLocal', 'Sunheight[°]', 'UV-A[mWt/m^2]', 'UV-B[mWt/m^2]', 'UV-E[mWt/m^2]'])
             text_out = ';'.join([str(i) for i in
@@ -819,7 +909,7 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
 
 
 class Main:
-    """UFOS mesure class"""
+    """UFOS measure class"""
 
     def __init__(self, home, pars, logger=False):
         self.logger = logger
@@ -1233,8 +1323,9 @@ class Main:
                             print(text, end='')
                             self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
                                                                                                 self.pars['device'][
-                                                                                                'accummulate'], chan,
-                                                                                            'S',
+                                                                                                    'accummulate'],
+                                                                                                chan,
+                                                                                                'S',
                                                                                                 self.logger).device_ask(
                                 self.tries)
                             text += ' ' + text2
@@ -1258,8 +1349,12 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo, self.pars['device'][
-                            'accummulate'], chan, 'S', self.logger).device_ask(self.tries)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
+                                                                                            self.pars['device'][
+                                                                                                'accummulate'], chan,
+                                                                                            'S',
+                                                                                            self.logger).device_ask(
+                            self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1274,8 +1369,9 @@ class Main:
                         self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'), self.expo)
                     print(text)
                     self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
-                                                                                      self.pars['device']['accummulate'],
-                                                                                  'D', 'S', self.logger).device_ask(
+                                                                                      self.pars['device'][
+                                                                                          'accummulate'],
+                                                                                      'D', 'S', self.logger).device_ask(
                         self.tries)
                     text += ' ' + text2
                     print('\r{}'.format(text), end=' ')
@@ -1304,8 +1400,9 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo, self.pars['device'][
-                            'accummulate'],
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
+                                                                                            self.pars['device'][
+                                                                                                'accummulate'],
                                                                                             chan, 'S',
                                                                                             self.logger).device_ask(
                             self.tries)
@@ -1323,8 +1420,11 @@ class Main:
                             self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo, self.pars['device'][
-                            'accummulate'], 'D', 'S', self.logger).device_ask(self.tries)
+                        self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
+                                                                                          self.pars['device'][
+                                                                                              'accummulate'], 'D', 'S',
+                                                                                          self.logger).device_ask(
+                            self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)

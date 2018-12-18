@@ -195,7 +195,7 @@ def make_uv(p1, p2, data, ome, mode, expo, expo_grad, inis):
                 uv += asd
                 uv *= float(inis['uve_koef'])
             except Exception as err:
-                ##                print(err,sys.exc_info()[-1].tb_lineno)
+                #                print(err,sys.exc_info()[-1].tb_lineno)
                 pass
         uv *= float(c[1]) * expo_grad / int(expo)
     return (uv)
