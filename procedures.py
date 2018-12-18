@@ -586,7 +586,7 @@ class CalculateOnly:
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
-
+        uv = 0
         spectrum = spectr2zero(self.p_zero1, self.p_zero2, self.p_lamst, spectr)
         try:
             if uv_mode in ['uva', 'uvb']:
@@ -597,10 +597,10 @@ class CalculateOnly:
         except Exception as err:
             print('procedures.calc_uv: ', err)
             uv = 0
-        return (int(round(uv, 1)))
+        return int(round(uv, 1))
 
 
-class Ufos_data:
+class UfosDataToCom:
     """UFOS mesure class"""
 
     def __init__(self, expo, accummulate, mesure_type, start_mesure, logger):
@@ -610,6 +610,7 @@ class Ufos_data:
         accum - количество суммирований измерений (время измерения = expo * accum)
         mesure_type - тип измерений (Z=зенит, S=полусфера, D=темновой)
         start_mesure - S=запустить измерение, любой другой символ только переключит канал измерения."""
+        self.com_obj = ''
         self.expo = expo
         self.start_mesure = start_mesure
         self.logger = logger
@@ -843,6 +844,13 @@ class Main:
                 datetime.datetime.strftime(self.time_now, '%Y-%m'),
                 datetime.datetime.strftime(self.time_now, '%Y-%m-%d')]
         self.path = os.path.join(self.home, *dirs)
+        self.Dspectr = []
+        self.ZDspectr = []
+        self.ZS_spectr = []
+        self.spectrZaD = []
+        self.skoZaD = 0
+        self.path_sending = ''
+        self.name = ''
 
     def analyze_spectr(self, spectr):
         """Анализ спектра во время измерения"""
@@ -1036,8 +1044,8 @@ class Main:
     def change_channel(self, chan):
         self.logger.debug('Переключение на канал {}.'.format(
             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8')))
-        data, t1, t2, text, self.tries = Ufos_data(50, self.pars['device']['accummulate'], chan, 'N',
-                                                   self.logger).device_ask(self.tries)
+        data, t1, t2, text, self.tries = UfosDataToCom(50, self.pars['device']['accummulate'], chan, 'N',
+                                                       self.logger).device_ask(self.tries)
         return self.tries
 
     def write_file4send(self, chan, data4send):
@@ -1115,7 +1123,7 @@ class Main:
                                                                   'NULL',  # pixels1,
                                                                   'NULL',
                                                                   'NULL')
-                ##                    print(data4send)
+                #                    print(data4send)
 
                 # Write file for next sending
                 self.write_file4send(chan, data4send)
@@ -1123,33 +1131,36 @@ class Main:
         except Exception as err:
             print(err, sys.exc_info()[-1].tb_lineno)
 
-    def ftp_send(self, host, port, remote_dir, user, password, file2send):
-        file_name = os.path.basename(file2send)
-        path = file2send.split(file_name)[0][:-1]
-        ftp = FTP()
-        ##    print('Подключение к FTP...',end=' ')
-        try:
-            ftp.connect(host=host, port=port)
-            ftp.login(user=user, passwd=password)
-            ##        print('OK')
-            try:
-                dir_list = []
-                ftp.cwd(remote_dir)
-                ##            ftp.debug(1)
-                create_dirs(ftp, file2send)
-                ftp.storlines('STOR ' + file_name, open(file2send, 'rb'))
-                tex = 'OK'
-            except Exception as err2:
-                tex = err2
-            finally:
-                ftp.close()
-        except:
-            tex = 'Ошибка подключения FTP!'
-        return (tex)
+    @staticmethod
+    def ftp_send(host, port, remote_dir, user, password, file2send):
+        return 'FTP method is not configured'
+        # file_name = os.path.basename(file2send)
+        # path = file2send.split(file_name)[0][:-1]
+        # ftp = FTP()
+        # #    print('Подключение к FTP...',end=' ')
+        # try:
+        #     ftp.connect(host=host, port=port)
+        #     ftp.login(user=user, passwd=password)
+        #     #        print('OK')
+        #     try:
+        #         dir_list = []
+        #         ftp.cwd(remote_dir)
+        #         #            ftp.debug(1)
+        #         create_dirs(ftp, file2send)
+        #         ftp.storlines('STOR ' + file_name, open(file2send, 'rb'))
+        #         tex = 'OK'
+        #     except Exception as err2:
+        #         tex = err2
+        #     finally:
+        #         ftp.close()
+        # except:
+        #     tex = 'Ошибка подключения FTP!'
+        # return (tex)
 
-    def sock_send(self, host, port, data2send, buffer=2048):
+    @staticmethod
+    def sock_send(host, port, data2send, buffer=2048):
+        t = 'ERR'
         try:
-            t = 'ERR'
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((host, port))
             sock.send(data2send.encode(encoding='utf-8'))
@@ -1157,13 +1168,12 @@ class Main:
             t = 'OK'
         except Exception as err:
             print('procedures.sock_send(): {} - line {}'.format(err, sys.exc_info()[2].tb_lineno))
-            t = 'ERR'
         finally:
             return t
 
     def send_file(self, file2send):
+        tex = {}
         try:
-            tex = {}
             for send_type in ['socket', 'ftp']:
                 if self.connect_pars[send_type + '_ip'] != '0':
                     tex[send_type] = ''
@@ -1221,11 +1231,11 @@ class Main:
                                 self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                                 self.expo)
                             print(text, end='')
-                            self.ZS_spectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,
-                                                                                            self.pars['device'][
+                            self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
+                                                                                                self.pars['device'][
                                                                                                 'accummulate'], chan,
                                                                                             'S',
-                                                                                            self.logger).device_ask(
+                                                                                                self.logger).device_ask(
                                 self.tries)
                             text += ' ' + text2
                             print('\r{}'.format(text))
@@ -1248,7 +1258,7 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo, self.pars['device'][
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo, self.pars['device'][
                             'accummulate'], chan, 'S', self.logger).device_ask(self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
@@ -1263,8 +1273,8 @@ class Main:
                     text = 'Канал {}. Эксп = {}'.format(
                         self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'), self.expo)
                     print(text)
-                    self.Dspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo,
-                                                                                  self.pars['device']['accummulate'],
+                    self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
+                                                                                      self.pars['device']['accummulate'],
                                                                                   'D', 'S', self.logger).device_ask(
                         self.tries)
                     text += ' ' + text2
@@ -1294,10 +1304,10 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo, self.pars['device'][
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo, self.pars['device'][
                             'accummulate'],
-                                                                                        chan, 'S',
-                                                                                        self.logger).device_ask(
+                                                                                            chan, 'S',
+                                                                                            self.logger).device_ask(
                             self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
@@ -1313,7 +1323,7 @@ class Main:
                             self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.Dspectr, self.t1, self.t2, text2, self.tries = Ufos_data(self.expo, self.pars['device'][
+                        self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo, self.pars['device'][
                             'accummulate'], 'D', 'S', self.logger).device_ask(self.tries)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
@@ -1331,18 +1341,22 @@ class Main:
                         self.write_file()
                         self.mesure_data[self.chan] = self.text
         except TypeError:
-            ##            print("No data from UFOS")
+            #            print("No data from UFOS")
             pass
         except Exception as err:
             print("procedures.Main.mesure:", end='')
             print(err, sys.exc_info()[-1].tb_lineno)
 
 
-class CheckSunAndMesure():
+class CheckSunAndMesure:
     def __init__(self, logger):
         self.home = os.getcwd()
         self.logger = logger
         self.end_calculation = True
+        self.common_pars = []
+        self.pars = []
+        self.time_now_1 = datetime.datetime.now()
+        self.mu, self.amas, self.sunheight = 0, 0, 0
 
     def start(self):
         while 1:
@@ -1385,8 +1399,8 @@ class CheckSunAndMesure():
                                 sending_file = os.path.join(main.path_sending, file2send)
                                 tex = main.send_file(sending_file)
                                 self.logger.debug(str(tex))
-                                for prot in tex.keys():
-                                    if tex[prot] == 'OK':
+                                for status in tex.keys():
+                                    if tex[status] == 'OK':
                                         os.remove(sending_file)
                         while datetime.datetime.now() < next_time:
                             time.sleep(1)
