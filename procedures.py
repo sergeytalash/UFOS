@@ -72,6 +72,12 @@ class AnnualOzone:
                                          self.data.data["calculated"]["mu"],
                                          self.data.data["mesurement"]["exposition"], self.data.sensitivity,
                                          self.data.sensitivity_eritem, False)
+                    try:
+                        self.data.data["mesurement"]["datetime_local"]
+                    except KeyError:
+                        self.data.data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
+                            self.data.data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
+                            hours=int(self.data.data["mesurement"]['timezone']))
                     all_o3[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
                                                                   self.data.data["mesurement"]["datetime_local"],
                                                                   self.data.data["calculated"]["sunheight"],
