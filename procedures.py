@@ -13,6 +13,7 @@ import numpy as np
 import socket
 import base64
 
+
 # Selivanova
 
 
@@ -70,7 +71,7 @@ class FinalFile:
                                               create_new_file)
             create_new_file = False
         if not self.annual_file:
-            print('File Saved: {}'.format(self.path_file))
+            print('Manual save.\n1) File Saved: {}'.format(self.path_file))
             # self.path_file = self.path_file.replace('New_','')
             self.but_make_mean_file.configure(
                 command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
@@ -193,7 +194,8 @@ class AnnualOzone:
                                                  )
             for day_string, day_data in daily_o3_to_file.items():
                 # Save ozone to daily file
-                path_file = saving.save(self.data.var_settings, self.home, main.chan, self.ts, self.shs, self.calc_results)
+                path_file = saving.save(self.data.var_settings, self.home, main.chan, self.ts, self.shs,
+                                        self.calc_results)
                 if self.debug:
                     print('1) Daily File Saved: {}'.format(path_file))
                 # Save ozone to mean daily file
@@ -371,10 +373,7 @@ def sumarize(a):
     for i in a:
         if i != '':
             sum += float(i)
-    try:
-        return round(sum, 3)
-    except:
-        return 0
+    return round(sum, 3)
 
 
 def read_nomographs(home, dev_id, o3_num):
@@ -539,15 +538,10 @@ def read_path(home, path, mode):
     return path
 
 
-def spectr2zero(p_zero1, p_zero2, p_lamst, spectr):
+def spectr2zero(p_zero, p_lamst, spectr):
+    spectrum = [0] * len(spectr)
     try:
-        mv = 0
-        zero_count = 0
-        spectrum = [0] * len(spectr)
-        for i in range(p_zero1, p_zero2 + 1):
-            mv = mv + spectr[i]
-            zero_count += 1
-        mv = mv / zero_count
+        mv = sum(spectr[p_zero["1"]:p_zero["2"]]) / len(spectr[p_zero["1"]:p_zero["2"]])
         for i in range(p_lamst, len(spectr) - 1):
             spectrum[i] = round(spectr[i] - mv)
     except IndexError:
@@ -631,34 +625,27 @@ class UfosConnection:
 
 class CalculateOnly:
     # Calculate for mesurement
-    def __init__(self, var_sets, home):
+    def __init__(self, settings, home):
         self.home = home
-        self.var_sets = var_sets
-        self.confZ = self.var_sets['calibration']['nm(pix)']['Z']
-        self.confS = self.var_sets['calibration']['nm(pix)']['S']
-        self.lambda_consts1 = self.var_sets['calibration']['points']['o3_pair_1'] + \
-                              self.var_sets['calibration']['points']['cloud_pair_1']
-        self.lambda_consts2 = self.var_sets['calibration']['points']['o3_pair_2'] + \
-                              self.var_sets['calibration']['points']['cloud_pair_2']
+        self.settings = settings
+        self.confZ = self.settings['calibration']['nm(pix)']['Z']
+        self.confS = self.settings['calibration']['nm(pix)']['S']
+        self.lambda_consts = {pair: self.settings['calibration']['points']['o3_pair_{}'.format(pair)] +
+                                    self.settings['calibration']['points']['cloud_pair_{}'.format(pair)] for pair in
+                              ["1", "2"]}
         self.p_uva1, self.p_uva2 = nm2pix(315, self.confS, 0), nm2pix(400, self.confS, 0)
         self.p_uvb1, self.p_uvb2 = nm2pix(280, self.confS, 0), nm2pix(315, self.confS, 0)
         self.p_uve1, self.p_uve2 = 0, 3691  # nm2pix(290),nm2pix(420)
-        self.p_zero1 = nm2pix(290, self.confZ, 0)
-        self.p_zero2 = nm2pix(295, self.confZ, 0)
+        self.p_zero = {pair: nm2pix(nm, self.confZ, 0) for pair, nm in zip(["1", "2"], [290, 295])}
         self.p_lamst = nm2pix(290, self.confZ, 0)
-        self.lambda_consts_pix1 = []  # Массив констант лямбда в пикселях
-        for i in self.lambda_consts1:
-            self.lambda_consts_pix1.append(nm2pix(i, self.confZ, 0))
-        self.lambda_consts_pix2 = []  # Массив констант лямбда в пикселях
-        for i in self.lambda_consts2:
-            self.lambda_consts_pix2.append(nm2pix(i, self.confZ, 0))
-
-            # Calc ozone
-        self.o3 = 0
-        self.prom = int(self.var_sets['calibration2']['pix+-'] / eval(self.confZ[1]))
-        self.f = self.var_sets['station']['latitude']
-        self.l = self.var_sets['station']['longitude']
-        self.pelt = int(self.var_sets['station']['timezone'])
+        self.lambda_consts_pix = {pair: [nm2pix(i, self.confZ, 0) for i in const] for pair, const in
+                                  self.lambda_consts.items()}
+        # Calc ozone
+        # self.o3 = 0
+        self.prom = int(self.settings['calibration2']['pix+-'] / eval(self.confZ[1]))
+        self.f = self.settings['station']['latitude']
+        self.l = self.settings['station']['longitude']
+        self.pelt = int(self.settings['station']['timezone'])
         # Calc UV
         self.uv = 0
         self.curr_o3_dict = {'uva': [2, self.p_uva1, self.p_uva2],
@@ -670,15 +657,16 @@ class CalculateOnly:
         data['spectr'] => spectrum
         data['mu']
         """
-        spectrum = spectr2zero(self.p_zero1, self.p_zero2, self.p_lamst, spectr)
+        spectrum = spectr2zero(self.p_zero, self.p_lamst, spectr)
         """Расчет озона"""
-        o3_1, correct1 = pre_calc_o3(self.lambda_consts1, self.lambda_consts_pix1, spectrum, self.prom, mu,
-                                     self.var_sets,
-                                     self.home, '1')
-        o3_2, correct2 = pre_calc_o3(self.lambda_consts2, self.lambda_consts_pix2, spectrum, self.prom, mu,
-                                     self.var_sets,
-                                     self.home, '2')
-        return {'o3_1': int(round(o3_1)), 'o3_2': int(round(o3_2)), 'correct1': correct1, 'correct2': correct2}
+        o3 = {}
+        correct = {}
+        for pair, values in self.lambda_consts.items():
+            o3[pair], correct[pair] = pre_calc_o3(self.lambda_consts[pair], self.lambda_consts_pix[pair], spectrum,
+                                                  self.prom, mu,
+                                                  self.settings,
+                                                  self.home, pair)
+        return o3, correct
 
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
         p1 = self.curr_o3_dict[uv_mode][1]
@@ -690,7 +678,7 @@ class CalculateOnly:
                 uv = sum(np.array(spectrum[p1:p2]) * np.array(sensitivity[p1:p2]))
             elif uv_mode == 'uve':
                 uv = sum([float(spectrum[i]) * sens_eritem[i] * sensitivity[i] for i in range(p1, p2, 1)])
-            uv *= float(eval(self.confS[1])) * self.var_sets['device']['graduation_expo'] / expo
+            uv *= float(eval(self.confS[1])) * self.settings['device']['graduation_expo'] / expo
         except Exception as err:
             print('procedures.calc_uv: ', err)
             uv = 0
@@ -1036,38 +1024,14 @@ class Main:
             for nm in self.pars["calibration"]["points"][pair]:
                 self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    # def calc_mon_o3_file(self, pars, home, year):
-    #     calco = CalculateOnly(pars, home)
-    #     year_path = "{}\\Ufos_{}\\Mesurements\\{}".foramt(home, pars["device"]["id"], year)
-    #     print(year_path)
-
-    # spectr, mu = [], 0
-    # if self.chan == 'ZD':
-    #     o3_dict = calco.calc_ozon(spectr, mu)
-    #     o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct1']
-    #     o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct2']
-    #     # out = {'o3': o3,
-    #     #        'correct': correct}
-    #     print('=> OZONE: P1 = {}, P2 = {}'.format(o3_1, o3_2))
-
-    # def calc_annual_o3_file(self, pars, home, year):
-    #     calco = CalculateOnly(pars, home)
-    #     year_path = "{}\\Ufos_{}\\Mesurements\\{}".foramt(home, pars["device"]["id"], year)
-    #     print(year_path)
-
-    # spectr, mu = [], 0
-    # if self.chan == 'ZD':
-    #     o3_dict = calco.calc_ozon(spectr, mu)
-    #     o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct1']
-    #     o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct2']
-    #     # out = {'o3': o3,
-    #     #        'correct': correct}
-    #     print('=> OZONE: P1 = {}, P2 = {}'.format(o3_1, o3_2))
-
     def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_flag):
         calco = CalculateOnly(pars, home)
         if self.chan == 'ZD':
-            o3_dict = calco.calc_ozon(spectr, mu)
+            o3, correct = calco.calc_ozon(spectr, mu)
+            o3_dict = {}
+            for pair in ["1", "2"]:
+                for t, value in zip(["o3", "correct"], [int(o3[pair]), correct[pair]]):
+                    o3_dict[t + '_' + pair] = value
             o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct1']
             o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct2']
             # out = {'o3': o3,

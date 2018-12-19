@@ -150,55 +150,55 @@ def make_kz_coeff(x, y, deg):
     return (a.tolist())
 
 
-def read_sensitivity(path):
-    with open(os.path.join(path, 'sensitivity.txt')) as f:
-        sens = f.readlines()
-    return ([float(i.strip()) for i in sens])
+# def read_sensitivity(path):
+#     with open(os.path.join(path, 'sensitivity.txt')) as f:
+#         sens = f.readlines()
+#     return ([float(i.strip()) for i in sens])
 
 
-def erithema(x, c):
-    nm = (x ** 2) * eval(c[0]) + x * eval(c[1]) + eval(c[2])
-    a = 0
-    if nm <= 298:
-        a = 1
-    elif 298 < nm:  # <=325:
-        a = 10 ** (0.094 * (298 - nm))
-    ##    elif nm>325:
-    ##        a = 10**(-0.015 * (410 - nm))
-    return (a)
+# def erithema(x, c):
+#     nm = (x ** 2) * eval(c[0]) + x * eval(c[1]) + eval(c[2])
+#     a = 0
+#     if nm <= 298:
+#         a = 1
+#     elif 298 < nm:  # <=325:
+#         a = 10 ** (0.094 * (298 - nm))
+#     #    elif nm>325:
+#     #        a = 10**(-0.015 * (410 - nm))
+#     return (a)
 
 
-def make_uv(p1, p2, data, ome, mode, expo, expo_grad, inis):
-    prom = 10
-    uv = 0
-    c = inis['pix2nm'].split('/')
-    if ome == None:
-        ome = []
-        for i in range(len(data)):
-            ome.append(1)
-    if mode in ['uva', 'uvb']:
-        for i in range(p1, p2, 1):
-            try:
-                asd = float(data[int(i)]) * float(ome[int(i)])
-                uv += asd
-            except:
-                pass
-        uv *= float(c[1]) * expo_grad / int(expo)
-        if mode == 'uva':
-            uv *= float(inis['uva_koef'])
-        if mode == 'uvb':
-            uv *= float(inis['uvb_koef'])
-    elif mode == 'uve':
-        for i in range(p1, p2, 1):
-            try:
-                asd = float(data[int(i)]) * erithema(int(i), c) * float(ome[int(i)])
-                uv += asd
-                uv *= float(inis['uve_koef'])
-            except Exception as err:
-                #                print(err,sys.exc_info()[-1].tb_lineno)
-                pass
-        uv *= float(c[1]) * expo_grad / int(expo)
-    return (uv)
+# def make_uv(p1, p2, data, ome, mode, expo, expo_grad, inis):
+#     prom = 10
+#     uv = 0
+#     c = inis['pix2nm'].split('/')
+#     if ome == None:
+#         ome = []
+#         for i in range(len(data)):
+#             ome.append(1)
+#     if mode in ['uva', 'uvb']:
+#         for i in range(p1, p2, 1):
+#             try:
+#                 asd = float(data[int(i)]) * float(ome[int(i)])
+#                 uv += asd
+#             except:
+#                 pass
+#         uv *= float(c[1]) * expo_grad / int(expo)
+#         if mode == 'uva':
+#             uv *= float(inis['uva_koef'])
+#         if mode == 'uvb':
+#             uv *= float(inis['uvb_koef'])
+#     elif mode == 'uve':
+#         for i in range(p1, p2, 1):
+#             try:
+#                 asd = float(data[int(i)]) * erithema(int(i), c) * float(ome[int(i)])
+#                 uv += asd
+#                 uv *= float(inis['uve_koef'])
+#             except Exception as err:
+#                 #                print(err,sys.exc_info()[-1].tb_lineno)
+#                 pass
+#         uv *= float(c[1]) * expo_grad / int(expo)
+#     return (uv)
 
 
 class set_last_date():

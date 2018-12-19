@@ -1,14 +1,6 @@
-# Version: 1.1
-# Modified: 28.11.2017
-import matplotlib
-
-matplotlib.use('TkAgg')
-# import os
-# import datetime
 from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
-# from math import *
 from Shared_ import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,8 +10,9 @@ from matplotlib.widgets import SpanSelector
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from shutil import copy
 import gc
-
 from procedures import *
+import matplotlib
+matplotlib.use('TkAgg')
 
 expo_grad = 1100  # Экспозиция градуировки. Сейчас не используется
 
@@ -74,8 +67,9 @@ class PlotClass:
         elif self.o3_mode == 'spectr':
             self.point = '-'
         # Calc ozone
-        self.o3_1 = 0
-        self.o3_2 = 0
+        # self.o3_1 = 0
+        # self.o3_2 = 0
+        self.o3 = {}
         self.uvs_or_o3['ZD'] = {}
         self.confZ = self.var_settings['calibration']['nm(pix)']['Z']
         self.prom = int(self.var_settings['calibration2']['pix+-'] / eval(self.confZ[1]))
@@ -97,49 +91,51 @@ class PlotClass:
         self.confS = self.var_settings['calibration']['nm(pix)']['S']
 
     def calc_ozon(self):
-        self.spectrum = spectr2zero(p_zero1, p_zero2, p_lamst, self.data['spectr'])
+        self.spectrum = spectr2zero(p_zero, p_lamst, self.data['spectr'])
         """Расчет озона"""
-        self.o3_1, self.correct1 = pre_calc_o3(lambda_consts1, lambda_consts_pix1, self.spectrum, self.prom,
-                                               self.data['mu'],
-                                               self.var_settings, home, '1')
-        self.o3_2, self.correct2 = pre_calc_o3(lambda_consts2, lambda_consts_pix2, self.spectrum, self.prom,
-                                               self.data['mu'],
-                                               self.var_settings, home, '2')
-        self.uvs_or_o3['ZD'] = {'o3_1': self.o3_1, 'o3_2': self.o3_2, 'correct1': self.correct1,
-                                'correct2': self.correct2}
+        self.o3 = {}
+        correct = {}
+        for pair, values in lambda_consts.items():
+            self.o3[pair], correct[pair] = pre_calc_o3(lambda_consts[pair], lambda_consts_pix[pair], self.spectrum,
+                                                       self.prom,
+                                                       self.data['mu'],
+                                                       self.var_settings, home, pair)
+        self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"], 'o3_2': self.o3["2"], 'correct1': correct["1"],
+                                'correct2': correct["2"]}
         if self.o3_mode != 'spectr':
-            if self.chk_show_all or self.correct1 == 1 or self.correct2 == 1:
+            if self.chk_show_all or correct["1"] == 1 or correct["2"] == 1:
                 self.x1.append(self.data['datetime'])
                 self.x2.append(self.data['datetime'])
-                self.y1.append(self.o3_1)
-                self.y2.append(self.o3_2)
+                self.y1.append(self.o3["1"])
+                self.y2.append(self.o3["2"])
 
     def calc_uv(self, uv_mode, add_point):
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
-        self.spectrum = spectr2zero(p_zero1, p_zero2, p_lamst, self.data['spectr'])
+        self.spectrum = spectr2zero(p_zero, p_lamst, self.data['spectr'])
+        ultraviolet = 0
         try:
             if uv_mode in ['uva', 'uvb']:
                 if self.var_with_sens:
-                    uv = sum(np.array(self.spectrum[p1:p2]) * np.array(self.sensitivity[p1:p2]))
+                    ultraviolet = sum(np.array(self.spectrum[p1:p2]) * np.array(self.sensitivity[p1:p2]))
                 else:
-                    uv = sum(np.array(self.spectrum[p1:p2]))
+                    ultraviolet = sum(np.array(self.spectrum[p1:p2]))
             elif uv_mode == 'uve':
                 if self.var_with_sens:
-                    uv = sum([float(self.spectrum[i]) * self.sensitivity_eritem[i] * self.sensitivity[i] for i in
-                              range(p1, p2, 1)])
+                    ultraviolet = sum(
+                        [float(self.spectrum[i]) * self.sensitivity_eritem[i] * self.sensitivity[i] for i in
+                         range(p1, p2, 1)])
                 else:
-                    uv = sum([float(self.spectrum[i]) * self.sensitivity_eritem[i] for i in range(p1, p2, 1)])
+                    ultraviolet = sum([float(self.spectrum[i]) * self.sensitivity_eritem[i] for i in range(p1, p2, 1)])
 
-            uv *= float(eval(self.confS[1])) * self.var_settings['device']['graduation_expo'] / self.data['expo']
-            uv *= float(self.var_settings['calibration']['{}_koef'.format(uv_mode)])
+                    ultraviolet *= float(eval(self.confS[1])) * self.var_settings['device']['graduation_expo'] / \
+                                   self.data['expo']
+                    ultraviolet *= float(self.var_settings['calibration']['{}_koef'.format(uv_mode)])
         except:
-            uv = 0
-        self.uv = int(round(uv, 0))
+            ultraviolet = 0
+        self.uv = int(round(ultraviolet, 0))
         self.uvs_or_o3['SD'][uv_mode] = self.uv
         if self.o3_mode != 'spectr' and add_point:
-            #            self.x1.append(self.data['datetime'])
-            #            self.y1.append(self.uv)
             self.x1.append(self.data['datetime'])
             self.y1.append(self.uv)
 
@@ -161,15 +157,16 @@ class PlotClass:
                 try:
                     new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
                     new_data['temperature_poly'] = data['mesurement']['temperature_poly']
-                except:
+                except KeyError:
                     new_data['temperature_ccd'] = 'None'
                     new_data['temperature_poly'] = 'None'
             else:
                 new_data = data
-        return new_data
+            return new_data
 
     @staticmethod
     def get_spectr_old(file_path):
+        """Get data from OLD file"""
         with open(file_path) as f:
             new_data = {}
             line = '1'
@@ -219,11 +216,9 @@ class PlotClass:
         gc.collect()
 
     def set_x_limit(self, x, y, x_min, x_max, y_min, y_max, mode):
-        # print([x, y, x_min, x_max, y_min, y_max, mode])
         if self.o3_mode != 'ozone':
             if max(x) > x_max: x_max = max(x)
             if min(x) < x_min: x_min = min(x)
-            #                if max(y)>y_max: y_max = max(y)*1.05
             if max(y) > y_max: y_max = max(y) * 1.05
             if min(y) < y_min: y_min = min(y) * 0.95
         else:
@@ -520,8 +515,8 @@ def plot_spectr(*event):
     start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
-        #        lab_ozon.configure(text='Значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(start.o3_1, start.o3_2))
-        lab_ozon.configure(text='Значение озона\n(P2): {} е.Д.'.format(start.o3_2))
+        lab_ozon.configure(text='Значение озона\n' + '\n'.join(
+            ['(P{}): {} е.Д.'.format(pair, start.o3[pair]) for pair in show_ozone_pairs]))
     if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
         for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
             start.calc_uv(mode, False)
@@ -683,11 +678,12 @@ def refresh():
     refresh_txtlist(path)
 
 
-def normalize(mdhminute):
-    text = str(mdhminute)
-    if len(text) == 1:
-        text = '0' + text
-    return text
+def normalize(var):
+    var = str(var)
+    if len(var) == 1:
+        return var.zfill(2)
+    else:
+        return var
 
 
 def change_geometry(root):
@@ -935,8 +931,6 @@ def make_o3file():
                 tex = "Среднее значение озона\n"
                 for pair in show_ozone_pairs:
                     tex += "(P{}): {} е.Д.\n".format(pair, s[pair]["mean"])
-                # tex = 'Среднее значение озона\n(P1): {} е.Д.\n(P2): {} е.Д.'.format(s["1"]["mean"], s["2"]["mean"])
-                #     tex = 'Среднее значение озона\n(P2): {} е.Д.'.format(s["2"]["mean"])
             elif o3_mode == 'uva':
                 tex = 'УФ-А'
             elif o3_mode == 'uvb':
@@ -1142,19 +1136,23 @@ if True:
     ##main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
     confZ = var_settings['calibration']['nm(pix)']['Z']
     confS = var_settings['calibration']['nm(pix)']['S']
-    lambda_consts1 = var_settings['calibration']['points']['o3_pair_1'] \
-                     + var_settings['calibration']['points']['cloud_pair_1']
-    lambda_consts2 = var_settings['calibration']['points']['o3_pair_2'] \
-                     + var_settings['calibration']['points']['cloud_pair_2']
+    lambda_consts = {pair: var_settings['calibration']['points']['o3_pair_{}'.format(pair)] +
+                           var_settings['calibration']['points']['cloud_pair_{}'.format(pair)] for pair in ["1", "2"]}
+    # lambda_consts1 = var_settings['calibration']['points']['o3_pair_1'] \
+    #                  + var_settings['calibration']['points']['cloud_pair_1']
+    # lambda_consts2 = var_settings['calibration']['points']['o3_pair_2'] \
+    #                  + var_settings['calibration']['points']['cloud_pair_2']
     points = var_settings['calibration']['points']
     p_uva1, p_uva2 = nm2pix(315, confS, 0), nm2pix(400, confS, 0)
     p_uvb1, p_uvb2 = nm2pix(280, confS, 0), nm2pix(315, confS, 0)
     p_uve1, p_uve2 = 0, 3691  # nm2pix(290),nm2pix(420)
-    p_zero1 = nm2pix(290, confZ, 0)
-    p_zero2 = nm2pix(295, confZ, 0)
+
+    p_zero = {pair: nm2pix(nm, confZ, 0) for pair, nm in zip(["1", "2"], [290, 295])}
     p_lamst = nm2pix(290, confZ, 0)
-    lambda_consts_pix1 = [nm2pix(i, confZ, 0) for i in lambda_consts1]  # Массив констант лямбда в пикселях
-    lambda_consts_pix2 = [nm2pix(i, confZ, 0) for i in lambda_consts2]  # Массив констант лямбда в пикселях
+    # Массив констант лямбда в пикселях
+    lambda_consts_pix = {pair: [nm2pix(i, confZ, 0) for i in const] for pair, const in lambda_consts.items()}
+    # lambda_consts_pix1 = [nm2pix(i, confZ, 0) for i in lambda_consts1]  # Массив констант лямбда в пикселях
+    # lambda_consts_pix2 = [nm2pix(i, confZ, 0) for i in lambda_consts2]  # Массив констант лямбда в пикселях
     psZ = {}
     psS = {}
     for key in points.keys():
@@ -1166,7 +1164,7 @@ if True:
 
     start = first_clear_plot(plotx, ploty, right_panel)
 
-    ##Скрыть следующие кнопки
+    # Скрыть следующие кнопки
     common = [rad_4096, rad_ytop, but_plot_more, but_remake]
     sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake, chk_read_file,
                      but_save_to_final_file, but_make_mean_file]
