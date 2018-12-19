@@ -171,44 +171,35 @@ class PlotClass:
     @staticmethod
     def get_spectr_old(file_path):
         with open(file_path) as f:
+            new_data = {}
             line = '1'
             while line:
                 if line.count('time') > 0:
-                    channel = line.split(' = ')[1].split(',')[0]
-                    date = line.split(' = ')[2].split(',')[0]
-                    time = line.split(' = ')[3].strip()
-                    date_time = datetime.datetime.strptime('{} {}'.format(date, time),
-                                                           '%d.%m.%Y %H:%M:%S')
+                    new_data['channel'] = line.split(' = ')[1].split(',')[0]
+                    new_data['datetime'] = datetime.datetime.strptime('{} {}'.format(line.split(' = ')[2].split(',')[0],
+                                                                                     line.split(' = ')[3].strip()
+                                                                                     ),
+                                                                      '%d.%m.%Y %H:%M:%S')
                 elif line.count('Exposure') > 0:
-                    expo = line.split('=')[1].strip()
+                    new_data['expo'] = int(line.split('=')[1])
                 elif line.count('Temperature') > 0:
-                    temperature = line.split('=')[1].strip()
+                    new_data['temperature_poly'] = float(line.split('=')[1])
+                    new_data['temperature_ccd'] = 'None'
                 elif line.count('Accummulate') > 0:
-                    accumulate = line.split('=')[1].strip()
+                    new_data['accumulate'] = int(line.split('=')[1])
                 elif line.count('hs') > 0:
-                    hs = line.split()[0]
+                    new_data['hs'] = float(line.split()[0])
                 elif line.count('amas') > 0:
-                    amas = line.split()[0]
+                    new_data['amas'] = float(line.split()[0])
                 elif line.count('mu') > 0:
-                    mu = line.split()[0]
+                    new_data['mu'] = float(line.split()[0])
                 elif line.count('Value') > 0:
-                    spectr = []
+                    new_data['spectr'] = []
                     line = f.readline().strip()
                     while line:
-                        spectr.append(int(line))
+                        new_data['spectr'].append(int(line))
                         line = f.readline().strip()
                 line = f.readline()
-
-            new_data = {'spectr': spectr,
-                        'datetime': date_time,
-                        'hs': float(hs),
-                        'amas': float(amas),
-                        'mu': float(mu),
-                        'expo': int(expo),
-                        'temperature_ccd': 'None',
-                        'temperature_poly': float(temperature),
-                        'accumulate': int(accumulate),
-                        'channel': channel}
             return new_data
 
     def get_spectr(self, file_path, flag=True):
@@ -258,7 +249,7 @@ class PlotClass:
             self.fig_destroy()
         except:
             pass
-        self.fig, (self.ax) = plt.subplots(1)
+        self.fig, self.ax = plt.subplots(1)
         # print(self.fig.get_size_inches())
         self.fig.set_size_inches(self.plotx / 80, self.ploty / 80)
         self.fig.set_dpi(80)
@@ -927,7 +918,8 @@ def make_o3file():
                     shs.append(sh)
                     calc_results.append(cr)
         if start.x1:
-            but_save_to_final_file.configure(command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
+            but_save_to_final_file.configure(
+                command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
         else:
             tex = 'Файлов измерений\nне найдено'
     try:
