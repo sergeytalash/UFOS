@@ -20,7 +20,7 @@ import base64
 def get_new_corrects(o3s, o3s_first_corrected, pars):
     """Среднеквадратичное отклонение
     o3s - Весь озон
-    o3s_tmp - Озон с первой корректировкой (100 - 600)"""
+    o3s_first_corrected - Озон с первой корректировкой (100 - 600)"""
     sigma = round(float(np.std(o3s_first_corrected)), 2)
     mean = int(np.mean(o3s_first_corrected))
     corrects = []
@@ -59,6 +59,7 @@ class FinalFile:
         return date_utc_str, sh, calc_result
 
     def save(self, pars, home, chan, ts, shs, calc_results):
+        # print(home, chan, ts, shs, calc_results)
         create_new_file = True
         for date_utc, sh, calc_result in zip(ts, shs, calc_results):
             self.path_file = write_final_file(pars,
@@ -76,6 +77,7 @@ class FinalFile:
             self.but_make_mean_file.configure(
                 command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
             self.but_make_mean_file.configure(state=NORMAL)
+        # print(self.path_file)
         return self.path_file
 
 
@@ -172,8 +174,8 @@ class AnnualOzone:
                     # Prepare daily ozone
                     uvs_or_o3 = {'o3_1': main.calc_result[main.chan]["o3_1"],
                                  'o3_2': main.calc_result[main.chan]["o3_2"],
-                                 'correct1': main.calc_result[main.chan]["correct1"],
-                                 'correct2': main.calc_result[main.chan]["correct2"]}
+                                 'correct_1': main.calc_result[main.chan]["correct_1"],
+                                 'correct_2': main.calc_result[main.chan]["correct_2"]}
                     date_utc_str, sh, calc_result = saving.prepare(self.data.data["mesurement"]['datetime'], uvs_or_o3)
                     self.ts.append(date_utc_str)
                     self.shs.append(sh)
@@ -185,9 +187,9 @@ class AnnualOzone:
                                                                                 "datetime_local"],
                                                                             self.data.data["calculated"]["sunheight"],
                                                                             main.calc_result[main.chan]["o3_1"],
-                                                                            main.calc_result[main.chan]["correct1"],
+                                                                            main.calc_result[main.chan]["correct_1"],
                                                                             main.calc_result[main.chan]["o3_2"],
-                                                                            main.calc_result[main.chan]["correct2"]
+                                                                            main.calc_result[main.chan]["correct_2"]
                                                                             ]
                                                            ]
                                                           )
@@ -865,8 +867,8 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
                 ['DatetimeUTC', 'DatetimeLocal', 'Sunheight[°]', 'OzoneP1[D.u.]', 'CorrectP1', 'OzoneP2[D.u.]',
                  'CorrectP2'])
             text_out = ';'.join([str(i) for i in
-                                 [date_utc, date_local, sunheight, calc_result['o3_1'], calc_result['correct1'],
-                                  calc_result['o3_2'], calc_result['correct2']]])
+                                 [date_utc, date_local, sunheight, calc_result['o3_1'], calc_result['correct_1'],
+                                  calc_result['o3_2'], calc_result['correct_2']]])
         elif chan == 'SD':
             t = 'UV'
             header = ';'.join(
@@ -1026,16 +1028,14 @@ class Main:
 
     def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_flag):
         calco = CalculateOnly(pars, home)
+        o3_dict = {}
         if self.chan == 'ZD':
             o3, correct = calco.calc_ozon(spectr, mu)
-            o3_dict = {}
             for pair in ["1", "2"]:
                 for t, value in zip(["o3", "correct"], [int(o3[pair]), correct[pair]]):
                     o3_dict[t + '_' + pair] = value
-            o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct1']
-            o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct2']
-            # out = {'o3': o3,
-            #        'correct': correct}
+            o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct_1']
+            o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct_2']
             if print_flag:
                 print('=> OZONE: P1 = {}, P2 = {}'.format(o3_1, o3_2))
         elif self.chan == 'SD':
@@ -1130,7 +1130,7 @@ class Main:
                 o3 = 0
                 correct = -1
                 if chan == 'ZD':
-                    correct = self.calc_result[chan]['correct1']
+                    correct = self.calc_result[chan]['correct_1']
                     o3 = self.calc_result[chan]['o3_1']
                 elif chan == 'SD':
                     uva = self.calc_result[chan]['uva']

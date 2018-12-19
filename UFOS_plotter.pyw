@@ -3,6 +3,8 @@ from tkinter import ttk
 import tkinter.font as font2
 from Shared_ import *
 import numpy as np
+import matplotlib
+# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import MultipleLocator
@@ -11,10 +13,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from shutil import copy
 import gc
 from procedures import *
-import matplotlib
-matplotlib.use('TkAgg')
 
-expo_grad = 1100  # Экспозиция градуировки. Сейчас не используется
+
+def add(a, b):
+    return a+b
 
 
 def canvs_destroy(canvs):
@@ -25,6 +27,7 @@ def canvs_destroy(canvs):
         pass
     for i in canvs:
         i.get_tk_widget().destroy()
+    gc.collect()
 
 
 class PlotClass:
@@ -100,8 +103,8 @@ class PlotClass:
                                                        self.prom,
                                                        self.data['mu'],
                                                        self.var_settings, home, pair)
-        self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"], 'o3_2': self.o3["2"], 'correct1': correct["1"],
-                                'correct2': correct["2"]}
+        self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"], 'o3_2': self.o3["2"], 'correct_1': correct["1"],
+                                'correct_2': correct["2"]}
         if self.o3_mode != 'spectr':
             if self.chk_show_all or correct["1"] == 1 or correct["2"] == 1:
                 self.x1.append(self.data['datetime'])
@@ -966,10 +969,11 @@ def make_o3file():
 
 
 if __name__ == '__main__':
-    show_ozone_pairs = ["2"]
-else:
-    show_ozone_pairs = ["1", "2"]
-if True:
+    args = sys.argv[1:]
+    if args:
+        show_ozone_pairs = [i for i in args if i in ["1", "2"]]
+    else:
+        show_ozone_pairs = ["2"]
     root = Tk()
     host, port, data4send = "10.65.25.2", 20000, ''
     ida = ''
