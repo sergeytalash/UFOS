@@ -12,6 +12,7 @@ import json
 import numpy as np
 import socket
 import base64
+import asyncio
 
 
 # Selivanova
@@ -59,7 +60,6 @@ class FinalFile:
         return date_utc_str, sh, calc_result
 
     def save(self, pars, home, chan, ts, shs, calc_results):
-        # print(home, chan, ts, shs, calc_results)
         create_new_file = True
         for date_utc, sh, calc_result in zip(ts, shs, calc_results):
             self.path_file = write_final_file(pars,
@@ -73,48 +73,45 @@ class FinalFile:
             create_new_file = False
         if not self.annual_file:
             print('Manual save.\n1) File Saved: {}'.format(self.path_file))
-            # self.path_file = self.path_file.replace('New_','')
             self.but_make_mean_file.configure(
                 command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
             self.but_make_mean_file.configure(state=NORMAL)
-        # print(self.path_file)
         return self.path_file
 
 
 class AnnualOzone:
     # Procedure for annual ozone calculations (make_annual_ozone_file)
 
-    def __init__(self, home, ent_year, data, root, but_annual_ozone):
+    def __init__(self, home, year, data, root, but_annual_ozone):
         self.home = home
-        self.year = ent_year.get()
+        self.year = year
         self.data = data
-        self.device_id = 0
+        self.device_id = self.data.common_pars["device"]["id"]
         self.annual_data = {}
         self.root = root
         self.but_annual_ozone = but_annual_ozone
-        self.ts = []
-        self.shs = []
-        self.calc_results = []
-        self.file_descriptors = {}
         self.debug = True
 
     def run(self):
-        self.make_annual_ozone_file()
+        self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year)
         # self.write_annual_ozone()
         self.but_annual_ozone.configure(text="Сохранить озон за год")
         self.root.update()
         print("Done.")
 
-    def open_annual_files_for_write(self):
-        dir_path = make_dirs(["Ufos_{}".format(self.device_id), "Ozone"], self.home)
+    @staticmethod
+    def open_annual_files_for_write(home, device_id, year):
+        file_descriptors = {}
+        dir_path = make_dirs(["Ufos_{}".format(device_id), "Ozone"], home)
         if os.path.exists(dir_path):
             for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year[:4], pair)
-                self.file_descriptors[pair] = open(os.path.join(dir_path, annual_file_name), 'w')
+                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(device_id, year[:4], pair)
+                file_descriptors[pair] = open(os.path.join(dir_path, annual_file_name), 'w')
                 print("Date\t" +
                       "Mean_All\tSigma_All\tO3_Count\t" +
                       "Mean_Morning\tSigma_Morning\tO3_Count\t" +
-                      "Mean_Evening\tSigma_Evening\tO3_Count", file=self.file_descriptors[pair])
+                      "Mean_Evening\tSigma_Evening\tO3_Count", file=file_descriptors[pair])
+        return file_descriptors
 
     @staticmethod
     def write_annual_line(fw, day_string, line):
@@ -127,89 +124,134 @@ class AnnualOzone:
                     line_data.append('')
         print("\t".join(line_data), file=fw)
 
-    def make_annual_ozone_file(self):
+    async def process_one_file(self, home, settings, file_path, main, saving, day, num, queue):
+        data = self.data.get_spectr(file_path, False)
+        print(data)
+        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
+                                                 data["calculated"]["mu"],
+                                                 data["mesurement"]["exposition"], self.data.sensitivity,
+                                                 self.data.sensitivity_eritem, False)
+        # The file after Reformat (datetime_local do not present in file)
+        try:
+            data["mesurement"]["datetime_local"]
+        except KeyError:
+            data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
+                data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
+                hours=int(data["mesurement"]['timezone']))
+
+        # Prepare daily ozone
+        uvs_or_o3 = {'o3_1': calc_result[chan]["o3_1"],
+                     'o3_2': calc_result[chan]["o3_2"],
+                     'correct_1': calc_result[chan]["correct_1"],
+                     'correct_2': calc_result[chan]["correct_2"]}
+        date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], uvs_or_o3)
+        # Prepare day for annual ozone
+        print(calc_result)
+        day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
+                                                      data["mesurement"]["datetime_local"],
+                                                      data["calculated"]["sunheight"],
+                                                      calc_result[chan]["o3_1"],
+                                                      calc_result[chan]["correct_1"],
+                                                      calc_result[chan]["o3_2"],
+                                                      calc_result[chan]["correct_2"]
+                                                      ]
+                                     ]
+                                    )
+                      }
+
+        return await queue.put([num, date_utc_str, sh, calc_result, day_string])
+
+        # return {num: {'uvs_or_o3': uvs_or_o3,
+        #               't': date_utc_str,
+        #               'sh': sh,
+        #               'calc_result': calc_result,
+        #               'day': day_string
+        #               }
+        #         }
+
+    def make_annual_ozone_file(self, home, settings, device_id, year):
         """data - PlotClass.init()"""
-        main = Main(self.home, self.data.var_settings)
-        saving = FinalFile(self.data.var_settings, self.home, annual_file=True, but_make_mean_file=None)
+        file_descriptors = {}
+        main = Main(home, settings)
+        saving = FinalFile(settings, home, annual_file=True, but_make_mean_file=None)
         main.chan = "ZD"
-        self.device_id = self.data.common_pars["device"]["id"]
-        # all_o3 = {}
-        # daily_o3_to_file = {}
-        day = ""
         create_annual_files = True
-        for dir_path, dirs, files in os.walk(os.path.join(self.home,
-                                                          "Ufos_{}".format(self.device_id),
+        for dir_path, dirs, files in os.walk(os.path.join(home,
+                                                          "Ufos_{}".format(device_id),
                                                           "Mesurements",
-                                                          self.year)):
+                                                          year)):
             daily_o3_to_file = {}
             create_daily_files = True
-            self.ts = []
-            self.shs = []
-            self.calc_results = []
+            ts = {}
+            shs = {}
+            calc_results = {}
+            num = 1
+            max_num = len([name for name in files if name.count("ZD") > 0])
+            day = ''
+            loop = asyncio.get_event_loop()
+            queue = asyncio.Queue(loop=loop)
             for file in files:
                 if file.count("ZD") > 0:
+                    print('{} of {}'.format(num, max_num))
                     day = os.path.basename(dir_path)
                     if create_daily_files:
                         daily_o3_to_file[day] = []
                         create_daily_files = False
                     if create_annual_files:
-                        self.open_annual_files_for_write()
+                        file_descriptors = self.open_annual_files_for_write(home, device_id, year)
                         create_annual_files = False
                     file_path = os.path.join(dir_path, file)
                     self.but_annual_ozone.configure(text=file[-16:-4])
                     self.root.update()
-                    self.data.get_spectr(file_path, False)
-                    main.calc_final_file(self.data.var_settings, self.home, self.data.data["spectr"],
-                                         self.data.data["calculated"]["mu"],
-                                         self.data.data["mesurement"]["exposition"], self.data.sensitivity,
-                                         self.data.sensitivity_eritem, False)
-                    # The file after Reformat (datetime_local do not present in file)
-                    try:
-                        self.data.data["mesurement"]["datetime_local"]
-                    except KeyError:
-                        self.data.data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
-                            self.data.data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
-                            hours=int(self.data.data["mesurement"]['timezone']))
+                    # ts[num], shs[num], calc_results[num], daily_o3_to_file[day][num] = self.loop.create_task(
+                    #     self.process_one_file(home,
+                    #                           settings,
+                    #                           file_path,
+                    #                           main,
+                    #                           saving,
+                    #                           day, num))
+                    # {num: {'uvs_or_o3': uvs_or_o3,
+                    #        't': date_utc_str,
+                    #        'sh': sh,
+                    #        'calc_result': calc_result,
+                    #        'day': day_string
+                    #        }
+                    #  }
 
-                    # Prepare daily ozone
-                    uvs_or_o3 = {'o3_1': main.calc_result[main.chan]["o3_1"],
-                                 'o3_2': main.calc_result[main.chan]["o3_2"],
-                                 'correct_1': main.calc_result[main.chan]["correct_1"],
-                                 'correct_2': main.calc_result[main.chan]["correct_2"]}
-                    date_utc_str, sh, calc_result = saving.prepare(self.data.data["mesurement"]['datetime'], uvs_or_o3)
-                    self.ts.append(date_utc_str)
-                    self.shs.append(sh)
-                    self.calc_results.append(calc_result)
+                    task = self.process_one_file(home, settings, file_path, main, saving, day, num, queue)
+                    loop.run_until_complete(asyncio.gather(task))
+                    # ts[num] = data_dict['t']
+                    # shs[num] = data_dict['sh']
+                    # calc_results[num] = data_dict['calc_result']
+                    # daily_o3_to_file[day][num] = data_dict['day']
+                    # print(queue.qsize())
+                    num += 1
+            if day:
+                # loop.run_until_complete(asyncio.gather(i))
+                loop.close()
+                for i in range(queue.qsize()):
+                    print(queue.get())
+                ts = [ts[j] in ts for j in [i for i in range(max_num)]]
+                shs = [shs[j] in shs for j in [i for i in range(max_num)]]
+                calc_results = [calc_results[j] in calc_results for j in [i for i in range(max_num)]]
+                daily_o3_to_file[day] = [daily_o3_to_file[day][j] in daily_o3_to_file[day] for j in
+                                         [i for i in range(max_num)]]
 
-                    # Prepare day for annual ozone
-                    daily_o3_to_file[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
-                                                                            self.data.data["mesurement"][
-                                                                                "datetime_local"],
-                                                                            self.data.data["calculated"]["sunheight"],
-                                                                            main.calc_result[main.chan]["o3_1"],
-                                                                            main.calc_result[main.chan]["correct_1"],
-                                                                            main.calc_result[main.chan]["o3_2"],
-                                                                            main.calc_result[main.chan]["correct_2"]
-                                                                            ]
-                                                           ]
-                                                          )
-                                                 )
-            for day_string, day_data in daily_o3_to_file.items():
-                # Save ozone to daily file
-                path_file = saving.save(self.data.var_settings, self.home, main.chan, self.ts, self.shs,
-                                        self.calc_results)
-                if self.debug:
-                    print('1) Daily File Saved: {}'.format(path_file))
-                # Save ozone to mean daily file
-                calculate_final_files(self.data.var_settings, path_file, main.chan, True, "file")
+                for day_string, day_data in daily_o3_to_file.items():
+                    # Save ozone to daily file
+                    path_file = saving.save(settings, home, main.chan, ts, shs, calc_results)
+                    if self.debug:
+                        print('1) Daily File Saved: {}'.format(path_file))
+                    # Save ozone to mean daily file
+                    calculate_final_files(settings, path_file, main.chan, True, "file")
 
-                # Save ozone to annual file
-                for pair, fw in self.file_descriptors.items():
-                    daily_data = calculate_final_files(self.data.var_settings, day_data, main.chan, False,
-                                                       "calculate")
-                    self.write_annual_line(fw, day_string, daily_data[pair])
-                    print("3) Write to annual file. Pair {}".format(pair))
-        for pair, fw in self.file_descriptors.items():
+                    # Save ozone to annual file
+                    for pair, fw in file_descriptors.items():
+                        daily_data = calculate_final_files(settings, day_data, main.chan, False,
+                                                           "calculate")
+                        self.write_annual_line(fw, day_string, daily_data[pair])
+                        print("3) Write to annual file. Pair {}".format(pair))
+        for pair, fw in file_descriptors.items():
             fw.close()
             if self.debug:
                 print('4) Annual File Saved: Pair {}'.format(pair))
@@ -1044,6 +1086,7 @@ class Main:
             uve = calco.calc_uv('uve', spectr, expo, sensitivity, sensitivity_eritem)
             o3_dict = {'uva': uva, 'uvb': uvb, 'uve': uve}
         self.calc_result[self.chan] = o3_dict
+        return self.calc_result, self.chan
 
     def write_file(self):
         try:

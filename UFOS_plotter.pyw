@@ -212,6 +212,7 @@ class PlotClass:
             self.spectrum = self.data['spectr']
         except Exception as err:
             print('ERROR', err)
+        return self.data
 
     def fig_destroy(self):
         self.fig.clf()
@@ -366,7 +367,7 @@ def obj_grid():
     r += 1
     c = 0
     admin_panel.grid(row=r, column=c, sticky='nwe')
-    but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year, start, root, but_annual_ozone).run())
+    but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year.get(), start, root, but_annual_ozone).run())
     if not chk_var_read_file.get():
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
@@ -515,7 +516,7 @@ def plot_spectr(*event):
     except TclError:
         file_list.selection_set(0)
         file = file_list.selection_get()
-    start.get_spectr(os.path.join(path, file))
+    start.data = start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
         lab_ozon.configure(text='Значение озона\n' + '\n'.join(
@@ -889,7 +890,7 @@ def make_o3file():
             if o3_mode == 'ozone':
                 chan = 'ZD'
                 if i.count("Z-D") > 0 or i.count("ZD") > 0:
-                    start.get_spectr(file)
+                    start.data = start.get_spectr(file)
                     start.calc_ozon()
                     # t - datetime utc
                     # sh - sunheight
@@ -902,7 +903,7 @@ def make_o3file():
             elif o3_mode in ['uva', 'uvb', 'uve']:
                 chan = 'SD'
                 if i.count("S-D") > 0 or i.count("SD") > 0:
-                    start.get_spectr(file)
+                    start.data = start.get_spectr(file)
                     arr = ['uva', 'uvb', 'uve']
                     arr.remove(o3_mode)
                     for o3_m in arr:
