@@ -3,7 +3,7 @@ from tkinter import ttk
 import tkinter.font as font2
 from Shared_ import *
 import numpy as np
-import matplotlib
+# import matplotlib
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -13,10 +13,11 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from shutil import copy
 import gc
 from procedures import *
+import aiofiles
 
 
 def add(a, b):
-    return a+b
+    return a + b
 
 
 def canvs_destroy(canvs):
@@ -223,8 +224,10 @@ class PlotClass:
         if self.o3_mode != 'ozone':
             if max(x) > x_max: x_max = max(x)
             if min(x) < x_min: x_min = min(x)
-            if max(y) > y_max: y_max = max(y) * 1.05
-            if min(y) < y_min: y_min = min(y) * 0.95
+            # if max(y) > y_max: y_max = max(y) * 1.05
+            y_max = max(y)
+            # if min(y) < y_min: y_min = min(y) * 0.95
+            y_min = min(y)
         else:
             if max(x) > x_max: x_max = max(x)
             if min(x) < x_min: x_min = min(x)
@@ -312,23 +315,22 @@ class PlotClass:
                 self.ax.set_ylabel('mWt/m^2')
                 print('new uve')
             # ===================================================
-            if len(self.y1) > 0 or len(self.y2) > 0:
-                # print(self.x1, self.y1,self.y2 )
-                if self.y1:
-                    # Plot 1
-                    self.ax.plot(self.x1, self.y1, self.point, color='blue')
-                    self.set_x_limit(self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100,
+            for x_mas, y_mas, color in zip([self.x1, self.x2], [self.y1, self.y2], ['blue', 'green']):
+                if y_mas:
+                    tmp = []
+                    for i in y_mas:
+                        if i < 0:
+                            i = 0
+                        tmp.append(i)
+                    y_mas = tmp
+                    self.ax.plot(x_mas, y_mas, self.point, color=color)
+                    self.set_x_limit(x_mas, y_mas, min(x_mas), min(x_mas) + datetime.timedelta(hours=2),
+                                     100,
                                      600,
                                      'hour')
-                if self.y2:
-                    # Plot 2
-                    self.ax.plot(self.x2, self.y2, self.point, color='green')
-                    self.set_x_limit(self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100,
-                                     600,
-                                     'hour')
-                self.ax.grid(True)
-                self.fig.canvas.draw()
-                canvs_destroy(canvs)
+            self.ax.grid(True)
+            self.fig.canvas.draw()
+            canvs_destroy(canvs)
 
         canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')

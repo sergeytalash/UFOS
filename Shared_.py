@@ -96,28 +96,11 @@ def o2nomo(mu, R12, R34, nomo_s, ini_s):
         mas_r34.append(r34)
         mas_o3.append(cn['ozone'])
     r12_1, r12_2, o1, o2, r34_1, r34_2 = find_closest_pair(R12, mas_r12, mas_o3, mas_r34)
-    # bot_r,top_r,bot_o3,top_o3,bot_r_34,top_r_34
-    ##    print([r1,o1,r2,o2])
-
-    ##    Robl = (R34 - max(r1_34,r2_34))
-    ##    print(log10(R34),R34b)
-    ##    Robl = ((log10(R34) - R34b) * (1 + 0.003 * mu))
-    ##    R12 += (R34 - (r34_1+r34_2)/2)# / (1 + mu * 0.003)
-    ##    add_R34 = R34_new - R34
-    ##    print(R34)
-    ##    1.08675x - 0.08480
-    ##    R12 = R12*(2.03667*x**2 - 3.28798*x + 2.25751)
-    ##    x = 300
 
     x = r34_2 / R34
     R12 = R12 * (1.08675 * x - 0.12480)
     x = ((r12_2 * o1 - r12_1 * o2) + (o2 - o1) * R12) / (r12_2 - r12_1)
 
-    ##    if R12>=r12_2:
-    ##        o_max = o1
-    ##    else:
-    ##        o_max = o2
-    ##    x = o_max + (o2 - o1) * (R12 - r12_1) / (r12_2 - r12_1)
     x = x / 1000  # - Robl
     o3 = round(round(x, 3) * 1000)
     ##    print('{}\t{}\t{}\t{}\t{}'.format(mu,o3,R12,R34,r34_2))
@@ -148,57 +131,6 @@ def make_kz_coeff(x, y, deg):
     y_arr = np.array(y)
     a = np.polyfit(x_arr, y_arr, deg)
     return (a.tolist())
-
-
-# def read_sensitivity(path):
-#     with open(os.path.join(path, 'sensitivity.txt')) as f:
-#         sens = f.readlines()
-#     return ([float(i.strip()) for i in sens])
-
-
-# def erithema(x, c):
-#     nm = (x ** 2) * eval(c[0]) + x * eval(c[1]) + eval(c[2])
-#     a = 0
-#     if nm <= 298:
-#         a = 1
-#     elif 298 < nm:  # <=325:
-#         a = 10 ** (0.094 * (298 - nm))
-#     #    elif nm>325:
-#     #        a = 10**(-0.015 * (410 - nm))
-#     return (a)
-
-
-# def make_uv(p1, p2, data, ome, mode, expo, expo_grad, inis):
-#     prom = 10
-#     uv = 0
-#     c = inis['pix2nm'].split('/')
-#     if ome == None:
-#         ome = []
-#         for i in range(len(data)):
-#             ome.append(1)
-#     if mode in ['uva', 'uvb']:
-#         for i in range(p1, p2, 1):
-#             try:
-#                 asd = float(data[int(i)]) * float(ome[int(i)])
-#                 uv += asd
-#             except:
-#                 pass
-#         uv *= float(c[1]) * expo_grad / int(expo)
-#         if mode == 'uva':
-#             uv *= float(inis['uva_koef'])
-#         if mode == 'uvb':
-#             uv *= float(inis['uvb_koef'])
-#     elif mode == 'uve':
-#         for i in range(p1, p2, 1):
-#             try:
-#                 asd = float(data[int(i)]) * erithema(int(i), c) * float(ome[int(i)])
-#                 uv += asd
-#                 uv *= float(inis['uve_koef'])
-#             except Exception as err:
-#                 #                print(err,sys.exc_info()[-1].tb_lineno)
-#                 pass
-#         uv *= float(c[1]) * expo_grad / int(expo)
-#     return (uv)
 
 
 class set_last_date():
@@ -352,7 +284,6 @@ def send_files(home, file2send):
     ftp_path = conf['ftp_path']
     ftp_user = conf['ftp_user']
     ftp_pass = conf['ftp_pass']
-    ##    host,port,data4send = "195.239.117.34", 20000, ''
     tex = ''
 
     def take_ozone(par):
@@ -486,108 +417,6 @@ def send_files(home, file2send):
         return (False)
 
 
-# def plot_uv(v,t,curr_time,canvas,plotx,ploty,kx,ky,mx,my,o3_mode):
-#     r = 3
-#     if v == 0:
-#         for i in range(0,len(t['data'])):
-#             try:
-#                 color = t['color'][i]
-#                 if color=='blue':
-#                     point1x = round((int(t['time'][i][:2])+int(t['time'][i][3:5])/60)/24*plotx)
-#                     point1y = round(t['data'][i] * ky )
-#                     canvas.create_oval(point1x + mx - r, ploty - point1y + my - r, point1x + mx + r, ploty - point1y + my + r,outline=color,fill=color)
-#             except:
-#                 pass
-#     elif v == 1 or v==2:
-#         ppp = curr_time[-1] - curr_time[0] + 1
-#         for i in range(0,len(t['data'])):
-#             try:
-#                 color = t['color'][i]
-#                 if color=='blue':
-#                     point1x = round(((int(t['time'][i][:2])+int(t['time'][i][3:5])/60)-curr_time[0])/ppp*plotx)
-#                     point1y = round(t['data'][i] * ky )
-#                     canvas.create_oval(point1x + mx - r, ploty - point1y + my - r, point1x + mx + r, ploty - point1y + my + r,outline=color,fill=color)
-#             except:
-#                 pass
-#     """Расчет среднего значения УФ"""
-#     uv = 0
-#     return(uv)
-
-# def plot_uv2(o3_mode,ImageTk,ttk,some_root,plt,rc,canvas,home,plotx,ploty,xmax,ymax,x,y,o33):
-#     global img
-#     try:
-#         new_x = []
-#         for i in x:
-#             if i.count(':')>0:
-#                 new_x.append(datetime.datetime.strptime(i,'%H:%M:%S'))
-#         x = matplotlib.dates.date2num(new_x)
-#         fig2 = plt.figure()
-#         fig2.set_size_inches(plotx/80,ploty/80)
-#         fig2.set_dpi(75)
-#         ax = pylab.subplot(1, 1, 1)
-#
-#         if o3_mode in ['uva','uvb','uve']: #uva,uvb,uve
-#             zero = 0
-#             max_y = max(y)
-#             shag_y = 10**(round(log10(max_y))-1)
-#             max_y += shag_y
-#         elif o3_mode == 'ozone': #ozone
-#             zero = 200
-#             max_y = 501
-#             shag_y = 100
-#         ma_y = []
-#         for i in range(zero,max_y+100,shag_y):
-#             ma_y.append(i)
-#         ax.set_yticks(ma_y)
-#         ax.set_ylim(zero,max_y+100)
-#
-#         ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
-#
-# ##        ma_x = []
-# ##        for i in range(0,max(x),shag_x):
-# ##            ma_x.append(i)
-# ##        ax.set_xticks(ma_x) #Интервал между значениями по оси х
-# ##        ax.set_xlim(min(x),max(x)+shag_x)
-#
-#         ax.grid(True)# координатную сетку рисовать
-#         rc('xtick', labelsize=12,color='#000000',direction='in') # x tick labels
-#         rc('ytick', labelsize=12,color='#000000',direction='in') # x tick labels
-#         rc('lines', lw=0.6, color='#000000') # thicker black lines
-#         rc('grid', color='#000000', lw=0.5) # solid gray grid lines
-#         rc('text', color='#000000')
-#         rc('axes', labelcolor='#000000') # axes сolor
-#         if o33:
-#             xs = np.array([x[0],x[-1]])
-#             ys = np.array([o33,o33])
-#             pylab.plot(xs,ys,'-b')
-#         x = np.array(x)
-#         y = np.array(y)*1.0
-#         pylab.plot_date(x, y, fmt="bo")
-#
-#     except Exception as err:
-#         print(err,sys.exc_info()[-1].tb_lineno)
-# ##    ax.plot(x,y,'bo')
-#     """//\ /\ /\ /\ /\\"""
-#
-#     """Построение дополнительных линий, подписей к ним и значения пересечения с графиком"""
-#
-#     ax.set_ylabel('mWt/m2*nm')
-#     image_fig_path = os.path.join(home,'fig.png')
-#     try:
-#         label.destroy()
-#     except:
-#         pass
-#     try:
-#         plt.savefig(image_fig_path,bbox_inches='tight', pad_inches=0,dpi=100)
-# ##        plt.close()
-#         img = ImageTk.PhotoImage(file = image_fig_path)
-# ##        label = ttk.Label(some_root,image=photoimage)
-# ##        label.image = photoimage
-#         canvas.create_image(xmax//2, ymax, anchor='s',image=img)
-#     except Exception as err:
-#         print(err)
-#     return(0)
-
 def time_code(start):
     """
     'start' - начать отсчет
@@ -600,17 +429,6 @@ def time_code(start):
         time_code.ct = time_code.ct_next - time_code.ct_start
         time_code.ct_start = time_code.ct_next
         print(time_code.ct)
-
-
-# def read_connect(home):
-#     with open(os.path.join(home,'connect.ini')) as f:
-#         data = f.readlines()
-#         new_data = {}
-#         for i in data:
-#             if i[0] not in ['\n',' ','#']:
-#                 line = i.replace(' ','').replace('\n','').split('=')
-#                 new_data[line[0]] = line[1]
-#         return(new_data)
 
 
 def pix2nm(abc, pix, digs, add):
@@ -626,15 +444,6 @@ def pix2nm(abc, pix, digs, add):
     except:
         return 0
 
-
-##def kz_f(abc,dig):
-##    """
-##    abc - массив коэффициентов полинома
-##    dig - номер коэффициента 11/21/31/12/22/32
-##    """
-##    kz = ''
-####    print(abc)
-##    return eval(abc[dig])
 
 def kz_obl_f(mu, b, pmas2):
     def eva(abc, x):
@@ -851,33 +660,33 @@ uve_koef={28}""".format(p['expo'],
         file_n.close()
         for name, value in allinfo:
             settings[name] = value
-        ##            print(name,value)
-        ##        t[0] expo = 100
-        ##        t[1] chan = 'ZS'
-        ##        t[2] accum = 1
-        ##        t[3] gain = 0
-        ##        t[4] run = 'S'
-        ##        t[5] dev_id = 1
-        ##        t[6] time =
-        ##        t[7] repeat = 1
-        ##        t[8] pmax = 2400
-        ##        t[9] latitude = 50.50
-        ##        t[10] longitude = -50.50
-        ##        t[11] pix2nm = -2*10**-8/0.0403/278.2
-        ##        t[12] kz = 1/1/1/1/1/1
-        ##        t[13] kz_obl = 1/1/1/1/1/1
-        ##        t[14] omega = 0/0/1
-        ##        t[15] hs = 7
-        ##        t[16] points = 735,814,968,1187,1275,1286,1783
-        ##        t[17] pix+- = 5
-        ##        t[18] hour_pelt = +4
-        ##        t[19] auto_exp = 1
-        ##        t[20] zenith_add = 1
-        ##        t[21] ozone_add=0
-        ##        t[22] stn_id=042
-        ##        t[23] R21_0=0/-0.00441/0.09348/0.46213/1.08544
-        ##        t[24] R34_0=0/-0.00027/0.00731/-0.07772/1.14555
-        ##        t[25] kdX=0.04227/-0.01490/-0.66512/0.23933/1.08258/0.60007
+        #            print(name,value)
+        #        t[0] expo = 100
+        #        t[1] chan = 'ZS'
+        #        t[2] accum = 1
+        #        t[3] gain = 0
+        #        t[4] run = 'S'
+        #        t[5] dev_id = 1
+        #        t[6] time =
+        #        t[7] repeat = 1
+        #        t[8] pmax = 2400
+        #        t[9] latitude = 50.50
+        #        t[10] longitude = -50.50
+        #        t[11] pix2nm = -2*10**-8/0.0403/278.2
+        #        t[12] kz = 1/1/1/1/1/1
+        #        t[13] kz_obl = 1/1/1/1/1/1
+        #        t[14] omega = 0/0/1
+        #        t[15] hs = 7
+        #        t[16] points = 735,814,968,1187,1275,1286,1783
+        #        t[17] pix+- = 5
+        #        t[18] hour_pelt = +4
+        #        t[19] auto_exp = 1
+        #        t[20] zenith_add = 1
+        #        t[21] ozone_add=0
+        #        t[22] stn_id=042
+        #        t[23] R21_0=0/-0.00441/0.09348/0.46213/1.08544
+        #        t[24] R34_0=0/-0.00027/0.00731/-0.07772/1.14555
+        #        t[25] kdX=0.04227/-0.01490/-0.66512/0.23933/1.08258/0.60007
         return settings
     except:
         return None
@@ -895,446 +704,27 @@ def read_path(home, path, mode):
     return path
 
 
-# def sunheight(f, l, time, pelt, date):
-#     f,l,time,pelt,date = float(f),float(l),str(time),int(pelt),str(date)
-#     """
-#     f - широта в градусах и минутах (+-ГГ.ММ) +северная -южная
-#     l - долгота в градусах и минутах (+-ГГ.ММ) +западная -восточная
-#     time - время ('ЧЧ:ММ:СС')
-#     pelt - часовой пояс (+-П)
-#     date - дата ('ДД.ММ.ГГГГ')
-#     """
-#     f = (f - 0.4 * copysign(1, f) * round(abs(f) // 1)) * pi / 108
-#     l = (l - 0.4 * copysign(1, l) * round(abs(l) // 1)) / 0.6
-#     curtime = time
-#     hour = int(curtime[:2])
-#     mins = int(curtime[3:5])
-#     secs = int(curtime[6:])
-#     timer = hour * 3600 + mins * 60 + secs  #Текущее время в секундах
-#     tim = timer - 3600 * pelt               #Гринвическое время
-#     day = int(date[:2]) + 58
-#     month = int(date[3:5])
-#     year = int(date[6:])
-#     if month < 3:
-#         year -= 1
-#     d_m = [3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 1]   #Месяцы кроме февраля
-#     d_d = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31]  #Количество дней в месяце
-#     i = 0
-#     while i<11:
-#         if month == d_m[i]:
-#             break
-#         else:
-#             day += d_d[i]
-#         i += 1
-#     dd = day + 365 * year + round(year // 4) - round(year // 100) + round(year // 400) + 13 / 38
-#     day = (dd + tim / 3600 / 24) * pi / 182.6213
-#     s = 0.00686 - 0.39915 * cos(day) + 0.07432 * sin(day)
-#     s += -0.00693 * cos(2 * day) + 0.00114 * sin(2 * day)
-#     s += -0.00226 * cos(3 * day) + 0.0012 * sin(3 * day)
-#     ty = -0.017 - 0.43 * cos(day) + 7.35 * sin(day) + 3.35 * cos(2 * day) + 9.366 * sin(2 * day)
-#     r = pi * (tim / 3600 - ty / 60 - l / 15 - 12) / 12
-#     q = sin(f) * sin(s) + cos(f) * cos(s) * cos(r)
-#     hp = atan(q / sqrt(1 - q**2))
-#     hg = hp * 180 / pi
-#     z = sin(pi / 2 - hp)**2
-#     mu = 6391.229 / sqrt(6391.229**2 - 6371.223**2 * z)
-#     z1 = 1 / cos(pi / 2 - hp)
-#     amas = 0
-#     if hg <= 0:
-#         pass
-# ##        hg = 0
-#     elif 0 < hg <20:
-#         amas = 45.022 * hg**(-0.9137)
-#     else:
-#         amas = z1 - (z1 - 1) * (0.0018167 - 0.002875 * (z1 - 1) - 0.0008083 * (z1 -1)**2)
-#     return (mu, amas, round(hg,3))
-
-# def ozon(i1o3,i2o3,w1,w2,iatm1,iatm2,alpha1,alpha2,beta1,beta2,amas,mu,k,k_obl,digs,ini_s,nomo_s):
-#     #not use
-# ##    global ini_s
-# ##    print('i1o3,i2o3,w1,w2,iatm1,iatm2,alpha1,alpha2,beta1,beta2,amas,mu,k,k_obl')
-# ##    print(i1o3,i2o3,w1,w2,iatm1,iatm2,alpha1,alpha2,beta1,beta2,amas,mu,k,k_obl)
-#     """i1o3, i2o3 - измеренные значения
-#     w1, w2 - чувствительность линейки
-#     iatm1, iatm2 - внеатмосферные значения
-#     alpha1, alpha2 - коэффикиент поглощения озона
-#     beta1, beta2 - коэффициент рассеивания в атмосфере
-#     amas - солнечная масса
-#     mu - озонная масса
-#     k - коэффициенты зенитного полинома
-#     k_obl - коэффициенты облачного полинома + R34
-#     digs - точность вычисления озона"""
-#     R34 = float(k_obl[1][0])/float(k_obl[1][1])
-#
-# ##    R21 = float(i2o3) / float(i1o3)
-#     R12 = float(i1o3) / float(i2o3)  # R12, а не R21
-# ##    print(i1o3,i2o3)
-# ##    o3 = koefficients(mu,R12,R34,ini_s)
-#     o3 = o2nomo(mu,R12,R34,nomo_s,ini_s)
-# ##    print([mu,R12,R34])
-#     o3 += int(ini_s['ozone_add'])
-#     return(round(o3))
-
-
-# def find_mu_amas_hs(file):
-#     tmp = 0
-#     vivod = []
-#     while tmp<100:
-#         text = file.readline()
-#         if text[-3:]=='mu\n':
-#             mu = text.split(' ')[0]
-#             vivod.append(float(mu))
-#             text = file.readline()
-#             amas = text.split(' ')[0]
-#             vivod.append(float(amas))
-#             text = file.readline()
-#             hs = text.split(' ')[0]
-#             vivod.append(float(hs))
-#         text = file.readline()
-#         if text[-6:]=='ozone\n':
-#             ozone = text.split(' ')[0]
-#             vivod.append(int(ozone))
-#             text = file.readline()
-#             uva = text.split(' ')[0]
-#             vivod.append(int(uva))
-#             text = file.readline()
-#             uvb = text.split(' ')[0]
-#             vivod.append(int(uvb))
-#             text = file.readline()
-#             uve = text.split(' ')[0]
-#             vivod.append(int(uve))
-#         tmp += 1
-#     if vivod==[]:
-#         return 0
-#     else:
-#         return(vivod)
-
-# def kz_func(x,mu,k):
-#     """
-#     x - значение озона
-#     mu - озонная масса
-#     k - коэффициенты полинома из файла конфигурации [0,1,2,3,4,5]
-#     """
-#     #Correct calculation of Zenith coefficient
-#     #26.01787778 -625.9156872 4948.538906 -10366.89445 9881.921419
-#     mas = []
-#     a = 1
-#     dx = 1
-# ##    -0.1939146/0.0435974/5.00663/-1.1714645/-38.0708681/8.7189027/59.9827414/-11.1669097/-34.4971532/2.5025566
-#     kz = ((a*float(k[0])*x*dx + a*float(k[1]))*mu**4 +
-#           (a*float(k[2])*x*dx + a*float(k[3]))*mu**3 +
-#           (a*float(k[4])*x*dx + a*float(k[5]))*mu**2 +
-#           (a*float(k[6])*x*dx + a*float(k[7]))*mu +
-#           (a*float(k[8])*x*dx + a*float(k[9])))
-#     mas.append(kz)
-#     kz = 5.241977824805645e-05*a*mu**4 -0.0015241138825670168*a*mu**3 + 0.017641302174997472*a*mu**2 -0.10240157661957514*a*mu + 0.2979216735493541*a #kz 15.03.2015 dev 7
-#     mas.append(kz)
-#     """kz2 = Kz302 - Delta_Kz"""
-#     return(mas)
-
-# def nm2pix(nm,configure2,add):
-#     nm = float(nm)
-#     abc = configure2
-#     if 270 < nm < 350:
-#         pix = 0
-#         ans_nm = pix2nm(abc,pix,1,add)
-#         while ans_nm < nm:
-#             pix += 1
-#             ans_nm = pix2nm(abc,pix,1,add)
-#     elif 350 <= nm < 430:
-#         pix = 1500
-#         ans_nm = pix2nm(abc,pix,1,add)
-#         while ans_nm < nm:
-#             pix += 1
-#             ans_nm = pix2nm(abc,pix,1,add)
-#     else:
-#         print(nm,'nm2pix: error')
-#     return(pix)
-
-# def ozone_uv(home,ome,data,date,time,file_name,expo_grad,channel):
-#     #not use
-#     """ome - чувствительность прибора"""
-# ##    global ini_s
-#     tmp1 = 0
-#     tmp2 = 0
-#     o3lab = ''
-#     uvalab = ''
-#     uvblab = ''
-#     uvelab = ''
-#     curr_o3 = [0,0,0,0,0]
-#     file_name = os.path.basename(file_name)
-# ##    print(file_name)
-#     file_name = file_name.split('_')[1]
-#     ini_s = read_ini(home,'r','')
-# ##    nomo_s = read_nomo(home)
-#     conf2 = ini_s['pix2nm'].split('/')
-#     if file_name.find('Z'):
-#         add = float(ini_s['zenith_add'])
-#     else:
-#         add = 0
-#     point = ini_s['points'].split(',')
-#     ##print(point)
-#     p_uva1,p_uva2 = nm2pix(315,conf2,add),nm2pix(400,conf2,add)
-#     p_uvb1,p_uvb2 = nm2pix(280,conf2,add),nm2pix(315,conf2,add)
-#     p_uve1,p_uve2 = 0,3691 #nm2pix(290),nm2pix(420)
-#     p_1 = nm2pix(float(point[0]),conf2,add)
-#     p_2 = nm2pix(float(point[1]),conf2,add)
-#     p_3 = nm2pix(float(point[2]),conf2,add)
-#     p_4 = nm2pix(float(point[3]),conf2,add)
-#     ps = [p_1,p_2,p_3,p_4]
-#     p330_350 = [nm2pix(point[2],conf2,add),nm2pix(point[3],conf2,add)]
-#     """    lines=[735,814,968, # I1
-#               1187,1275,   # I2
-#               1286,1783]   # Облачность"""
-#     prom = int(ini_s['pix+-'])      # -prom (.) + prom
-#     """Расчет озона"""
-#     if data!=0:
-#         p_mas = []
-#         j = 0
-#         while j<4:
-#             jj = ps[j] #Points in pixels
-#             p_mas.append(sredne(data[jj-prom:jj+prom+1],'ozone',3))
-#             j += 1
-#         """Для Санкт-Петербурга"""
-#         f = float(ini_s['latitude'])
-#         l = float(ini_s['longitude'])
-#         digs = 3
-#         """312,    332,    332,    352"""
-#         p1 = 1 # 1
-#         p2 = 2 # 2
-#         #Не менять
-#         w1 = 1      #Чувствительность линейки, уже учтена в формуле!
-#         w2 = 1      #Чувствительность линейки, уже учтена в формуле!
-#         pelt = int(ini_s['hour_pelt'])
-#         mu, amas, hg = sunheight(f,l,time,pelt,date)
-#
-#         "Расчёт mv для zero1, zero2"
-#         mv = 0
-#         zero_count = 0
-#         spectrum = [None] * len(main_func.data)
-#         for i in range(p_zero1, p_zero2 + 1):
-#             mv = mv + main_func.data[i]
-#             zero_count = zero_count + 1
-#         mv = mv / zero_count
-#         for i in range(p_lamst, len(main_func.data)-1):
-#             spectrum[i] = main_func.data[i] - mv
-#         """Расчет озона"""
-#         p_mas = []
-#         j = 0
-#         while j<len(lambda_consts):
-#             jj = lambda_consts_pix[j] #in Pixels
-#             "Массив средних значений в пределах допуска для реперных длин волн"
-#             p_mas.append(sumarize(spectrum[jj-prom:jj+prom+1]))
-#             j += 1
-#         "Расчёт измеренных r12, r23"
-#         r12m = p_mas[0]/p_mas[1]
-#         r23m = p_mas[2]/p_mas[3]
-#         """Расчёт mueff"""
-#         mueff = (1+mu)/2
-#         """Расчёт r23 для ясного дня"""
-#         r23clean = 1
-#         if mueff<2:
-#             r23clean = get_polynomial_result(ini_s['kzLess2'].split('/'),mueff)
-#         else:
-#             r23clean = get_polynomial_result(ini_s['kzLarger2'].split('/'), mueff)
-#         """Расчёт облачного коэффициента"""
-#         kz_obl_f = get_polynomial_result(ini_s['kz_obl'].split('/'), (r23clean/r23m))
-#         "Расчёт r12 скорректированный с учётом облачности"
-#         r12clear = kz_obl_f*r12m
-#         try:
-#             o3 = round(get_ozone_by_nomographs(home, r12clear, mueff), 2)
-#         except Exception as err:
-#             print('Shared_: ',err)
-#             o3 = -1
-#
-#         if channel=='Z-D':
-#             curr_o3[1] = o3
-#             if o3==-1 or o3==0 or o3>=600 or o3<150:
-#                 o3 = 0
-#             curr_o3[2] = 0
-#             curr_o3[3] = 0
-#             curr_o3[4] = 0
-#
-#         elif channel=='S-D':
-#             curr_o3[2] = round(make_uv(p_uva1,p_uva2,data,ome,'uva',file_name,expo_grad,ini_s))
-#             curr_o3[3] = round(make_uv(p_uvb1,p_uvb2,data,ome,'uvb',file_name,expo_grad,ini_s))
-#             curr_o3[4] = round(make_uv(p_uve1,p_uve2,data,ome,'uve',file_name,expo_grad,ini_s))
-#             o3 = 0
-#         else:
-#             o3 = 0
-#     dt = {'o3':o3,'uva':curr_o3[2],'uvb':curr_o3[3],'uve':curr_o3[4],'ome':ome,'mu':mu,'amas':amas,'hg':hg}
-#     return(dt)
-
-##def ozone_uv(home,ome,data,date,time,file_name,expo_grad,channel):
-##    #not use
-##    """ome - чувствительность прибора"""
-####    global ini_s
-##    tmp1 = 0
-##    tmp2 = 0
-##    o3lab = ''
-##    uvalab = ''
-##    uvblab = ''
-##    uvelab = ''
-##    curr_o3 = [0,0,0,0,0]
-##    file_name = os.path.basename(file_name)
-####    print(file_name)
-##    file_name = file_name.split('_')[1]
-##    ini_s = read_ini(home,'r','')
-####    nomo_s = read_nomo(home)
-##    conf2 = ini_s['pix2nm'].split('/')
-##    if file_name.find('Z'):
-##        add = float(ini_s['zenith_add'])
-##    else:
-##        add = 0
-##    point = ini_s['points'].split(',')
-##    ##print(point)
-##    p_uva1,p_uva2 = nm2pix(315,conf2,add),nm2pix(400,conf2,add)
-##    p_uvb1,p_uvb2 = nm2pix(280,conf2,add),nm2pix(315,conf2,add)
-##    p_uve1,p_uve2 = 0,3691 #nm2pix(290),nm2pix(420)
-##    p_1 = nm2pix(float(point[0]),conf2,add)
-##    p_2 = nm2pix(float(point[1]),conf2,add)
-##    p_3 = nm2pix(float(point[2]),conf2,add)
-##    p_4 = nm2pix(float(point[3]),conf2,add)
-##    ps = [p_1,p_2,p_3,p_4]
-##    p330_350 = [nm2pix(point[2],conf2,add),nm2pix(point[3],conf2,add)]
-##    """    lines=[735,814,968, # I1
-##              1187,1275,   # I2
-##              1286,1783]   # Облачность"""
-##    prom = int(ini_s['pix+-'])      # -prom (.) + prom
-##    """Расчет озона"""
-##    if data!=0:
-##        p_mas = []
-##        j = 0
-##        while j<4:
-##            jj = ps[j] #Points in pixels
-##            p_mas.append(sredne(data[jj-prom:jj+prom+1],'ozone',3))
-##            j += 1
-##        """Для Санкт-Петербурга"""
-##        f = float(ini_s['latitude'])
-##        l = float(ini_s['longitude'])
-##        digs = 3
-##        """312,    332,    332,    352"""
-##        p1 = 1 # 1
-##        p2 = 2 # 2
-##        #Не менять
-##        w1 = 1      #Чувствительность линейки, уже учтена в формуле!
-##        w2 = 1      #Чувствительность линейки, уже учтена в формуле!
-##        pelt = int(ini_s['hour_pelt'])
-##        mu, amas, hg = sunheight(f,l,time,pelt,date)
-##        
-##        """i1o3, i2o3 - измеренные значения
-##        w1, w2 - чувствительность линейки
-##        iatm1, iatm2 - внеатмосферные значения
-##        alpha1, alpha2 - коэффикиент поглощения озона
-##        beta1, beta2 - коэф"""i1o3, i2o3 - измеренные значения
-##        w1, w2 - чувствительность линейки
-##        iatm1, iatm2 - внеатмосферные значения
-##        alpha1, alpha2 - коэффикиент поглощения озона
-##        beta1, beta2 - коэффициент рассеивания в атмосфере
-##        amas - солнечная масса
-##        mu - озонная масса
-##        kz - зенитный коэффициент (солнце => зенит)
-##        kz_obl - облачный коэффициент
-##        digs - точность вычисления озона
-##        con[i] = [pix,lambda,alpha,beta,iatm]"""
-##        
-##        """Расчёт облачного коэффииента"""
-##        p_mas2 = []
-##        for i in p330_350:
-##            p_mas2.append(srznach(data[i-prom:i+prom+1],'spectr'))
-##        k_obl = [ini_s['kz_obl'].split('/'),p_mas2]
-##        if channel=='Z-D':
-##            try:
-##                o3 = ozon(p_mas[0],p_mas[1],
-##                          w1,w2,
-##                          0,0,
-##                          0,0,
-##                          0,0,
-##                          amas,
-##                          mu,
-##                          ini_s['kz'].split('/'),
-##                          k_obl,
-##                          3,
-##                          ini_s,
-##                          nomo_s)
-##
-##            except ZeroDivisionError:
-##                print('Ошибка в файле измерений!')
-##                o3 = -1
-##            except Exception as err:
-##                print('_Shared.ozone_uv: ',err)
-##                o3 = -1фициент рассеивания в атмосфере
-##        amas - солнечная масса
-##        mu - озонная масса
-##        kz - зенитный коэффициент (солнце => зенит)
-##        kz_obl - облачный коэффициент
-##        digs - точность вычисления озона
-##        con[i] = [pix,lambda,alpha,beta,iatm]"""
-##        
-##        """Расчёт облачного коэффииента"""
-##        p_mas2 = []
-##        for i in p330_350:
-##            p_mas2.append(srznach(data[i-prom:i+prom+1],'spectr'))
-##        k_obl = [ini_s['kz_obl'].split('/'),p_mas2]
-##        if channel=='Z-D':
-##            try:
-##                o3 = ozon(p_mas[0],p_mas[1],
-##                          w1,w2,
-##                          0,0,
-##                          0,0,
-##                          0,0,
-##                          amas,
-##                          mu,
-##                          ini_s['kz'].split('/'),
-##                          k_obl,
-##                          3,
-##                          ini_s,
-##                          nomo_s)
-##
-##            except ZeroDivisionError:
-##                print('Ошибка в файле измерений!')
-##                o3 = -1
-##            except Exception as err:
-##                print('_Shared.ozone_uv: ',err)
-##                o3 = -1
-##            curr_o3[1] = o3
-##            if o3==-1 or o3==0 or o3>=600 or o3<150:
-##                o3 = 0
-##            curr_o3[2] = 0
-##            curr_o3[3] = 0
-##            curr_o3[4] = 0
-##            
-##        elif channel=='S-D':
-##            curr_o3[2] = round(make_uv(p_uva1,p_uva2,data,ome,'uva',file_name,expo_grad,ini_s))
-##            curr_o3[3] = round(make_uv(p_uvb1,p_uvb2,data,ome,'uvb',file_name,expo_grad,ini_s))
-##            curr_o3[4] = round(make_uv(p_uve1,p_uve2,data,ome,'uve',file_name,expo_grad,ini_s))
-##            o3 = 0
-##        else:
-##            o3 = 0
-##    dt = {'o3':o3,'uva':curr_o3[2],'uvb':curr_o3[3],'uve':curr_o3[4],'ome':ome,'mu':mu,'amas':amas,'hg':hg}
-##    return(dt)
-
 if __name__ == '__main__':
-    ##    home = os.getcwd()
-    ##    file2send = 'D:\\UFOS\\Мурманск\\2015\\07\\09\\m0003.Z-D_1100_09072015.txt'
-    ##    send_files(home,file2send)
-    ##    conf = read_connect(home)
-    ##    tex = to_ftp(conf['ftp_ip'],int(conf['ftp_port']),conf['ftp_path'],conf['ftp_user'],conf['ftp_pass'],'D:\\UFOS\\Мурманск\\2015\\07\\09\\m0003.Z-D_1100_09072015.txt')
-    ##    input(tex)
+    #    home = os.getcwd()
+    #    file2send = 'D:\\UFOS\\Мурманск\\2015\\07\\09\\m0003.Z-D_1100_09072015.txt'
+    #    send_files(home,file2send)
+    #    conf = read_connect(home)
+    #    tex = to_ftp(conf['ftp_ip'],int(conf['ftp_port']),conf['ftp_path'],conf['ftp_user'],conf['ftp_pass'],'D:\\UFOS\\Мурманск\\2015\\07\\09\\m0003.Z-D_1100_09072015.txt')
+    #    input(tex)
     pass
-##    while 1:
-##        time = input('Time: ')
-##        if len(time)==4:
-##            time = '0' + time
-##        time += '.00'
-##        date = input('Date: ')
-##        if date == '':
-##            date = '14.08.2012'
-##        f = 59.57
-##        l = -30.42
-##        pelt = '+4'
-##        try:
-##            mu,ama,h = sunheight(f,l,time,pelt,date)
-##            print(round(mu,3),round(ama,3),round(h,3))
-##        except:
-##            break
+#    while 1:
+#        time = input('Time: ')
+#        if len(time)==4:
+#            time = '0' + time
+#        time += '.00'
+#        date = input('Date: ')
+#        if date == '':
+#            date = '14.08.2012'
+#        f = 59.57
+#        l = -30.42
+#        pelt = '+4'
+#        try:
+#            mu,ama,h = sunheight(f,l,time,pelt,date)
+#            print(round(mu,3),round(ama,3),round(h,3))
+#        except:
+#            break

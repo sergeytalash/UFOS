@@ -6,14 +6,13 @@ import time
 import datetime
 import winreg
 import os
-import winsound
 import sys
 import json
 import numpy as np
 import socket
 import base64
 import asyncio
-
+from select import select
 
 # Selivanova
 
@@ -31,6 +30,10 @@ def get_new_corrects(o3s, o3s_first_corrected, pars):
         else:
             corrects.append('0')
     return corrects, sigma, mean
+
+
+def now():
+    return datetime.datetime.now()
 
 
 class FinalFile:
@@ -93,7 +96,7 @@ class AnnualOzone:
         self.debug = True
 
     def run(self):
-        self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year)
+        asyncio.run(self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year))
         # self.write_annual_ozone()
         self.but_annual_ozone.configure(text="Сохранить озон за год")
         self.root.update()
@@ -126,12 +129,11 @@ class AnnualOzone:
 
     async def process_one_file(self, home, settings, file_path, main, saving, day, num, queue):
         data = self.data.get_spectr(file_path, False)
-        print(data)
         calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
                                                  data["calculated"]["mu"],
                                                  data["mesurement"]["exposition"], self.data.sensitivity,
                                                  self.data.sensitivity_eritem, False)
-        # The file after Reformat (datetime_local do not present in file)
+        # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
         try:
             data["mesurement"]["datetime_local"]
         except KeyError:
@@ -140,13 +142,8 @@ class AnnualOzone:
                 hours=int(data["mesurement"]['timezone']))
 
         # Prepare daily ozone
-        uvs_or_o3 = {'o3_1': calc_result[chan]["o3_1"],
-                     'o3_2': calc_result[chan]["o3_2"],
-                     'correct_1': calc_result[chan]["correct_1"],
-                     'correct_2': calc_result[chan]["correct_2"]}
-        date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], uvs_or_o3)
+        date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
         # Prepare day for annual ozone
-        print(calc_result)
         day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
                                                       data["mesurement"]["datetime_local"],
                                                       data["calculated"]["sunheight"],
@@ -158,85 +155,67 @@ class AnnualOzone:
                                      ]
                                     )
                       }
+        await queue.put({str(num): [file_path, date_utc_str, sh, calc_result, day_string]})
+        queue.task_done()
 
-        return await queue.put([num, date_utc_str, sh, calc_result, day_string])
-
-        # return {num: {'uvs_or_o3': uvs_or_o3,
-        #               't': date_utc_str,
-        #               'sh': sh,
-        #               'calc_result': calc_result,
-        #               'day': day_string
-        #               }
-        #         }
-
-    def make_annual_ozone_file(self, home, settings, device_id, year):
+    async def make_annual_ozone_file(self, home, settings, device_id, year):
         """data - PlotClass.init()"""
-        file_descriptors = {}
+        annual_file_descriptors = {}
         main = Main(home, settings)
         saving = FinalFile(settings, home, annual_file=True, but_make_mean_file=None)
         main.chan = "ZD"
         create_annual_files = True
+        type_of_parallel = ['asyncio', 'threading'][0]
         for dir_path, dirs, files in os.walk(os.path.join(home,
                                                           "Ufos_{}".format(device_id),
                                                           "Mesurements",
                                                           year)):
             daily_o3_to_file = {}
             create_daily_files = True
-            ts = {}
-            shs = {}
-            calc_results = {}
-            num = 1
+            num = 0
             max_num = len([name for name in files if name.count("ZD") > 0])
             day = ''
-            loop = asyncio.get_event_loop()
-            queue = asyncio.Queue(loop=loop)
+            tasks = []
+            queue = asyncio.Queue()
+            timer = [now()]
             for file in files:
                 if file.count("ZD") > 0:
-                    print('{} of {}'.format(num, max_num))
+                    # print('{} of {}'.format(num+1, max_num))
                     day = os.path.basename(dir_path)
                     if create_daily_files:
                         daily_o3_to_file[day] = []
                         create_daily_files = False
                     if create_annual_files:
-                        file_descriptors = self.open_annual_files_for_write(home, device_id, year)
+                        annual_file_descriptors = self.open_annual_files_for_write(home, device_id, year)
                         create_annual_files = False
                     file_path = os.path.join(dir_path, file)
-                    self.but_annual_ozone.configure(text=file[-16:-4])
-                    self.root.update()
-                    # ts[num], shs[num], calc_results[num], daily_o3_to_file[day][num] = self.loop.create_task(
-                    #     self.process_one_file(home,
-                    #                           settings,
-                    #                           file_path,
-                    #                           main,
-                    #                           saving,
-                    #                           day, num))
-                    # {num: {'uvs_or_o3': uvs_or_o3,
-                    #        't': date_utc_str,
-                    #        'sh': sh,
-                    #        'calc_result': calc_result,
-                    #        'day': day_string
-                    #        }
-                    #  }
+                    # self.but_annual_ozone.configure(text=file[-16:-4])
+                    # self.root.update()
+                    if type_of_parallel == 'asyncio':
+                        task = asyncio.create_task(self.process_one_file(home, settings, file_path, main, saving, day, num, queue))
+                        tasks.append(task)
 
-                    task = self.process_one_file(home, settings, file_path, main, saving, day, num, queue)
-                    loop.run_until_complete(asyncio.gather(task))
-                    # ts[num] = data_dict['t']
-                    # shs[num] = data_dict['sh']
-                    # calc_results[num] = data_dict['calc_result']
-                    # daily_o3_to_file[day][num] = data_dict['day']
-                    # print(queue.qsize())
                     num += 1
             if day:
-                # loop.run_until_complete(asyncio.gather(i))
-                loop.close()
-                for i in range(queue.qsize()):
-                    print(queue.get())
-                ts = [ts[j] in ts for j in [i for i in range(max_num)]]
-                shs = [shs[j] in shs for j in [i for i in range(max_num)]]
-                calc_results = [calc_results[j] in calc_results for j in [i for i in range(max_num)]]
-                daily_o3_to_file[day] = [daily_o3_to_file[day][j] in daily_o3_to_file[day] for j in
-                                         [i for i in range(max_num)]]
+                self.but_annual_ozone.configure(text=files[-1][-16:-4])
+                self.root.update()
+                await queue.join()
+                await asyncio.gather(*tasks, return_exceptions=True)
 
+                all_data = {}
+
+                while not queue.empty():
+                    line = await queue.get()
+                    all_data.update(line)
+                    # print(line)
+                    # 0:00:15.576204
+                    # 0:00:14.818662
+                # [print(now() - i) for i in timer]
+                # loop.close()
+                ts = [all_data[str(j)][1] for j in range(max_num)]
+                shs = [all_data[str(j)][2] for j in range(max_num)]
+                calc_results = [all_data[str(j)][3][main.chan] for j in range(max_num)]
+                daily_o3_to_file[day] = [all_data[str(j)][4][day] for j in range(max_num)]
                 for day_string, day_data in daily_o3_to_file.items():
                     # Save ozone to daily file
                     path_file = saving.save(settings, home, main.chan, ts, shs, calc_results)
@@ -246,12 +225,12 @@ class AnnualOzone:
                     calculate_final_files(settings, path_file, main.chan, True, "file")
 
                     # Save ozone to annual file
-                    for pair, fw in file_descriptors.items():
+                    for pair, fw in annual_file_descriptors.items():
                         daily_data = calculate_final_files(settings, day_data, main.chan, False,
                                                            "calculate")
                         self.write_annual_line(fw, day_string, daily_data[pair])
                         print("3) Write to annual file. Pair {}".format(pair))
-        for pair, fw in file_descriptors.items():
+        for pair, fw in annual_file_descriptors.items():
             fw.close()
             if self.debug:
                 print('4) Annual File Saved: Pair {}'.format(pair))
