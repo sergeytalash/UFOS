@@ -222,7 +222,7 @@ class AnnualOzone:
                         pass
                     else:
                         line = self.process_one_file_none(home, settings, file_path, main, saving, day, num, queue)
-                        print(line)
+                        # print(line)
                         all_data.update(line)
                         self.but_annual_ozone.configure(text=file[-16:-4])
                         self.root.update()
@@ -263,11 +263,11 @@ class AnnualOzone:
                         daily_data = calculate_final_files(settings, day_data, main.chan, False,
                                                            "calculate")
                         self.write_annual_line(fw, day_string, daily_data[pair])
-                        print("3) Write to annual file. Pair {}".format(pair))
+                    print("3) Writing to annual files...")
         for pair, fw in annual_file_descriptors.items():
             fw.close()
-            if self.debug:
-                print('4) Annual File Saved: Pair {}'.format(pair))
+        if self.debug:
+            print('4) Annual files were saved.')
 
 
 class Correction:
@@ -293,7 +293,7 @@ class Correction:
                     corrects.append('0')
             return corrects, sigma, mean
         else:
-            return [0]*len(o3s), 0, 0
+            return [0] * len(o3s), 0, 0
 
     @staticmethod
     def collect_data(data):
@@ -330,7 +330,7 @@ class Correction:
                         o3s_k[pair][part_day]["k"].append(0)
         return o3s_k, lines_arr_raw_to_file
 
-    def second(self, o3s_k1):
+    def second_correction(self, o3s_k1):
         o3s_k2 = {"1": {"all": {"o3": [], "k": []},
                         "morning": {"o3": [], "k": []},
                         "evening": {"o3": [], "k": []}
@@ -343,9 +343,11 @@ class Correction:
         no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
         for pair in ["1", "2"]:
             for part_of_day in ["all", "morning", "evening"]:
+                text = '\n'
                 if no_data_for_part_of_day[part_of_day]:
                     continue
                 if o3s_k1[pair][part_of_day]["o3"]:
+                    o3s_k2[pair][part_of_day]["o3"] = o3s_k1[pair][part_of_day]["o3"]
                     o3_corrected = []
                     for o3, k in zip(o3s_k1[pair][part_of_day]['o3'], o3s_k1[pair][part_of_day]['k']):
                         if k == 1:
@@ -354,29 +356,28 @@ class Correction:
                         "mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
                                                            o3_corrected,
                                                            self.pars['calibration']['sigma_count'])
-                # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
-                i2s = []
-                for i1, i2 in zip(o3s_k1[pair][part_of_day]["k"], o3s_k2[pair][part_of_day]["k"]):
-                    if i1 == '1':
-                        i2s.append(i2)
-                    else:
-                        i2s.append('0')
-                o3s_k2[pair][part_of_day]["k"] = i2s
+                    # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
+                    i2s = []
+                    for i1, i2 in zip(o3s_k1[pair][part_of_day]["k"], o3s_k2[pair][part_of_day]["k"]):
+                        if i1 == '1':
+                            i2s.append(i2)
+                        else:
+                            i2s.append('0')
+                    o3s_k2[pair][part_of_day]["k"] = i2s
 
-                try:
-                    text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
-                                                                                                 o3s_k2[pair][
-                                                                                                     part_of_day][
-                                                                                                     "mean"],
-                                                                                                 o3s_k2[pair][
-                                                                                                     part_of_day][
-                                                                                                     "sigma"])
-                except KeyError as err:
-                    text = '\n'
-                    print("INFO: procedures.py: No data files for {} (line: {})".format(err,
-                                                                                        sys.exc_info()[
-                                                                                            -1].tb_lineno))
-                    no_data_for_part_of_day[part_of_day] = True
+                    try:
+                        text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
+                                                                                                     o3s_k2[pair][
+                                                                                                         part_of_day][
+                                                                                                         "mean"],
+                                                                                                     o3s_k2[pair][
+                                                                                                         part_of_day][
+                                                                                                         "sigma"])
+                    except KeyError as err:
+                        print("INFO: procedures.py: No data files for {} (line: {})".format(err,
+                                                                                            sys.exc_info()[
+                                                                                                -1].tb_lineno))
+                        no_data_for_part_of_day[part_of_day] = True
                 o3s_k2[pair][part_of_day]['text'] = text
         return o3s_k2
 
@@ -406,7 +407,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                 o3s_k1, lines_arr_raw_to_file = corr.collect_data(data)
                 if perform_second_correction:
                     # === Second correction check ===
-                    o3s_k2 = corr.second(o3s_k1)
+                    o3s_k2 = corr.second_correction(o3s_k1)
                     if write_daily_file is True and data_source_flag == "file":
                         with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
                             print(';'.join(all_data[:1]), file=f, end='')

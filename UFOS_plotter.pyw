@@ -13,11 +13,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from shutil import copy
 import gc
 from procedures import *
-import aiofiles
-
-
-def add(a, b):
-    return a + b
 
 
 def canvs_destroy(canvs):
