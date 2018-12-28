@@ -1,4 +1,6 @@
+import threading
 from math import *
+from time import sleep
 from tkinter import NORMAL
 
 import serial
@@ -12,6 +14,7 @@ import numpy as np
 import socket
 import base64
 import asyncio
+import queue as th_queue
 from select import select
 
 
@@ -85,7 +88,11 @@ class AnnualOzone:
         self.annual_data = {}
         self.root = root
         self.but_annual_ozone = but_annual_ozone
-        self.debug = True
+        self.debug = False
+        self.num_worker_threads = 100
+        self.type_of_parallel = [None, 'asyncio', 'threading'][2]
+        # asyncio =     0:00:05.442841
+        # threading =   0:00:05.311453
 
     def run(self):
         asyncio.run(self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year))
@@ -111,7 +118,7 @@ class AnnualOzone:
         return file_descriptors
 
     @staticmethod
-    def write_annual_line(fw, day_string, line):
+    def write_annual_line(fw, day_string, line: dict):
         line_data = [day_string]
         for part_of_day in ['all', 'morning', 'evening']:
             for item in ['mean', 'sigma', 'o3_count']:
@@ -121,7 +128,14 @@ class AnnualOzone:
                     line_data.append('')
         print("\t".join(line_data), file=fw)
 
-    async def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue):
+    @staticmethod
+    def print_line(line: dict, debug: bool):
+        if debug:
+            print('line', line)
+        else:
+            print(os.path.basename(list(line.values())[0][0]))
+
+    async def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
         data = self.data.get_spectr(file_path, False)
         calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
                                                  data["calculated"]["mu"],
@@ -149,10 +163,13 @@ class AnnualOzone:
                                      ]
                                     )
                       }
-        await queue.put({str(num): [file_path, date_utc_str, sh, calc_result, day_string]})
+        out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+        self.print_line(out, debug)
+        out = json.dumps(out)
+        await queue.put(out)
         queue.task_done()
 
-    def process_one_file_none(self, home, settings, file_path, main, saving, day, num, queue):
+    def process_one_file_none(self, home, settings, file_path, main, saving, day, num, debug=False):
         data = self.data.get_spectr(file_path, False)
         calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
                                                  data["calculated"]["mu"],
@@ -180,7 +197,64 @@ class AnnualOzone:
                                      ]
                                     )
                       }
-        return {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+        out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+        self.print_line(out, debug)
+        return out
+
+    def process_one_file_threading(self, home, settings, main, saving, day, queue_in, queue_out, debug=False):
+        while True:
+            if queue_in.empty():
+                # sleep(1)
+                pass
+            else:
+                item = queue_in.get()
+                if item is None:
+                    break
+                file_path, num = item
+                data = self.data.get_spectr(file_path, False)
+                calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
+                                                         data["calculated"]["mu"],
+                                                         data["mesurement"]["exposition"], self.data.sensitivity,
+                                                         self.data.sensitivity_eritem, False)
+                # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
+                try:
+                    data["mesurement"]["datetime_local"]
+                except KeyError:
+                    data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
+                        data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
+                        hours=int(data["mesurement"]['timezone']))
+
+                # Prepare daily ozone
+                date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
+                # Prepare day for annual ozone
+                day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
+                                                              data["mesurement"]["datetime_local"],
+                                                              data["calculated"]["sunheight"],
+                                                              calc_result[chan]["o3_1"],
+                                                              calc_result[chan]["correct_1"],
+                                                              calc_result[chan]["o3_2"],
+                                                              calc_result[chan]["correct_2"]
+                                                              ]
+                                             ]
+                                            )
+                              }
+                out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+                self.print_line(out, debug)
+                out = json.dumps(out)
+                queue_out.put(out)
+                queue_in.task_done()
+
+    @staticmethod
+    def get_zd_count(home, device_id, year):
+        count = 0
+        for dir_path, dirs, files in os.walk(os.path.join(home,
+                                                          "Ufos_{}".format(device_id),
+                                                          "Mesurements",
+                                                          year), topdown=True):
+            for file in files:
+                if file.count("ZD") > 0:
+                    count += 1
+        return count
 
     async def make_annual_ozone_file(self, home, settings, device_id, year):
         """data - PlotClass.init()"""
@@ -189,7 +263,8 @@ class AnnualOzone:
         saving = FinalFile(settings, home, annual_file=True, but_make_mean_file=None)
         main.chan = "ZD"
         create_annual_files = True
-        type_of_parallel = [None, 'asyncio', 'threading'][0]
+        if self.type_of_parallel:
+            print('Running in parallel: ' + self.type_of_parallel)
         for dir_path, dirs, files in os.walk(os.path.join(home,
                                                           "Ufos_{}".format(device_id),
                                                           "Mesurements",
@@ -198,10 +273,18 @@ class AnnualOzone:
             create_daily_files = True
             num = 0
             max_num = len([name for name in files if name.count("ZD") > 0])
-            day = ''
+            day = None
             tasks = []
             all_data = {}
+
+            # Asyncio 5.7
             queue = asyncio.Queue()
+
+            # Threading 6
+            queue_th_input = th_queue.Queue()
+            queue_th_output = th_queue.Queue()
+            threads = []
+
             timer = [now()]
             for file in files:
                 if file.count("ZD") > 0:
@@ -214,38 +297,64 @@ class AnnualOzone:
                         annual_file_descriptors = self.open_annual_files_for_write(home, device_id, year)
                         create_annual_files = False
                     file_path = os.path.join(dir_path, file)
-                    if type_of_parallel == 'asyncio':
+                    if self.type_of_parallel == 'asyncio':
                         task = asyncio.create_task(
-                            self.process_one_file_async(home, settings, file_path, main, saving, day, num, queue))
+                            self.process_one_file_async(home, settings, file_path, main, saving, day, num, queue,
+                                                        debug=self.debug))
                         tasks.append(task)
-                    elif type_of_parallel == 'threading':
-                        pass
+                    elif self.type_of_parallel == 'threading':
+                        queue_th_input.put((file_path, num))
                     else:
-                        line = self.process_one_file_none(home, settings, file_path, main, saving, day, num, queue)
-                        # print(line)
+                        line = self.process_one_file_none(home, settings, file_path, main, saving, day, num,
+                                                          debug=self.debug)
                         all_data.update(line)
-                        self.but_annual_ozone.configure(text=file[-16:-4])
-                        self.root.update()
+                        if self.debug:
+                            print('dict', all_data[list(line.keys())[0]])
+                    self.but_annual_ozone.configure(text=file[-16:-4])
+                    self.root.update()
                     num += 1
+            # print([v[3]['ZD'] for v in all_data.values()])
             if day:
-
                 self.but_annual_ozone.configure(text=files[-1][-16:-4])
                 self.root.update()
-                if type_of_parallel == 'asyncio':
-
+                if self.type_of_parallel == 'asyncio':
                     await queue.join()
                     await asyncio.gather(*tasks, return_exceptions=True)
                     while not queue.empty():
                         line = await queue.get()
+                        line = json.loads(line)
                         all_data.update(line)
-                        # print(line)
-                        # 0:00:15.576204
-                        # 0:00:14.818662
-                elif type_of_parallel == 'threading':
+                        if self.debug:
+                            print('dict', all_data[list(line.keys())[0]])
                     pass
+                elif self.type_of_parallel == 'threading':
+                    for i in range(self.num_worker_threads):
+                        t = threading.Thread(
+                            target=lambda: self.process_one_file_threading(home, settings, main, saving, day,
+                                                                           queue_th_input, queue_th_output,
+                                                                           debug=self.debug))
+                        t.start()
+                        threads.append(t)
+                    # block until all tasks are done
+                    queue_th_input.join()
+                    # stop workers
+                    for i in range(self.num_worker_threads):
+                        queue_th_input.put(None)
+                    for t in threads:
+                        t.join()
+                    # Collect data
+                    while not queue_th_output.empty():
+                        line = queue_th_output.get()
+                        queue_th_output.task_done()
+                        line = json.loads(line)
+                        all_data.update(line)
+                        if self.debug:
+                            print('dict', all_data[list(line.keys())[0]])
+                    # block until all tasks are done
+                    queue_th_output.join()
                 else:
                     pass
-                # [print(now() - i) for i in timer]
+                [print(now() - i) for i in timer]
                 # loop.close()
                 ts = [all_data[str(j)][1] for j in range(max_num)]
                 shs = [all_data[str(j)][2] for j in range(max_num)]

@@ -1135,7 +1135,7 @@ if __name__ == '__main__':
     lab_sun.grid(row=7, column=0, sticky='we', padx=1)
     currnt_data.grid(row=8, column=0, sticky='we', padx=1)
     """=============================================================="""
-    ##main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
+    # main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
     confZ = var_settings['calibration']['nm(pix)']['Z']
     confS = var_settings['calibration']['nm(pix)']['S']
     lambda_consts = {pair: var_settings['calibration']['points']['o3_pair_{}'.format(pair)] +
@@ -1172,7 +1172,7 @@ if __name__ == '__main__':
                      but_save_to_final_file, but_make_mean_file]
 
     # Uncomment after debug will be finished
-    change_privileges(common, 0)
+    # change_privileges(common, 0)
 
     """=============================================================="""
     downline.grid(row=6, column=0, sticky='nswe', columnspan=4)
