@@ -14,7 +14,7 @@ import numpy as np
 import socket
 import base64
 import asyncio
-import queue as th_queue
+import queue as queue_th
 from select import select
 
 
@@ -201,7 +201,7 @@ class AnnualOzone:
         self.print_line(out, debug)
         return out
 
-    def process_one_file_threading(self, home, settings, main, saving, day, queue_in, queue_out, debug=False):
+    def process_one_file_threading(self, home, settings, main, saving, queue_in, queue_out, debug=False):
         while True:
             if queue_in.empty():
                 # sleep(1)
@@ -210,7 +210,7 @@ class AnnualOzone:
                 item = queue_in.get()
                 if item is None:
                     break
-                file_path, num = item
+                file_path, num, day = item
                 data = self.data.get_spectr(file_path, False)
                 calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
                                                          data["calculated"]["mu"],
@@ -263,8 +263,26 @@ class AnnualOzone:
         saving = FinalFile(settings, home, annual_file=True, but_make_mean_file=None)
         main.chan = "ZD"
         create_annual_files = True
+        current = 0
+        max_files = self.get_zd_count(home, device_id, year)
         if self.type_of_parallel:
             print('Running in parallel: ' + self.type_of_parallel)
+        if self.type_of_parallel == 'asyncio':
+            # Asyncio
+            queue = asyncio.Queue()
+        elif self.type_of_parallel == 'threading':
+            # Threading
+            queue_th_input = queue_th.Queue()
+            queue_th_output = queue_th.Queue()
+            threads = []
+            for i in range(self.num_worker_threads):
+                t = threading.Thread(target=lambda: self.process_one_file_threading(home, settings, main,
+                                                                                    saving, queue_th_input,
+                                                                                    queue_th_output,
+                                                                                    debug=self.debug))
+                t.start()
+                threads.append(t)
+
         for dir_path, dirs, files in os.walk(os.path.join(home,
                                                           "Ufos_{}".format(device_id),
                                                           "Mesurements",
@@ -272,23 +290,15 @@ class AnnualOzone:
             daily_o3_to_file = {}
             create_daily_files = True
             num = 0
-            max_num = len([name for name in files if name.count("ZD") > 0])
+            max_day_files = len([name for name in files if name.count("ZD") > 0])
             day = None
             tasks = []
             all_data = {}
-
-            # Asyncio 5.7
-            queue = asyncio.Queue()
-
-            # Threading 6
-            queue_th_input = th_queue.Queue()
-            queue_th_output = th_queue.Queue()
-            threads = []
-
             timer = [now()]
             for file in files:
                 if file.count("ZD") > 0:
-                    # print('{} of {}'.format(num+1, max_num))
+                    current += 1
+                    # print('{} of {}'.format(current, max_files))
                     day = os.path.basename(dir_path)
                     if create_daily_files:
                         daily_o3_to_file[day] = []
@@ -303,7 +313,7 @@ class AnnualOzone:
                                                         debug=self.debug))
                         tasks.append(task)
                     elif self.type_of_parallel == 'threading':
-                        queue_th_input.put((file_path, num))
+                        queue_th_input.put((file_path, num, day))
                     else:
                         line = self.process_one_file_none(home, settings, file_path, main, saving, day, num,
                                                           debug=self.debug)
@@ -328,16 +338,10 @@ class AnnualOzone:
                             print('dict', all_data[list(line.keys())[0]])
                     pass
                 elif self.type_of_parallel == 'threading':
-                    for i in range(self.num_worker_threads):
-                        t = threading.Thread(
-                            target=lambda: self.process_one_file_threading(home, settings, main, saving, day,
-                                                                           queue_th_input, queue_th_output,
-                                                                           debug=self.debug))
-                        t.start()
-                        threads.append(t)
-                    # block until all tasks are done
+
+                    # Block until all Input tasks are done
                     queue_th_input.join()
-                    # stop workers
+                    # Stop workers
                     for i in range(self.num_worker_threads):
                         queue_th_input.put(None)
                     for t in threads:
@@ -350,16 +354,16 @@ class AnnualOzone:
                         all_data.update(line)
                         if self.debug:
                             print('dict', all_data[list(line.keys())[0]])
-                    # block until all tasks are done
+                    # Block until all Output tasks are done
                     queue_th_output.join()
                 else:
                     pass
                 [print(now() - i) for i in timer]
                 # loop.close()
-                ts = [all_data[str(j)][1] for j in range(max_num)]
-                shs = [all_data[str(j)][2] for j in range(max_num)]
-                calc_results = [all_data[str(j)][3][main.chan] for j in range(max_num)]
-                daily_o3_to_file[day] = [all_data[str(j)][4][day] for j in range(max_num)]
+                ts = [all_data[str(j)][1] for j in range(max_day_files)]
+                shs = [all_data[str(j)][2] for j in range(max_day_files)]
+                calc_results = [all_data[str(j)][3][main.chan] for j in range(max_day_files)]
+                daily_o3_to_file[day] = [all_data[str(j)][4][day] for j in range(max_day_files)]
                 for day_string, day_data in daily_o3_to_file.items():
                     # Save ozone to daily file
                     path_file = saving.save(settings, home, main.chan, ts, shs, calc_results)
@@ -375,7 +379,7 @@ class AnnualOzone:
                     print("3) Writing to annual files...")
         for pair, fw in annual_file_descriptors.items():
             fw.close()
-        if self.debug:
+        if annual_file_descriptors:
             print('4) Annual files were saved.')
 
 
@@ -466,13 +470,9 @@ class Correction:
                                                            o3_corrected,
                                                            self.pars['calibration']['sigma_count'])
                     # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
-                    i2s = []
-                    for i1, i2 in zip(o3s_k1[pair][part_of_day]["k"], o3s_k2[pair][part_of_day]["k"]):
-                        if i1 == '1':
-                            i2s.append(i2)
-                        else:
-                            i2s.append('0')
-                    o3s_k2[pair][part_of_day]["k"] = i2s
+                    o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
+                                                      zip(o3s_k1[pair][part_of_day]["k"],
+                                                          o3s_k2[pair][part_of_day]["k"])]
 
                     try:
                         text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
@@ -517,6 +517,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                 if perform_second_correction:
                     # === Second correction check ===
                     o3s_k2 = corr.second_correction(o3s_k1)
+                    # print(o3s_k2)
                     if write_daily_file is True and data_source_flag == "file":
                         with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
                             print(';'.join(all_data[:1]), file=f, end='')
@@ -1202,7 +1203,7 @@ class Main:
             for nm in self.pars["calibration"]["points"][pair]:
                 self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_flag):
+    def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_o3_to_console):
         calco = CalculateOnly(pars, home)
         o3_dict = {}
         if self.chan == 'ZD':
@@ -1212,7 +1213,7 @@ class Main:
                     o3_dict[t + '_' + pair] = value
             o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct_1']
             o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct_2']
-            if print_flag:
+            if print_o3_to_console:
                 print('=> OZONE: P1 = {}, P2 = {}'.format(o3_1, o3_2))
         elif self.chan == 'SD':
             uva = calco.calc_uv('uva', spectr, expo, sensitivity, sensitivity_eritem)
