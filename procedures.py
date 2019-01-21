@@ -541,18 +541,11 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
 
 
 def get_polynomial_result(coefficients, x):
-    if type(coefficients[0]) == float:
-        return coefficients[2] * float(x) ** 2 + coefficients[1] * float(x) + coefficients[0]
-    else:
-        return eval(coefficients[2]) * float(x) ** 2 + eval(coefficients[1]) * float(x) + eval(coefficients[0])
+    return sum([float(k) * float(x) ** degree for k, degree in zip(coefficients, range(len(coefficients)))])
 
 
 def sumarize(a):
-    sum = 0
-    for i in a:
-        if i != '':
-            sum += float(i)
-    return round(sum, 3)
+    return round(sum([float(i) for i in a if i != '']), 3)
 
 
 def read_nomographs(home, dev_id, o3_num):
