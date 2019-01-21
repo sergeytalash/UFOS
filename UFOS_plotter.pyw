@@ -3,7 +3,7 @@ from tkinter import ttk
 import tkinter.font as font2
 from Shared_ import *
 import numpy as np
-import matplotlib
+# import matplotlib
 # matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -13,10 +13,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from shutil import copy
 import gc
 from procedures import *
-
-
-def add(a, b):
-    return a+b
 
 
 def canvs_destroy(canvs):
@@ -212,6 +208,7 @@ class PlotClass:
             self.spectrum = self.data['spectr']
         except Exception as err:
             print('ERROR', err)
+        return self.data
 
     def fig_destroy(self):
         self.fig.clf()
@@ -222,8 +219,10 @@ class PlotClass:
         if self.o3_mode != 'ozone':
             if max(x) > x_max: x_max = max(x)
             if min(x) < x_min: x_min = min(x)
-            if max(y) > y_max: y_max = max(y) * 1.05
-            if min(y) < y_min: y_min = min(y) * 0.95
+            # if max(y) > y_max: y_max = max(y) * 1.05
+            y_max = max(y)
+            # if min(y) < y_min: y_min = min(y) * 0.95
+            y_min = min(y)
         else:
             if max(x) > x_max: x_max = max(x)
             if min(x) < x_min: x_min = min(x)
@@ -311,23 +310,22 @@ class PlotClass:
                 self.ax.set_ylabel('mWt/m^2')
                 print('new uve')
             # ===================================================
-            if len(self.y1) > 0 or len(self.y2) > 0:
-                # print(self.x1, self.y1,self.y2 )
-                if self.y1:
-                    # Plot 1
-                    self.ax.plot(self.x1, self.y1, self.point, color='blue')
-                    self.set_x_limit(self.x1, self.y1, min(self.x1), min(self.x1) + datetime.timedelta(hours=2), 100,
+            for x_mas, y_mas, color in zip([self.x1, self.x2], [self.y1, self.y2], ['blue', 'green']):
+                if y_mas:
+                    tmp = []
+                    for i in y_mas:
+                        if i < 0:
+                            i = 0
+                        tmp.append(i)
+                    y_mas = tmp
+                    self.ax.plot(x_mas, y_mas, self.point, color=color)
+                    self.set_x_limit(x_mas, y_mas, min(x_mas), min(x_mas) + datetime.timedelta(hours=2),
+                                     100,
                                      600,
                                      'hour')
-                if self.y2:
-                    # Plot 2
-                    self.ax.plot(self.x2, self.y2, self.point, color='green')
-                    self.set_x_limit(self.x2, self.y2, min(self.x2), min(self.x2) + datetime.timedelta(hours=2), 100,
-                                     600,
-                                     'hour')
-                self.ax.grid(True)
-                self.fig.canvas.draw()
-                canvs_destroy(canvs)
+            self.ax.grid(True)
+            self.fig.canvas.draw()
+            canvs_destroy(canvs)
 
         canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
@@ -366,7 +364,7 @@ def obj_grid():
     r += 1
     c = 0
     admin_panel.grid(row=r, column=c, sticky='nwe')
-    but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year, start, root, but_annual_ozone).run())
+    but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year.get(), start, root, but_annual_ozone).run())
     if not chk_var_read_file.get():
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
@@ -515,7 +513,7 @@ def plot_spectr(*event):
     except TclError:
         file_list.selection_set(0)
         file = file_list.selection_get()
-    start.get_spectr(os.path.join(path, file))
+    start.data = start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
         start.calc_ozon()
         lab_ozon.configure(text='Значение озона\n' + '\n'.join(
@@ -889,7 +887,7 @@ def make_o3file():
             if o3_mode == 'ozone':
                 chan = 'ZD'
                 if i.count("Z-D") > 0 or i.count("ZD") > 0:
-                    start.get_spectr(file)
+                    start.data = start.get_spectr(file)
                     start.calc_ozon()
                     # t - datetime utc
                     # sh - sunheight
@@ -902,7 +900,7 @@ def make_o3file():
             elif o3_mode in ['uva', 'uvb', 'uve']:
                 chan = 'SD'
                 if i.count("S-D") > 0 or i.count("SD") > 0:
-                    start.get_spectr(file)
+                    start.data = start.get_spectr(file)
                     arr = ['uva', 'uvb', 'uve']
                     arr.remove(o3_mode)
                     for o3_m in arr:
@@ -1137,7 +1135,7 @@ if __name__ == '__main__':
     lab_sun.grid(row=7, column=0, sticky='we', padx=1)
     currnt_data.grid(row=8, column=0, sticky='we', padx=1)
     """=============================================================="""
-    ##main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
+    # main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
     confZ = var_settings['calibration']['nm(pix)']['Z']
     confS = var_settings['calibration']['nm(pix)']['S']
     lambda_consts = {pair: var_settings['calibration']['points']['o3_pair_{}'.format(pair)] +
@@ -1174,7 +1172,7 @@ if __name__ == '__main__':
                      but_save_to_final_file, but_make_mean_file]
 
     # Uncomment after debug will be finished
-    change_privileges(common, 0)
+    # change_privileges(common, 0)
 
     """=============================================================="""
     downline.grid(row=6, column=0, sticky='nswe', columnspan=4)

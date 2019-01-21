@@ -1,4 +1,6 @@
+import threading
 from math import *
+from time import sleep
 from tkinter import NORMAL
 
 import serial
@@ -6,30 +8,27 @@ import time
 import datetime
 import winreg
 import os
-import winsound
 import sys
 import json
 import numpy as np
 import socket
 import base64
+import asyncio
+import queue as queue_th
+from select import select
+
+
+#  Увеличить степени полиномов (DONE: unlimited)
+# TODO: Ввести максимальное и минимальное значения высот солнца, при которых расчитываются средние значения за сутки
+# TODO: Построчная запись среднесуточного озона
+# TODO: Проработать отбраковку
+# TODO: Выяснить, почему утром и вечером измерения производятся чаще
 
 
 # Selivanova
 
-
-def get_new_corrects(o3s, o3s_first_corrected, pars):
-    """Среднеквадратичное отклонение
-    o3s - Весь озон
-    o3s_first_corrected - Озон с первой корректировкой (100 - 600)"""
-    sigma = round(float(np.std(o3s_first_corrected)), 2)
-    mean = int(np.mean(o3s_first_corrected))
-    corrects = []
-    for i in o3s:
-        if mean - pars['calibration']['sigma_count'] * sigma < i < mean + pars['calibration']['sigma_count'] * sigma:
-            corrects.append('1')
-        else:
-            corrects.append('0')
-    return corrects, sigma, mean
+def now():
+    return datetime.datetime.now()
 
 
 class FinalFile:
@@ -59,7 +58,6 @@ class FinalFile:
         return date_utc_str, sh, calc_result
 
     def save(self, pars, home, chan, ts, shs, calc_results):
-        # print(home, chan, ts, shs, calc_results)
         create_new_file = True
         for date_utc, sh, calc_result in zip(ts, shs, calc_results):
             self.path_file = write_final_file(pars,
@@ -73,51 +71,54 @@ class FinalFile:
             create_new_file = False
         if not self.annual_file:
             print('Manual save.\n1) File Saved: {}'.format(self.path_file))
-            # self.path_file = self.path_file.replace('New_','')
             self.but_make_mean_file.configure(
                 command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
             self.but_make_mean_file.configure(state=NORMAL)
-        # print(self.path_file)
         return self.path_file
 
 
 class AnnualOzone:
     # Procedure for annual ozone calculations (make_annual_ozone_file)
 
-    def __init__(self, home, ent_year, data, root, but_annual_ozone):
+    def __init__(self, home, year, data, root, but_annual_ozone):
         self.home = home
-        self.year = ent_year.get()
+        self.year = year
         self.data = data
-        self.device_id = 0
+        self.device_id = self.data.common_pars["device"]["id"]
         self.annual_data = {}
         self.root = root
         self.but_annual_ozone = but_annual_ozone
-        self.ts = []
-        self.shs = []
-        self.calc_results = []
-        self.file_descriptors = {}
-        self.debug = True
+        self.debug = False
+        self.num_worker_threads = 100
+        self.type_of_parallel = [None, 'asyncio', 'threading'][2]
+        # asyncio =     0:00:05.442841
+        # threading =   0:00:05.311453
 
     def run(self):
-        self.make_annual_ozone_file()
+        asyncio.run(self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year))
         # self.write_annual_ozone()
         self.but_annual_ozone.configure(text="Сохранить озон за год")
         self.root.update()
         print("Done.")
 
-    def open_annual_files_for_write(self):
-        dir_path = make_dirs(["Ufos_{}".format(self.device_id), "Ozone"], self.home)
+    @staticmethod
+    def open_annual_files_for_write(home, device_id, year):
+        file_descriptors = {}
+        dir_path = make_dirs(["Ufos_{}".format(device_id), "Ozone"], home)
         if os.path.exists(dir_path):
             for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(self.device_id, self.year[:4], pair)
-                self.file_descriptors[pair] = open(os.path.join(dir_path, annual_file_name), 'w')
-                print("Date\t" +
-                      "Mean_All\tSigma_All\tO3_Count\t" +
-                      "Mean_Morning\tSigma_Morning\tO3_Count\t" +
-                      "Mean_Evening\tSigma_Evening\tO3_Count", file=self.file_descriptors[pair])
+                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(device_id, year[:4], pair)
+                path = os.path.join(dir_path, annual_file_name)
+                with open(path, 'w') as f:
+                    print("Date\t" +
+                          "Mean_All\tSigma_All\tO3_Count\t" +
+                          "Mean_Morning\tSigma_Morning\tO3_Count\t" +
+                          "Mean_Evening\tSigma_Evening\tO3_Count", file=f)
+                file_descriptors[pair] = open(path, 'a')
+        return file_descriptors
 
     @staticmethod
-    def write_annual_line(fw, day_string, line):
+    def write_annual_line(fw, day_string, line: dict):
         line_data = [day_string]
         for part_of_day in ['all', 'morning', 'evening']:
             for item in ['mean', 'sigma', 'o3_count']:
@@ -127,92 +128,367 @@ class AnnualOzone:
                     line_data.append('')
         print("\t".join(line_data), file=fw)
 
-    def make_annual_ozone_file(self):
-        """data - PlotClass.init()"""
-        main = Main(self.home, self.data.var_settings)
-        saving = FinalFile(self.data.var_settings, self.home, annual_file=True, but_make_mean_file=None)
-        main.chan = "ZD"
-        self.device_id = self.data.common_pars["device"]["id"]
-        # all_o3 = {}
-        # daily_o3_to_file = {}
-        day = ""
-        create_annual_files = True
-        for dir_path, dirs, files in os.walk(os.path.join(self.home,
-                                                          "Ufos_{}".format(self.device_id),
+    @staticmethod
+    def print_line(line: dict, debug: bool):
+        if debug:
+            print('line', line)
+        else:
+            print(os.path.basename(list(line.values())[0][0]))
+
+    async def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
+        data = self.data.get_spectr(file_path, False)
+        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
+                                                 data["calculated"]["mu"],
+                                                 data["mesurement"]["exposition"], self.data.sensitivity,
+                                                 self.data.sensitivity_eritem, False)
+        # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
+        try:
+            data["mesurement"]["datetime_local"]
+        except KeyError:
+            data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
+                data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
+                hours=int(data["mesurement"]['timezone']))
+
+        # Prepare daily ozone
+        date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
+        # Prepare day for annual ozone
+        day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
+                                                      data["mesurement"]["datetime_local"],
+                                                      data["calculated"]["sunheight"],
+                                                      calc_result[chan]["o3_1"],
+                                                      calc_result[chan]["correct_1"],
+                                                      calc_result[chan]["o3_2"],
+                                                      calc_result[chan]["correct_2"]
+                                                      ]
+                                     ]
+                                    )
+                      }
+        out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+        self.print_line(out, debug)
+        out = json.dumps(out)
+        await queue.put(out)
+        queue.task_done()
+
+    def process_one_file_none(self, home, settings, file_path, main, saving, day, num, debug=False):
+        data = self.data.get_spectr(file_path, False)
+        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
+                                                 data["calculated"]["mu"],
+                                                 data["mesurement"]["exposition"], self.data.sensitivity,
+                                                 self.data.sensitivity_eritem, False)
+        # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
+        try:
+            data["mesurement"]["datetime_local"]
+        except KeyError:
+            data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
+                data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
+                hours=int(data["mesurement"]['timezone']))
+
+        # Prepare daily ozone
+        date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
+        # Prepare day for annual ozone
+        day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
+                                                      data["mesurement"]["datetime_local"],
+                                                      data["calculated"]["sunheight"],
+                                                      calc_result[chan]["o3_1"],
+                                                      calc_result[chan]["correct_1"],
+                                                      calc_result[chan]["o3_2"],
+                                                      calc_result[chan]["correct_2"]
+                                                      ]
+                                     ]
+                                    )
+                      }
+        out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+        self.print_line(out, debug)
+        return out
+
+    def process_one_file_threading(self, home, settings, main, saving, queue_in, queue_out, debug=False):
+        while True:
+            if queue_in.empty():
+                # sleep(1)
+                pass
+            else:
+                item = queue_in.get()
+                if item is None:
+                    break
+                file_path, num, day = item
+                data = self.data.get_spectr(file_path, False)
+                calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
+                                                         data["calculated"]["mu"],
+                                                         data["mesurement"]["exposition"], self.data.sensitivity,
+                                                         self.data.sensitivity_eritem, False)
+                # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
+                try:
+                    data["mesurement"]["datetime_local"]
+                except KeyError:
+                    data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
+                        data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
+                        hours=int(data["mesurement"]['timezone']))
+
+                # Prepare daily ozone
+                date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
+                # Prepare day for annual ozone
+                day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
+                                                              data["mesurement"]["datetime_local"],
+                                                              data["calculated"]["sunheight"],
+                                                              calc_result[chan]["o3_1"],
+                                                              calc_result[chan]["correct_1"],
+                                                              calc_result[chan]["o3_2"],
+                                                              calc_result[chan]["correct_2"]
+                                                              ]
+                                             ]
+                                            )
+                              }
+                out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+                self.print_line(out, debug)
+                out = json.dumps(out)
+                queue_out.put(out)
+                queue_in.task_done()
+
+    @staticmethod
+    def get_zd_count(home, device_id, year):
+        count = 0
+        for dir_path, dirs, files in os.walk(os.path.join(home,
+                                                          "Ufos_{}".format(device_id),
                                                           "Mesurements",
-                                                          self.year)):
-            daily_o3_to_file = {}
-            create_daily_files = True
-            self.ts = []
-            self.shs = []
-            self.calc_results = []
+                                                          year), topdown=True):
             for file in files:
                 if file.count("ZD") > 0:
+                    count += 1
+        return count
+
+    async def make_annual_ozone_file(self, home, settings, device_id, year):
+        """data - PlotClass.init()"""
+        annual_file_descriptors = {}
+        main = Main(home, settings)
+        saving = FinalFile(settings, home, annual_file=True, but_make_mean_file=None)
+        main.chan = "ZD"
+        create_annual_files = True
+        current = 0
+        max_files = self.get_zd_count(home, device_id, year)
+        if self.type_of_parallel:
+            print('Running in parallel: ' + self.type_of_parallel)
+        if self.type_of_parallel == 'asyncio':
+            # Asyncio
+            queue = asyncio.Queue()
+        elif self.type_of_parallel == 'threading':
+            # Threading
+            queue_th_input = queue_th.Queue()
+            queue_th_output = queue_th.Queue()
+            threads = []
+            for i in range(self.num_worker_threads):
+                t = threading.Thread(target=lambda: self.process_one_file_threading(home, settings, main,
+                                                                                    saving, queue_th_input,
+                                                                                    queue_th_output,
+                                                                                    debug=self.debug))
+                t.start()
+                threads.append(t)
+
+        for dir_path, dirs, files in os.walk(os.path.join(home,
+                                                          "Ufos_{}".format(device_id),
+                                                          "Mesurements",
+                                                          year)):
+            daily_o3_to_file = {}
+            create_daily_files = True
+            num = 0
+            max_day_files = len([name for name in files if name.count("ZD") > 0])
+            day = None
+            tasks = []
+            all_data = {}
+            timer = [now()]
+            for file in files:
+                if file.count("ZD") > 0:
+                    current += 1
+                    # print('{} of {}'.format(current, max_files))
                     day = os.path.basename(dir_path)
                     if create_daily_files:
                         daily_o3_to_file[day] = []
                         create_daily_files = False
                     if create_annual_files:
-                        self.open_annual_files_for_write()
+                        annual_file_descriptors = self.open_annual_files_for_write(home, device_id, year)
                         create_annual_files = False
                     file_path = os.path.join(dir_path, file)
+                    if self.type_of_parallel == 'asyncio':
+                        task = asyncio.create_task(
+                            self.process_one_file_async(home, settings, file_path, main, saving, day, num, queue,
+                                                        debug=self.debug))
+                        tasks.append(task)
+                    elif self.type_of_parallel == 'threading':
+                        queue_th_input.put((file_path, num, day))
+                    else:
+                        line = self.process_one_file_none(home, settings, file_path, main, saving, day, num,
+                                                          debug=self.debug)
+                        all_data.update(line)
+                        if self.debug:
+                            print('dict', all_data[list(line.keys())[0]])
                     self.but_annual_ozone.configure(text=file[-16:-4])
                     self.root.update()
-                    self.data.get_spectr(file_path, False)
-                    main.calc_final_file(self.data.var_settings, self.home, self.data.data["spectr"],
-                                         self.data.data["calculated"]["mu"],
-                                         self.data.data["mesurement"]["exposition"], self.data.sensitivity,
-                                         self.data.sensitivity_eritem, False)
-                    # The file after Reformat (datetime_local do not present in file)
-                    try:
-                        self.data.data["mesurement"]["datetime_local"]
-                    except KeyError:
-                        self.data.data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
-                            self.data.data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
-                            hours=int(self.data.data["mesurement"]['timezone']))
+                    num += 1
+            # print([v[3]['ZD'] for v in all_data.values()])
+            if day:
+                self.but_annual_ozone.configure(text=files[-1][-16:-4])
+                self.root.update()
+                if self.type_of_parallel == 'asyncio':
+                    await queue.join()
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                    while not queue.empty():
+                        line = await queue.get()
+                        line = json.loads(line)
+                        all_data.update(line)
+                        if self.debug:
+                            print('dict', all_data[list(line.keys())[0]])
+                    pass
+                elif self.type_of_parallel == 'threading':
 
-                    # Prepare daily ozone
-                    uvs_or_o3 = {'o3_1': main.calc_result[main.chan]["o3_1"],
-                                 'o3_2': main.calc_result[main.chan]["o3_2"],
-                                 'correct_1': main.calc_result[main.chan]["correct_1"],
-                                 'correct_2': main.calc_result[main.chan]["correct_2"]}
-                    date_utc_str, sh, calc_result = saving.prepare(self.data.data["mesurement"]['datetime'], uvs_or_o3)
-                    self.ts.append(date_utc_str)
-                    self.shs.append(sh)
-                    self.calc_results.append(calc_result)
-
-                    # Prepare day for annual ozone
-                    daily_o3_to_file[day].append(";".join([str(i) for i in [self.data.data["mesurement"]['datetime'],
-                                                                            self.data.data["mesurement"][
-                                                                                "datetime_local"],
-                                                                            self.data.data["calculated"]["sunheight"],
-                                                                            main.calc_result[main.chan]["o3_1"],
-                                                                            main.calc_result[main.chan]["correct_1"],
-                                                                            main.calc_result[main.chan]["o3_2"],
-                                                                            main.calc_result[main.chan]["correct_2"]
-                                                                            ]
-                                                           ]
-                                                          )
-                                                 )
-            for day_string, day_data in daily_o3_to_file.items():
-                # Save ozone to daily file
-                path_file = saving.save(self.data.var_settings, self.home, main.chan, self.ts, self.shs,
-                                        self.calc_results)
-                if self.debug:
-                    print('1) Daily File Saved: {}'.format(path_file))
-                # Save ozone to mean daily file
-                calculate_final_files(self.data.var_settings, path_file, main.chan, True, "file")
-
-                # Save ozone to annual file
-                for pair, fw in self.file_descriptors.items():
-                    daily_data = calculate_final_files(self.data.var_settings, day_data, main.chan, False,
-                                                       "calculate")
-                    self.write_annual_line(fw, day_string, daily_data[pair])
-                    print("3) Write to annual file. Pair {}".format(pair))
-        for pair, fw in self.file_descriptors.items():
+                    # Block until all Input tasks are done
+                    queue_th_input.join()
+                    # Stop workers
+                    for i in range(self.num_worker_threads):
+                        queue_th_input.put(None)
+                    for t in threads:
+                        t.join()
+                    # Collect data
+                    while not queue_th_output.empty():
+                        line = queue_th_output.get()
+                        queue_th_output.task_done()
+                        line = json.loads(line)
+                        all_data.update(line)
+                        if self.debug:
+                            print('dict', all_data[list(line.keys())[0]])
+                    # Block until all Output tasks are done
+                    queue_th_output.join()
+                else:
+                    pass
+                [print(now() - i) for i in timer]
+                # loop.close()
+                ts = [all_data[str(j)][1] for j in range(max_day_files)]
+                shs = [all_data[str(j)][2] for j in range(max_day_files)]
+                calc_results = [all_data[str(j)][3][main.chan] for j in range(max_day_files)]
+                daily_o3_to_file[day] = [all_data[str(j)][4][day] for j in range(max_day_files)]
+                for day_string, day_data in daily_o3_to_file.items():
+                    # Save ozone to daily file
+                    path_file = saving.save(settings, home, main.chan, ts, shs, calc_results)
+                    if self.debug:
+                        print('1) Daily File Saved: {}'.format(path_file))
+                    # Save ozone to mean daily file
+                    calculate_final_files(settings, path_file, main.chan, True, "file")
+                    # Save ozone to annual file
+                    for pair, fw in annual_file_descriptors.items():
+                        daily_data = calculate_final_files(settings, day_data, main.chan, False,
+                                                           "calculate")
+                        self.write_annual_line(fw, day_string, daily_data[pair])
+                    print("3) Writing to annual files...")
+        for pair, fw in annual_file_descriptors.items():
             fw.close()
-            if self.debug:
-                print('4) Annual File Saved: Pair {}'.format(pair))
+        if annual_file_descriptors:
+            print('4) Annual files were saved.')
+
+
+class Correction:
+    def __init__(self, data, pars):
+        self.data = data
+        self.pars = pars
+        # Массив старых строк с лишними \t с делением на \t
+        self.lines_arr_raw_to_file = []
+
+    @staticmethod
+    def get_second_corrects(o3s, o3s_first_corrected, sigma_count):
+        """Среднеквадратичное отклонение
+        o3s - Весь озон
+        o3s_first_corrected - Озон с первой корректировкой (100 - 600)"""
+        if o3s_first_corrected:
+            sigma = round(float(np.std(o3s_first_corrected)), 2)
+            mean = int(np.mean(o3s_first_corrected))
+            corrects = []
+            for i in o3s:
+                if mean - sigma_count * sigma < i < mean + sigma_count * sigma:
+                    corrects.append('1')
+                else:
+                    corrects.append('0')
+            return corrects, sigma, mean
+        else:
+            return [0] * len(o3s), 0, 0
+
+    @staticmethod
+    def collect_data(data):
+        """Collect data with First correction"""
+        sh_previous = 0
+        lines_arr_raw_to_file = []
+        o3s_k = {"1": {"all": {"o3": [], "k": []},
+                       "morning": {"o3": [], "k": []},
+                       "evening": {"o3": [], "k": []}
+                       },
+                 "2": {"all": {"o3": [], "k": []},
+                       "morning": {"o3": [], "k": []},
+                       "evening": {"o3": [], "k": []}
+                       }
+                 }
+        for line_raw in data:
+            line_arr = line_raw.split(';')
+            lines_arr_raw_to_file.append(line_arr)
+            # line_arr = [i for i in line_arr if i]
+            sh = float(line_arr[2])
+            if sh_previous <= sh:
+                part_of_day = "morning"
+            else:
+                part_of_day = "evening"
+            sh_previous = sh
+            current_o3 = {"1": int(line_arr[3]), "2": int(line_arr[5])}
+            corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
+            for pair in ["1", "2"]:
+                for part_day in [part_of_day, 'all']:
+                    o3s_k[pair][part_day]['o3'].append(current_o3[pair])
+                    if corrects[pair] == 1:
+                        o3s_k[pair][part_day]["k"].append(1)
+                    else:
+                        o3s_k[pair][part_day]["k"].append(0)
+        return o3s_k, lines_arr_raw_to_file
+
+    def second_correction(self, o3s_k1):
+        o3s_k2 = {"1": {"all": {"o3": [], "k": []},
+                        "morning": {"o3": [], "k": []},
+                        "evening": {"o3": [], "k": []}
+                        },
+                  "2": {"all": {"o3": [], "k": []},
+                        "morning": {"o3": [], "k": []},
+                        "evening": {"o3": [], "k": []}
+                        }
+                  }
+        no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
+        for pair in ["1", "2"]:
+            for part_of_day in ["all", "morning", "evening"]:
+                text = '\n'
+                if no_data_for_part_of_day[part_of_day]:
+                    continue
+                if o3s_k1[pair][part_of_day]["o3"]:
+                    o3s_k2[pair][part_of_day]["o3"] = o3s_k1[pair][part_of_day]["o3"]
+                    o3_corrected = []
+                    for o3, k in zip(o3s_k1[pair][part_of_day]['o3'], o3s_k1[pair][part_of_day]['k']):
+                        if k == 1:
+                            o3_corrected.append(o3)
+                    o3s_k2[pair][part_of_day]['k'], o3s_k2[pair][part_of_day]["sigma"], o3s_k2[pair][part_of_day][
+                        "mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
+                                                           o3_corrected,
+                                                           self.pars['calibration']['sigma_count'])
+                    # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
+                    o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
+                                                      zip(o3s_k1[pair][part_of_day]["k"],
+                                                          o3s_k2[pair][part_of_day]["k"])]
+
+                    try:
+                        text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
+                                                                                                     o3s_k2[pair][
+                                                                                                         part_of_day][
+                                                                                                         "mean"],
+                                                                                                     o3s_k2[pair][
+                                                                                                         part_of_day][
+                                                                                                         "sigma"])
+                    except KeyError as err:
+                        print("INFO: procedures.py: No data files for {} (line: {})".format(err,
+                                                                                            sys.exc_info()[
+                                                                                                -1].tb_lineno))
+                        no_data_for_part_of_day[part_of_day] = True
+                o3s_k2[pair][part_of_day]['text'] = text
+        return o3s_k2
 
 
 def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag):
@@ -226,6 +502,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
     perform_second_correction = True
     all_data = []
     data = []
+    corr = Correction(data, pars)
     if source:
         try:
             if data_source_flag == "file":
@@ -235,127 +512,27 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
             elif data_source_flag == "calculate":
                 data = source
             if mode == "ZD":
-                # Массив старых строк с лишними \t с делением на \t
-                lines_arr_raw_to_file = []
-                # Весь озон
-                current_o3 = {"1": 0, "2": 0}
-                o3s = {"1": {"all": [], "morning": [], "evening": []},
-                       "2": {"all": [], "morning": [], "evening": []}
-                       }
-                # 100 < Озон < 600 (Первая корректировка при измерении)
-                o3s_daily = {"1": {"all": {"o3": [], "k": []},
-                                   "morning": {"o3": [], "k": []},
-                                   "evening": {"o3": [], "k": []}
-                                   },
-                             "2": {"all": {"o3": [], "k": []},
-                                   "morning": {"o3": [], "k": []},
-                                   "evening": {"o3": [], "k": []}
-                                   }
-                             }
-                sh_previous = 0
-                for line in data:
-                    line_arr_raw = line.split(';')
-                    lines_arr_raw_to_file.append(line_arr_raw)
-                    line_arr = [i for i in line_arr_raw if i]
-                    sh = float(line_arr[2])
-                    if sh_previous <= sh:
-                        part_of_day = "morning"
-                    else:
-                        part_of_day = "evening"
-                    sh_previous = sh
-                    # Озон без корректировок
-                    current_o3["1"] = int(line_arr[3])
-                    current_o3["2"] = int(line_arr[5])
-
-                    corrects_first = {"1": int(line_arr[4]), "2": int(line_arr[6])}
-
-                    # === First correction check ===
-
-                    for pair in ["1", "2"]:
-                        o3s[pair][part_of_day].append(current_o3[pair])
-                        o3s[pair]["all"].append(current_o3[pair])
-                        o3s_daily[pair][part_of_day]["o3"].append(current_o3[pair])
-                        o3s_daily[pair]["all"]["o3"].append(current_o3[pair])
-                        if corrects_first[pair] == 1:
-
-                            o3s_daily[pair][part_of_day]["k"].append(1)
-                            o3s_daily[pair]["all"]["k"].append(1)
-                        else:
-                            o3s_daily[pair][part_of_day]["k"].append(0)
-                            o3s_daily[pair]["all"]["k"].append(0)
-                # === Second correction check ===
+                # === First correction check ===
+                o3s_k1, lines_arr_raw_to_file = corr.collect_data(data)
                 if perform_second_correction:
-                    corrects_second = {}  # для второй корректировки
-                    corrects_actual = {}  # вторая корректировка
-                    o3s_sigma = {}
-                    o3s_mean = {}
-                    text_mean = ''
-                    text_mean_divided = ''
-                    no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
-                    for pair in ["1", "2"]:
-                        corrects_second[pair] = {}
-                        corrects_actual[pair] = {"all": [], "morning": [], "evening": []}
-                        o3s_mean[pair] = {}
-                        o3s_sigma[pair] = {}
-
-                        for part_of_day in ["all", "morning", "evening"]:
-                            if no_data_for_part_of_day[part_of_day]:
-                                continue
-                            if o3s_daily[pair][part_of_day]["o3"]:
-                                # corrects_second[pair][part_of_day] - list - для второй корректировки
-                                # o3s_sigma[pair][part_of_day] - float - сигма по первой корректировке
-                                # o3s_mean[pair][part_of_day] - int - среднее по первой корректировке
-                                corrects_second[pair][part_of_day], o3s_sigma[pair][part_of_day], o3s_mean[pair][
-                                    part_of_day] = get_new_corrects(o3s[pair][part_of_day],
-                                                                    o3s_daily[pair][part_of_day]["o3"], pars)
-                            for i in o3s_daily[pair][part_of_day]["k"]:
-                                if i == 1:
-                                    corrects_actual[pair][part_of_day].append(corrects_second[pair][part_of_day].pop(0))
-                                else:
-                                    corrects_actual[pair][part_of_day].append('0')
-                            try:
-                                text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
-                                                                                                             o3s_mean[
-                                                                                                                 pair][
-                                                                                                                 part_of_day],
-                                                                                                             o3s_sigma[
-                                                                                                                 pair][
-                                                                                                                 part_of_day])
-                                text_mean_divided += part_of_day + ": " + text
-                            except KeyError as err:
-                                text = '\n'
-                                print("INFO: procedures.py: No data files for {} (line: {})".format(err,
-                                                                                                    sys.exc_info()[
-                                                                                                        -1].tb_lineno))
-                                no_data_for_part_of_day[part_of_day] = True
-                            if part_of_day == "all":
-                                text_mean += text
-
+                    # === Second correction check ===
+                    o3s_k2 = corr.second_correction(o3s_k1)
+                    # print(o3s_k2)
                     if write_daily_file is True and data_source_flag == "file":
                         with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
                             print(';'.join(all_data[:1]), file=f, end='')
-                            for line, correct1, correct2 in zip(lines_arr_raw_to_file, corrects_actual["1"]["all"],
-                                                                corrects_actual["2"]["all"]):
+                            for line, correct1, correct2 in zip(lines_arr_raw_to_file, o3s_k2["1"]["all"]['k'],
+                                                                o3s_k2["2"]["all"]['k']):
                                 part1 = line[:-3]
                                 part2 = line[-2:-1]
                                 print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
-                            print(text_mean, file=f)
+                            print(o3s_k2['1']['all']['text'] + o3s_k2['2']['all']['text'], file=f)
                             print('2) Mean File Saved: {}'.format(
                                 os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
-                out = {}
-                for pair in ["1", "2"]:
-                    out[pair] = {"all": {}, "morning": {}, "evening": {}, }
-                    for part_of_day in o3s_mean[pair].keys():
-                        try:
-                            out[pair][part_of_day]["mean"] = o3s_mean[pair][part_of_day]
-                            out[pair][part_of_day]["sigma"] = o3s_sigma[pair][part_of_day]
-                            out[pair][part_of_day]["o3_count"] = len(o3s_daily[pair][part_of_day]["o3"])
-                        except KeyError as err:
-                            # print("procedures.py: INFO: No data files for '{}' (line: {})".format(err,
-                            #                                                                 sys.exc_info()[-1].tb_lineno))
-                            pass
-
-                return out
+                for pair in ['1', '2']:
+                    for part_of_day in ["all", "morning", "evening"]:
+                        o3s_k2[pair][part_of_day]["o3_count"] = len(o3s_k2[pair][part_of_day]["o3"])
+                return o3s_k2
             elif mode == "SD":
                 pass
         except Exception as err:
@@ -364,18 +541,11 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
 
 
 def get_polynomial_result(coefficients, x):
-    if type(coefficients[0]) == float:
-        return coefficients[2] * float(x) ** 2 + coefficients[1] * float(x) + coefficients[0]
-    else:
-        return eval(coefficients[2]) * float(x) ** 2 + eval(coefficients[1]) * float(x) + eval(coefficients[0])
+    return sum([float(k) * float(x) ** degree for k, degree in zip(coefficients, range(len(coefficients)))])
 
 
 def sumarize(a):
-    sum = 0
-    for i in a:
-        if i != '':
-            sum += float(i)
-    return round(sum, 3)
+    return round(sum([float(i) for i in a if i != '']), 3)
 
 
 def read_nomographs(home, dev_id, o3_num):
@@ -862,7 +1032,7 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
         date_local = datetime.datetime.strftime(date + datetime.timedelta(hours=int(pars["station"]["timezone"])),
                                                 '%Y%m%d %H:%M:%S')  # Local Datetime
         if chan == 'ZD':
-            t = 'Ozone'
+            type_of_measurement = 'Ozone'
             header = ';'.join(
                 ['DatetimeUTC', 'DatetimeLocal', 'Sunheight[°]', 'OzoneP1[D.u.]', 'CorrectP1', 'OzoneP2[D.u.]',
                  'CorrectP2'])
@@ -870,7 +1040,7 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
                                  [date_utc, date_local, sunheight, calc_result['o3_1'], calc_result['correct_1'],
                                   calc_result['o3_2'], calc_result['correct_2']]])
         elif chan == 'SD':
-            t = 'UV'
+            type_of_measurement = 'UV'
             header = ';'.join(
                 ['DatetimeUTC', 'DatetimeLocal', 'Sunheight[°]', 'UV-A[mWt/m^2]', 'UV-B[mWt/m^2]', 'UV-E[mWt/m^2]'])
             text_out = ';'.join([str(i) for i in
@@ -878,12 +1048,12 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
                                   calc_result['uve']]])
         if chan == 'ZD' or chan == 'SD':
             dirs = ['Ufos_{}'.format(pars['device']['id']),
-                    t,
+                    type_of_measurement,
                     datetime.datetime.strftime(date, '%Y'),
                     datetime.datetime.strftime(date, '%Y-%m')]
             name = '{}m{}_{}_{}.txt'.format(add_to_name,
                                             pars['device']['id'],
-                                            t,
+                                            type_of_measurement,
                                             datetime.datetime.strftime(date, '%Y%m%d'))
             path = make_dirs(dirs, home)
             if not os.path.exists(os.path.join(path, name)) or create_new_file:
@@ -1026,7 +1196,7 @@ class Main:
             for nm in self.pars["calibration"]["points"][pair]:
                 self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_flag):
+    def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_o3_to_console):
         calco = CalculateOnly(pars, home)
         o3_dict = {}
         if self.chan == 'ZD':
@@ -1036,7 +1206,7 @@ class Main:
                     o3_dict[t + '_' + pair] = value
             o3_1, correct1 = o3_dict['o3_1'], o3_dict['correct_1']
             o3_2, correct2 = o3_dict['o3_2'], o3_dict['correct_2']
-            if print_flag:
+            if print_o3_to_console:
                 print('=> OZONE: P1 = {}, P2 = {}'.format(o3_1, o3_2))
         elif self.chan == 'SD':
             uva = calco.calc_uv('uva', spectr, expo, sensitivity, sensitivity_eritem)
@@ -1044,6 +1214,7 @@ class Main:
             uve = calco.calc_uv('uve', spectr, expo, sensitivity, sensitivity_eritem)
             o3_dict = {'uva': uva, 'uvb': uvb, 'uve': uve}
         self.calc_result[self.chan] = o3_dict
+        return self.calc_result, self.chan
 
     def write_file(self):
         try:
