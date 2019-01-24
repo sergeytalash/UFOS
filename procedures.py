@@ -1,7 +1,7 @@
 import threading
 from math import *
 from time import sleep
-from tkinter import NORMAL
+from tkinter import NORMAL, Menu
 
 import serial
 import time
@@ -29,6 +29,42 @@ from select import select
 
 def now():
     return datetime.datetime.now()
+
+
+class HoverInfo(Menu):
+    def __init__(self, parent, text, command=None):
+        self._com = command
+        Menu.__init__(self, parent, tearoff=0)
+        if not isinstance(text, str):
+            raise TypeError('Trying to initialise a Hover Menu with a non string type: ' + text.__class__.__name__)
+        toktext = text.split('\n')
+        for t in toktext:
+            self.add_command(label=t)
+        self._displayed = False
+        self.master.bind("<Enter>", self.Display)
+        self.master.bind("<Leave>", self.Remove)
+
+    def __del__(self):
+        self.master.unbind("<Enter>")
+        self.master.unbind("<Leave>")
+
+    def Display(self, event):
+        if not self._displayed:
+            self._displayed = True
+            self.post(event.x_root, event.y_root)
+        if self._com != None:
+            self.master.unbind_all("<Return>")
+            self.master.bind_all("<Return>", self.Click)
+
+    def Remove(self, event):
+        if self._displayed:
+            self._displayed = False
+            self.unpost()
+        if self._com != None:
+            self.unbind_all("<Return>")
+
+    def Click(self, event):
+        self._com()
 
 
 class FinalFile:
@@ -137,10 +173,11 @@ class AnnualOzone:
 
     async def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
         data = self.data.get_spectr(file_path, False)
-        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
-                                                 data["calculated"]["mu"],
-                                                 data["mesurement"]["exposition"], self.data.sensitivity,
-                                                 self.data.sensitivity_eritem, False)
+        calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
+                                                                   data["calculated"]["mu"],
+                                                                   data["mesurement"]["exposition"],
+                                                                   self.data.sensitivity,
+                                                                   self.data.sensitivity_eritem, False)
         # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
         try:
             data["mesurement"]["datetime_local"]
@@ -171,10 +208,11 @@ class AnnualOzone:
 
     def process_one_file_none(self, home, settings, file_path, main, saving, day, num, debug=False):
         data = self.data.get_spectr(file_path, False)
-        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
-                                                 data["calculated"]["mu"],
-                                                 data["mesurement"]["exposition"], self.data.sensitivity,
-                                                 self.data.sensitivity_eritem, False)
+        calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
+                                                                   data["calculated"]["mu"],
+                                                                   data["mesurement"]["exposition"],
+                                                                   self.data.sensitivity,
+                                                                   self.data.sensitivity_eritem, False)
         # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
         try:
             data["mesurement"]["datetime_local"]
@@ -212,10 +250,11 @@ class AnnualOzone:
                     break
                 file_path, num, day = item
                 data = self.data.get_spectr(file_path, False)
-                calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
-                                                         data["calculated"]["mu"],
-                                                         data["mesurement"]["exposition"], self.data.sensitivity,
-                                                         self.data.sensitivity_eritem, False)
+                calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
+                                                                           data["calculated"]["mu"],
+                                                                           data["mesurement"]["exposition"],
+                                                                           self.data.sensitivity,
+                                                                           self.data.sensitivity_eritem, False)
                 # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
                 try:
                     data["mesurement"]["datetime_local"]
@@ -1196,7 +1235,8 @@ class Main:
             for nm in self.pars["calibration"]["points"][pair]:
                 self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_o3_to_console):
+    def add_calculated_line_to_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem,
+                                          print_o3_to_console):
         calco = CalculateOnly(pars, home)
         o3_dict = {}
         if self.chan == 'ZD':
@@ -1240,14 +1280,14 @@ class Main:
             if self.chan in ['ZD', 'SD']:
                 self.file2send[self.chan] = self.name
                 # self.calc_result[self.chan] <<
-                self.calc_final_file(self.pars,
-                                     self.home,
-                                     self.text['spectr'],
-                                     self.text['calculated']['mu'],
-                                     self.text['mesurement']['exposition'],
-                                     self.sensitivity,
-                                     self.sensitivity_eritem,
-                                     True)
+                self.add_calculated_line_to_final_file(self.pars,
+                                                       self.home,
+                                                       self.text['spectr'],
+                                                       self.text['calculated']['mu'],
+                                                       self.text['mesurement']['exposition'],
+                                                       self.sensitivity,
+                                                       self.sensitivity_eritem,
+                                                       True)
                 path_file = write_final_file(self.pars,
                                              self.home,
                                              self.chan,

@@ -1,7 +1,11 @@
 import os
 from tkinter import *
 from tkinter import ttk
+
+import _tkinter
+
 import procedures
+from procedures import HoverInfo
 
 
 class Gui:
@@ -45,6 +49,13 @@ class Gui:
                 t2 = self.tree_dot * ' ' + t
             lab = ttk.Label(root, text=t2, font=self.font)
             lab.grid(column=self.column, row=self.row, sticky='w', padx=self.padding_x, pady=self.padding_y)
+            try:
+                HoverInfo(lab, par["description"][t])
+            except KeyError:
+                pass
+            except:
+                pass
+
             try:
                 par[t].keys()
                 self.row += 1
@@ -160,7 +171,7 @@ global_separator = ' '
 root = Tk()
 root.title('УФОС Настройка')
 root.geometry('300x200+200+100')
-root.resizable(False, False)
+root.resizable(True, True)
 
 common_pars = procedures.Settings.get_common(os.getcwd())
 params = procedures.Settings.get_device(os.getcwd(), common_pars['device']['id'])
