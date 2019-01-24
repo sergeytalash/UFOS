@@ -45,8 +45,11 @@ class HoverInfo(Menu):
         self.master.bind("<Leave>", self.Remove)
 
     def __del__(self):
-        self.master.unbind("<Enter>")
-        self.master.unbind("<Leave>")
+        try:
+            self.master.unbind("<Enter>")
+            self.master.unbind("<Leave>")
+        except:
+            pass
 
     def Display(self, event):
         if not self._displayed:

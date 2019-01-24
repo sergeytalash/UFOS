@@ -29,17 +29,17 @@
     },
     "nm(pix)": {
       "S": [
-        "9.6*10**-8",
-        "0.039196277",
-        "270.314812842"
+        "0",
+        "0.0397",
+        "270.71"
       ],
       "Z": [
-        "1.6628495*10**-7",
-        "0.0388884",
-        "269.39"
+        "0",
+        "0.0397",
+        "271.91"
       ]
     },
-    "pix_interval": 25,
+    "pix_interval": 51,
     "points": {
       "Fraunhofer_pair": [
         393.37,
@@ -82,67 +82,60 @@
   "calibration2": {
     "description": {
       "kzLarger1": "List of coefficients. Can be unlimited",
-      "kzLarger2": "List of coefficients. Can be unlimited",
       "kzLess1": "List of coefficients. Can be unlimited",
-      "kzLess2": "List of coefficients. Can be unlimited",
       "kz_obl1": "List of coefficients. Can be unlimited",
+      "kzLarger2": "List of coefficients. Can be unlimited",
+      "kzLess2": "List of coefficients. Can be unlimited",
       "kz_obl2": "List of coefficients. Can be unlimited",
+      "pix+-": "Quantity of pixels to perform spectr interval around one pixel (left and right)",
       "mu_effect_1": "...",
-      "mu_effect_2": "...",
-      "pix+-": "Quantity of pixels to perform spectr interval around one pixel (left and right)"
+      "mu_effect_2": "..."
     },
     "kzLarger1": [
-      1.3834,
-      -0.1423,
-      0.0147
-    ],
-    "kzLarger2": [
-      1.3834,
-      -0.1423,
-      0.0147
+      1.22252,
+      -0.10069,
+      0.0087
     ],
     "kzLess1": [
-      1.3359,
-      -0.0783,
-      -0.005
-    ],
-    "kzLess2": [
-      1.3359,
-      -0.0783,
-      -0.005
+      1.1057,
+      0.0631,
+      -0.0439
     ],
     "kz_obl1": [
-      1.4773,
-      -1.7878,
-      1.3051
+      -2.9911,
+      6.3662,
+      -2.3918
+    ],
+    "kzLarger2": [
+      1.30802,
+      -0.13524,
+      0.01315
+    ],
+    "kzLess2": [
+      0.98560,
+      0.24500,
+      -0.09598
     ],
     "kz_obl2": [
-      1.4773,
-      -1.7878,
-      1.3051
+      -3.1193,
+      6.2871,
+      -2.2256
     ],
+    "pix+-": 2,
     "mu_effect_1": 2,
-    "mu_effect_2": 2,
-    "pix+-": 2
+    "mu_effect_2": 2
   },
   "channel_names": {
-    "D": "D",
-    "S": "S",
-    "Z": "Z",
     "description": {
       "D": "Name of Dark channel to print in console",
       "S": "Name of Semisphere channel to print in console",
       "Z": "Name of Zenith channel to print in console"
-    }
+    },
+    "D": "D",
+    "S": "S",
+    "Z": "Z"
   },
   "device": {
-    "accummulate": 1,
-    "amplitude_max": 3700,
-    "amplitude_min": 3500,
-    "auto_expo_max": 4000,
-    "auto_expo_min": 50,
-    "auto_exposition": 1,
-    "channel": "ZS",
     "description": {
       "accummulate": "Quantity of measurements on UFOS to get mean spectr",
       "amplitude_max": "Maximum amplitude value of spectr which can accepted",
@@ -155,10 +148,19 @@
       "id": "Device identificator",
       "manual_expo": "auto_exposition=0. List of expositions to perform set of measurements"
     },
+    "accummulate": 1,
+    "amplitude_max": 2800,
+    "amplitude_min": 2600,
+    "auto_expo_max": 4000,
+    "auto_expo_min": 50,
+    "auto_exposition": 1,
+    "channel": "ZS",
     "graduation_expo": 4000,
-    "id": 23,
+    "id": 99,
     "manual_expo": [
-      40
+      50,
+      100,
+      150
     ]
   },
   "station": {
@@ -170,8 +172,8 @@
       "sun_height_min": "Sun height of the first and the last measurement",
       "timezone": "Station timezone"
     },
-    "id": "26077",
-    "interval": 15,
+    "id": "99999",
+    "interval": 5,
     "latitude": 59.57,
     "longitude": -30.42,
     "sun_height_min": 5,

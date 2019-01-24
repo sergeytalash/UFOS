@@ -20,6 +20,7 @@ class Gui:
         self.ent = ttk.Entry(root, width=1)
         self.font = 'Arial 9'
         self.new_pars = {}
+        self.selected_keys = []
         if ignore:
             self.gui_ignore = ['calibration', 'calibration2', 'channel_names', 'device', 'version']
         else:
@@ -29,8 +30,13 @@ class Gui:
         self.ent.grid(column=1, row=0, sticky='e', padx=self.padding_x, pady=self.padding_y)
         self.ent.bind('<Return>', start_with_all_settings)
 
-    def make_labels(self, par):
+    def make_labels(self, par, selected_key=None):
+        if selected_key:
+            if "description" in par.keys():
+                self.selected_keys = [selected_key, "description"]
         for t in par.keys():
+            if t == "description":
+                continue
             t2 = t
             if t in self.gui_ignore:
                 continue
@@ -49,18 +55,12 @@ class Gui:
                 t2 = self.tree_dot * ' ' + t
             lab = ttk.Label(root, text=t2, font=self.font)
             lab.grid(column=self.column, row=self.row, sticky='w', padx=self.padding_x, pady=self.padding_y)
-            try:
-                HoverInfo(lab, par["description"][t])
-            except KeyError:
-                pass
-            except:
-                pass
-
+            self.selected_keys.append(t)
             try:
                 par[t].keys()
                 self.row += 1
                 self.tree_dot += 1
-                self.make_labels(par[t])
+                self.make_labels(par[t], t)
                 self.tree_dot -= 1
             except AttributeError:
                 self.column += 1
@@ -73,6 +73,15 @@ class Gui:
                 ent.grid(column=self.column, row=self.row, sticky='w', padx=self.padding_x, pady=self.padding_y)
                 self.column -= 1
                 self.row += 1
+                description = self.pars
+                for i in self.selected_keys:
+                    if i in description.keys():
+                        description = description[i]
+                    if not isinstance(description, dict):
+                        HoverInfo(lab, description)
+
+            if self.selected_keys[-1] != "description":
+                self.selected_keys.pop()
 
     def retype(self, data_need, type_of_data_to_change):
         typ = type(data_need)
@@ -142,7 +151,8 @@ class Gui:
 
     def make_buttons(self):
         but_save = ttk.Button(root, text='Сохранить', command=self.save_params)
-        but_save.grid(column=self.column, row=self.max_row * 2, sticky='we', padx=self.padding_x, pady=self.padding_y)
+        # but_save.grid(column=self.column, row=self.max_row * 2, sticky='we', padx=self.padding_x, pady=self.padding_y)
+        but_save.grid(column=1, row=0, sticky='w', padx=self.padding_x, pady=self.padding_y)
 
 
 def start_with_all_settings(*event):
@@ -150,10 +160,10 @@ def start_with_all_settings(*event):
     global show_settings_for_station
     if GUI.ent.get() == '9':
         show_settings_for_station = False
-        root.geometry('800x600+200+100')
+        root.geometry('+200+10')
     else:
         show_settings_for_station = True
-        root.geometry('300x200+200+100')
+        root.geometry('+200+10')
     for i in Widget.winfo_children(root):
         i.destroy()
     GUI = Gui(params, 0, 0, show_settings_for_station)
@@ -170,7 +180,7 @@ global_separator = ' '
 
 root = Tk()
 root.title('УФОС Настройка')
-root.geometry('300x200+200+100')
+root.geometry('+200+10')
 root.resizable(True, True)
 
 common_pars = procedures.Settings.get_common(os.getcwd())
