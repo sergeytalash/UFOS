@@ -53,6 +53,8 @@
         "uve_koef": 1
     },
     "calibration2": {
+        "coorect_mu_eff_start": 2,
+        "coorect_mu_eff_end": 3,
         "kzLarger1": [
             1.3834,
             -0.1423,

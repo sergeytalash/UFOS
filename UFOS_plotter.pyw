@@ -102,10 +102,11 @@ class PlotClass:
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"], 'o3_2': self.o3["2"], 'correct_1': correct["1"],
                                 'correct_2': correct["2"]}
         if self.o3_mode != 'spectr':
-            if self.chk_show_all or correct["1"] == 1 or correct["2"] == 1:
+            if self.chk_show_all or correct["1"] == 1:
                 self.x1.append(self.data['datetime'])
-                self.x2.append(self.data['datetime'])
                 self.y1.append(self.o3["1"])
+            if self.chk_show_all or correct["2"] == 1:
+                self.x2.append(self.data['datetime'])
                 self.y2.append(self.o3["2"])
 
     def calc_uv(self, uv_mode, add_point):
@@ -797,6 +798,7 @@ def make_o3file():
                     # Read manual saved file
                     name = 'New_' + name0
                     file = os.path.join(directory, name)
+            print("Read:", file)
         elif mode == 'UV':
             if not os.path.exists(file):
                 # Read manual saved file
@@ -1058,10 +1060,10 @@ if __name__ == '__main__':
     chk_read_file = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=chk_var_read_file)
     chk_var_show_all = IntVar()
     chk_var_show_all.set(1)
-    chk_show_all = ttk.Checkbutton(admin_panel, text='Без корректировки', variable=chk_var_show_all)
+    chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=chk_var_show_all)
     chk_var_show_correct1 = IntVar()
     chk_var_show_correct1.set(1)
-    chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Корректировка 100-600', variable=chk_var_show_correct1)
+    chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Корр 1 исходный файл', variable=chk_var_show_correct1)
     but_save_to_final_file = ttk.Button(admin_panel, text='Сохранить в файл')
     but_make_mean_file = ttk.Button(admin_panel, text='Сохранить в файл среднего')
     var_top = IntVar()
@@ -1172,7 +1174,7 @@ if __name__ == '__main__':
                      but_save_to_final_file, but_make_mean_file]
 
     # Uncomment after debug will be finished
-    # change_privileges(common, 0)
+    change_privileges(common, 0)
 
     """=============================================================="""
     downline.grid(row=6, column=0, sticky='nswe', columnspan=4)
