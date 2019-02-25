@@ -308,7 +308,6 @@ class AnnualOzone:
         create_annual_files = True
         current = 0
         max_files = self.get_zd_count(home, device_id, year)
-        
 
         for dir_path, dirs, files in os.walk(os.path.join(home,
                                                           "Ufos_{}".format(device_id),
@@ -426,7 +425,7 @@ class AnnualOzone:
                         self.write_annual_line(fw, day_string, daily_data[pair])
                         print(pair, end=' ')
                     print()
-                    
+
             for pair, fw in annual_file_descriptors.items():
                 fw.close()
             if annual_file_descriptors:
@@ -779,10 +778,10 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     try:
         # Mu effective correction
         correct_mu_eff_start = var_settings['calibration2']['coorect_mu_eff_start']
-        correct_mu_eff_end = var_settings['calibration2']['coorect_mu_eff_end'] 
+        correct_mu_eff_end = var_settings['calibration2']['coorect_mu_eff_end']
     except KeyError:
         correct_mu_eff_start = 0
-        correct_mu_eff_end = 30 
+        correct_mu_eff_end = 30
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
         s = sumarize(spectrum[jj - prom:jj + prom + 1])
