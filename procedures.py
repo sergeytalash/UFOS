@@ -109,11 +109,12 @@ class AnnualOzone:
             for pair in ["1", "2"]:
                 annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(device_id, year[:4], pair)
                 path = os.path.join(dir_path, annual_file_name)
-                with open(path, 'w') as f:
-                    print("Date\t" +
-                          "Mean_All\tSigma_All\tO3_Count\t" +
-                          "Mean_Morning\tSigma_Morning\tO3_Count\t" +
-                          "Mean_Evening\tSigma_Evening\tO3_Count", file=f)
+                if not os.path.exists(path):
+                    with open(path, 'w') as f:
+                        print("Date\t" +
+                              "Mean_All\tSigma_All\tO3_Count\t" +
+                              "Mean_Morning\tSigma_Morning\tO3_Count\t" +
+                              "Mean_Evening\tSigma_Evening\tO3_Count", file=f)
                 file_descriptors[pair] = open(path, 'a')
         return file_descriptors
 
@@ -265,28 +266,32 @@ class AnnualOzone:
         create_annual_files = True
         current = 0
         max_files = self.get_zd_count(home, device_id, year)
-        if self.type_of_parallel:
-            print('Running in parallel: ' + self.type_of_parallel)
-        if self.type_of_parallel == 'asyncio':
-            # Asyncio
-            queue = asyncio.Queue()
-        elif self.type_of_parallel == 'threading':
-            # Threading
-            queue_th_input = queue_th.Queue()
-            queue_th_output = queue_th.Queue()
-            threads = []
-            for i in range(self.num_worker_threads):
-                t = threading.Thread(target=lambda: self.process_one_file_threading(home, settings, main,
-                                                                                    saving, queue_th_input,
-                                                                                    queue_th_output,
-                                                                                    debug=self.debug))
-                t.start()
-                threads.append(t)
+        
 
         for dir_path, dirs, files in os.walk(os.path.join(home,
                                                           "Ufos_{}".format(device_id),
                                                           "Mesurements",
                                                           year)):
+            create_annual_files = True
+            annual_file_descriptors = {}
+            if self.type_of_parallel:
+                print('Running in parallel: ' + self.type_of_parallel)
+            if self.type_of_parallel == 'asyncio':
+                # Asyncio
+                queue = asyncio.Queue()
+            elif self.type_of_parallel == 'threading':
+                # Threading
+                queue_th_input = queue_th.Queue()
+                queue_th_output = queue_th.Queue()
+                threads = []
+                for i in range(self.num_worker_threads):
+                    t = threading.Thread(target=lambda: self.process_one_file_threading(home, settings, main,
+                                                                                        saving, queue_th_input,
+                                                                                        queue_th_output,
+                                                                                        debug=self.debug))
+                    t.start()
+                    threads.append(t)
+            print("...", dir_path)
             daily_o3_to_file = {}
             create_daily_files = True
             num = 0
@@ -372,15 +377,18 @@ class AnnualOzone:
                     # Save ozone to mean daily file
                     calculate_final_files(settings, path_file, main.chan, True, "file")
                     # Save ozone to annual file
+                    print("3) Writing to annual files...{}".format(day_string), end=' ')
                     for pair, fw in annual_file_descriptors.items():
                         daily_data = calculate_final_files(settings, day_data, main.chan, False,
                                                            "calculate")
                         self.write_annual_line(fw, day_string, daily_data[pair])
-                    print("3) Writing to annual files...")
-        for pair, fw in annual_file_descriptors.items():
-            fw.close()
-        if annual_file_descriptors:
-            print('4) Annual files were saved.')
+                        print(pair, end=' ')
+                    print()
+                    
+            for pair, fw in annual_file_descriptors.items():
+                fw.close()
+            if annual_file_descriptors:
+                print('4) Annual files were saved.')
 
 
 class Correction:
@@ -391,10 +399,11 @@ class Correction:
         self.lines_arr_raw_to_file = []
 
     @staticmethod
-    def get_second_corrects(o3s, o3s_first_corrected, sigma_count):
+    def get_second_corrects(o3s, o3s_first_corrected, pars):
         """Среднеквадратичное отклонение
         o3s - Весь озон
         o3s_first_corrected - Озон с первой корректировкой (100 - 600)"""
+        sigma_count = pars['calibration']['sigma_count']
         if o3s_first_corrected:
             sigma = round(float(np.std(o3s_first_corrected)), 2)
             mean = int(np.mean(o3s_first_corrected))
@@ -468,7 +477,7 @@ class Correction:
                     o3s_k2[pair][part_of_day]['k'], o3s_k2[pair][part_of_day]["sigma"], o3s_k2[pair][part_of_day][
                         "mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
                                                            o3_corrected,
-                                                           self.pars['calibration']['sigma_count'])
+                                                           self.pars)
                     # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
                     o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
                                                       zip(o3s_k1[pair][part_of_day]["k"],
@@ -725,6 +734,13 @@ def spectr2zero(p_zero, p_lamst, spectr):
 def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settings, home, o3_num):
     p_mas = []
     j = 0
+    try:
+        # Mu effective correction
+        correct_mu_eff_start = var_settings['calibration2']['coorect_mu_eff_start']
+        correct_mu_eff_end = var_settings['calibration2']['coorect_mu_eff_end'] 
+    except KeyError:
+        correct_mu_eff_start = 0
+        correct_mu_eff_end = 30 
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
         s = sumarize(spectrum[jj - prom:jj + prom + 1])
@@ -747,7 +763,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     except Exception as err:
         print('Plotter: {} (line: {})'.format(err, sys.exc_info()[-1].tb_lineno))
         o3 = -1
-    if 100 <= o3 <= 600:
+    if 100 <= o3 <= 600 and correct_mu_eff_start <= mueff <= correct_mu_eff_end:
         correct = 1
     else:
         correct = 0
