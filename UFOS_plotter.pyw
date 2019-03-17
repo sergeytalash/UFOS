@@ -1,14 +1,14 @@
+# Version: 2.0
+# Modified: 17.03.2018
+# Author: Sergey Talash
 from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
-from Shared_ import *
+# from Shared_ import *
 import numpy as np
-# import matplotlib
-# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import MultipleLocator
-from matplotlib.widgets import SpanSelector
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from shutil import copy
 import gc
@@ -1134,15 +1134,10 @@ if __name__ == '__main__':
     lab_sun.grid(row=7, column=0, sticky='we', padx=1)
     currnt_data.grid(row=8, column=0, sticky='we', padx=1)
     """=============================================================="""
-    # main_func(color,'spectr',2,0,0,0,plotx,ploty,60,40,right_panel)
     confZ = var_settings['calibration']['nm(pix)']['Z']
     confS = var_settings['calibration']['nm(pix)']['S']
     lambda_consts = {pair: var_settings['calibration']['points']['o3_pair_{}'.format(pair)] +
                            var_settings['calibration']['points']['cloud_pair_{}'.format(pair)] for pair in ["1", "2"]}
-    # lambda_consts1 = var_settings['calibration']['points']['o3_pair_1'] \
-    #                  + var_settings['calibration']['points']['cloud_pair_1']
-    # lambda_consts2 = var_settings['calibration']['points']['o3_pair_2'] \
-    #                  + var_settings['calibration']['points']['cloud_pair_2']
     points = var_settings['calibration']['points']
     p_uva1, p_uva2 = nm2pix(315, confS, 0), nm2pix(400, confS, 0)
     p_uvb1, p_uvb2 = nm2pix(280, confS, 0), nm2pix(315, confS, 0)
@@ -1152,8 +1147,6 @@ if __name__ == '__main__':
     p_lamst = nm2pix(290, confZ, 0)
     # Массив констант лямбда в пикселях
     lambda_consts_pix = {pair: [nm2pix(i, confZ, 0) for i in const] for pair, const in lambda_consts.items()}
-    # lambda_consts_pix1 = [nm2pix(i, confZ, 0) for i in lambda_consts1]  # Массив констант лямбда в пикселях
-    # lambda_consts_pix2 = [nm2pix(i, confZ, 0) for i in lambda_consts2]  # Массив констант лямбда в пикселях
     psZ = {}
     psS = {}
     for key in points.keys():

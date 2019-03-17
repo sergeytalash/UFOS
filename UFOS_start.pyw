@@ -1,8 +1,11 @@
+# Version: 2.0
+# Modified: 17.03.2018
+# Author: Sergey Talash
 import os
 from tkinter import *
 from tkinter import ttk
 
-import _tkinter
+# import _tkinter
 
 import procedures
 from procedures import HoverInfo
