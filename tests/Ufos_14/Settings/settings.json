@@ -89,7 +89,9 @@
       "kz_obl2": "List of coefficients. Can be unlimited",
       "pix+-": "Quantity of pixels to perform spectr interval around one pixel (left and right)",
       "mu_effect_1": "...",
-      "mu_effect_2": "..."
+      "mu_effect_2": "...",
+      "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation",
+      "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation"
     },
     "kzLarger1": [
       1.22252,
@@ -123,7 +125,9 @@
     ],
     "pix+-": 2,
     "mu_effect_1": 2,
-    "mu_effect_2": 2
+    "mu_effect_2": 2,
+    "visible_sunheight_min": 5,
+    "visible_sunheight_max": 5
   },
   "channel_names": {
     "description": {

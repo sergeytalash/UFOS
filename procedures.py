@@ -18,10 +18,10 @@ import queue as queue_th
 from select import select
 
 
-#  Увеличить степени полиномов (DONE: unlimited)
-# TODO: Ввести максимальное и минимальное значения высот солнца, при которых расчитываются средние значения за сутки
-# TODO: Построчная запись среднесуточного озона
-# TODO: Проработать отбраковку
+# Увеличить степени полиномов (DONE: unlimited)
+# Ввести максимальное и минимальное значения высот солнца, при которых расчитываются средние значения за сутки
+# TODO: Построчная запись среднесуточного озона (?)
+# TODO: Проработать отбраковку (?)
 # Выяснить, почему утром и вечером измерения производятся чаще
 
 # TODO: Исправить сохранение файла настроек (удаляет description) -> (Можно сделать station: {values: {...}, description: {...}} )
@@ -461,7 +461,7 @@ class Correction:
             return [0] * len(o3s), 0, 0
 
     @staticmethod
-    def collect_data(data):
+    def collect_data(data, pars):
         """Collect data with First correction"""
         sh_previous = 0
         lines_arr_raw_to_file = []
@@ -477,22 +477,23 @@ class Correction:
         for line_raw in data:
             line_arr = line_raw.split(';')
             lines_arr_raw_to_file.append(line_arr)
-            # line_arr = [i for i in line_arr if i]
             sh = float(line_arr[2])
+            sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2']['visible_sunheight_max']
             if sh_previous <= sh:
                 part_of_day = "morning"
             else:
                 part_of_day = "evening"
             sh_previous = sh
             current_o3 = {"1": int(line_arr[3]), "2": int(line_arr[5])}
-            corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
+            sh_correction_on = True
+            if sh_correction_on:
+                corrects = {"1": int(line_arr[4] if sh_condition else 0), "2": int(line_arr[6] if sh_condition else 0)}
+            else:
+                corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
             for pair in ["1", "2"]:
                 for part_day in [part_of_day, 'all']:
                     o3s_k[pair][part_day]['o3'].append(current_o3[pair])
-                    if corrects[pair] == 1:
-                        o3s_k[pair][part_day]["k"].append(1)
-                    else:
-                        o3s_k[pair][part_day]["k"].append(0)
+                    o3s_k[pair][part_day]["k"].append(corrects[pair])
         return o3s_k, lines_arr_raw_to_file
 
     def second_correction(self, o3s_k1):
@@ -564,8 +565,8 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
             elif data_source_flag == "calculate":
                 data = source
             if mode == "ZD":
-                # === First correction check ===
-                o3s_k1, lines_arr_raw_to_file = corr.collect_data(data)
+                # === First correction check (100 < o3 < 600) ===
+                o3s_k1, lines_arr_raw_to_file = corr.collect_data(data, pars)
                 if perform_second_correction:
                     # === Second correction check ===
                     o3s_k2 = corr.second_correction(o3s_k1)
