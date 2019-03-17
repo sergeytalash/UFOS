@@ -59,4 +59,4 @@ class Main:
 
 if __name__ == "__main__":
     a = Main()
-    a.update_settings(ufos_num=23)
+    a.update_settings(ufos_num=13)

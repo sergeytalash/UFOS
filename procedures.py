@@ -24,7 +24,7 @@ from select import select
 # TODO: Проработать отбраковку
 # TODO: Выяснить, почему утром и вечером измерения производятся чаще
 
-
+# TODO: Добавить
 # Selivanova
 
 def now():
