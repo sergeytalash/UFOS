@@ -1655,6 +1655,7 @@ class CheckSunAndMesure:
         while 1:
             try:
                 ufos_com = UfosConnection(self.logger).get_com()['com_obj']
+                print(ufos_com)
                 self.common_pars = Settings.get_common(self.home)
                 self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
 
