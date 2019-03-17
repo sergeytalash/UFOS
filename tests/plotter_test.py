@@ -46,13 +46,13 @@ class TestProcedures(unittest.TestCase):
         # print('name')
         self.assertEqual(Correction.get_second_corrects([279, 285, 275, 271, 268, 275, 282, 274, 282, 272],
                                                         [279, 285, 275, 271, 268, 275, 282, 274, 282, 272],
-                                                        settings()['calibration']['sigma_count']),
+                                                        settings()),
                          (['1', '1', '1', '1', '1', '1', '1', '1', '1', '1'], 5.22, 276))
 
     def test_get_new_corrects_b_uncorrect_data(self):
         self.assertEqual(Correction.get_second_corrects([279, 285, 275, 271, 268, 700, 1500, 274, 2000, 272],
                                                         [279, 285, 275, 271, 268, 275, 282, 274, 282, 272],
-                                                        settings()['calibration']['sigma_count']),
+                                                        settings()),
                          (['1', '1', '1', '1', '1', '0', '0', '1', '0', '1'], 5.22, 276))
 
     def test_finalfile_prepare_a_datetime_string(self):
