@@ -29,14 +29,14 @@
     },
     "nm(pix)": {
       "S": [
-        "3.23553847*10**-8",
-        "0.0393587546",
-        "272.703981"
+        "0",
+        "0.0397",
+        "270.71"
       ],
       "Z": [
-        "7.454057229*10**-8",
-        "0.03923741803",
-        "273.905099"
+        "0",
+        "0.0397",
+        "271.91"
       ]
     },
     "pix_interval": 51,
@@ -80,8 +80,6 @@
     "uve_koef": 1
   },
   "calibration2": {
-    "coorect_mu_eff_end": 3,
-    "coorect_mu_eff_start": 2,
     "description": {
       "kzLarger1": "List of coefficients. Can be unlimited",
       "kzLarger2": "List of coefficients. Can be unlimited",
@@ -92,44 +90,44 @@
       "mu_effect_1": "...",
       "mu_effect_2": "...",
       "pix+-": "Quantity of pixels to perform spectr interval around one pixel (left and right)",
-      "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation",
-      "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation"
+      "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation",
+      "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation"
     },
     "kzLarger1": [
-      1.3834,
-      -0.1423,
-      0.0147
+      1.22252,
+      -0.10069,
+      0.0087
     ],
     "kzLarger2": [
-      1.3834,
-      -0.1423,
-      0.0147
+      1.30802,
+      -0.13524,
+      0.01315
     ],
     "kzLess1": [
-      1.3359,
-      -0.0783,
-      -0.005
+      1.1057,
+      0.0631,
+      -0.0439
     ],
     "kzLess2": [
-      1.3359,
-      -0.0783,
-      -0.005
+      0.9856,
+      0.245,
+      -0.09598
     ],
     "kz_obl1": [
-      1.4773,
-      -1.7878,
-      1.3051
+      -2.9911,
+      6.3662,
+      -2.3918
     ],
     "kz_obl2": [
-      1.4773,
-      -1.7878,
-      1.3051
+      -3.1193,
+      6.2871,
+      -2.2256
     ],
     "mu_effect_1": 2,
     "mu_effect_2": 2,
     "pix+-": 2,
     "visible_sunheight_max": 20,
-    "visible_sunheight_min": 10
+    "visible_sunheight_min": 5
   },
   "channel_names": {
     "D": "D",
@@ -144,7 +142,7 @@
   "device": {
     "accummulate": 1,
     "amplitude_max": 2800,
-    "amplitude_min": 2500,
+    "amplitude_min": 2600,
     "auto_expo_max": 4000,
     "auto_expo_min": 50,
     "auto_exposition": 1,
@@ -162,9 +160,11 @@
       "manual_expo": "auto_exposition=0. List of expositions to perform set of measurements"
     },
     "graduation_expo": 4000,
-    "id": 7,
+    "id": 13,
     "manual_expo": [
-      40
+      50,
+      100,
+      150
     ]
   },
   "station": {
@@ -180,7 +180,7 @@
     "interval": 5,
     "latitude": 59.57,
     "longitude": -30.42,
-    "sun_height_min": 5,
+    "sun_height_min": -30,
     "timezone": "+3"
   },
   "version": "2.0"

@@ -1,19 +1,10 @@
 # Version: 2.0
-# Modified: 15.01.2018
+# Modified: 17.03.2018
 # Author: Sergey Talash
-# import serial
-# import time
 import os
 import datetime
-# import winreg
-# import os
-# import winsound
-# import sys
-# import json
-# import numpy as np
 import logging
 import logging.handlers as handlers
-# from math import *
 
 import procedures 
 

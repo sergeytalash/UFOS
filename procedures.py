@@ -1,7 +1,7 @@
 import threading
 from math import *
 from time import sleep
-from tkinter import NORMAL
+from tkinter import NORMAL, Menu
 
 import serial
 import time
@@ -18,17 +18,58 @@ import queue as queue_th
 from select import select
 
 
-#  Увеличить степени полиномов (DONE: unlimited)
-# TODO: Ввести максимальное и минимальное значения высот солнца, при которых расчитываются средние значения за сутки
-# TODO: Построчная запись среднесуточного озона
-# TODO: Проработать отбраковку
-# TODO: Выяснить, почему утром и вечером измерения производятся чаще
+# Увеличить степени полиномов (DONE: unlimited)
+# Ввести максимальное и минимальное значения высот солнца, при которых расчитываются средние значения за сутки
+# TODO: Построчная запись среднесуточного озона (?)
+# TODO: Проработать отбраковку (?)
+# Выяснить, почему утром и вечером измерения производятся чаще
+
+# TODO: Исправить сохранение файла настроек (удаляет description) -> (Можно сделать station: {values: {...}, description: {...}} )
 
 
 # Selivanova
 
 def now():
     return datetime.datetime.now()
+
+
+class HoverInfo(Menu):
+    def __init__(self, parent, text, command=None):
+        self._com = command
+        Menu.__init__(self, parent, tearoff=0)
+        if not isinstance(text, str):
+            raise TypeError('Trying to initialise a Hover Menu with a non string type: ' + text.__class__.__name__)
+        toktext = text.split('\n')
+        for t in toktext:
+            self.add_command(label=t)
+        self._displayed = False
+        self.master.bind("<Enter>", self.Display)
+        self.master.bind("<Leave>", self.Remove)
+
+    def __del__(self):
+        try:
+            self.master.unbind("<Enter>")
+            self.master.unbind("<Leave>")
+        except:
+            pass
+
+    def Display(self, event):
+        if not self._displayed:
+            self._displayed = True
+            self.post(event.x_root, event.y_root)
+        if self._com != None:
+            self.master.unbind_all("<Return>")
+            self.master.bind_all("<Return>", self.Click)
+
+    def Remove(self, event):
+        if self._displayed:
+            self._displayed = False
+            self.unpost()
+        if self._com != None:
+            self.unbind_all("<Return>")
+
+    def Click(self, event):
+        self._com()
 
 
 class FinalFile:
@@ -138,10 +179,11 @@ class AnnualOzone:
 
     async def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
         data = self.data.get_spectr(file_path, False)
-        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
-                                                 data["calculated"]["mu"],
-                                                 data["mesurement"]["exposition"], self.data.sensitivity,
-                                                 self.data.sensitivity_eritem, False)
+        calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
+                                                                   data["calculated"]["mu"],
+                                                                   data["mesurement"]["exposition"],
+                                                                   self.data.sensitivity,
+                                                                   self.data.sensitivity_eritem, False)
         # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
         try:
             data["mesurement"]["datetime_local"]
@@ -172,10 +214,11 @@ class AnnualOzone:
 
     def process_one_file_none(self, home, settings, file_path, main, saving, day, num, debug=False):
         data = self.data.get_spectr(file_path, False)
-        calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
-                                                 data["calculated"]["mu"],
-                                                 data["mesurement"]["exposition"], self.data.sensitivity,
-                                                 self.data.sensitivity_eritem, False)
+        calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
+                                                                   data["calculated"]["mu"],
+                                                                   data["mesurement"]["exposition"],
+                                                                   self.data.sensitivity,
+                                                                   self.data.sensitivity_eritem, False)
         # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
         try:
             data["mesurement"]["datetime_local"]
@@ -213,10 +256,11 @@ class AnnualOzone:
                     break
                 file_path, num, day = item
                 data = self.data.get_spectr(file_path, False)
-                calc_result, chan = main.calc_final_file(settings, home, data["spectr"],
-                                                         data["calculated"]["mu"],
-                                                         data["mesurement"]["exposition"], self.data.sensitivity,
-                                                         self.data.sensitivity_eritem, False)
+                calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
+                                                                           data["calculated"]["mu"],
+                                                                           data["mesurement"]["exposition"],
+                                                                           self.data.sensitivity,
+                                                                           self.data.sensitivity_eritem, False)
                 # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
                 try:
                     data["mesurement"]["datetime_local"]
@@ -266,7 +310,6 @@ class AnnualOzone:
         create_annual_files = True
         current = 0
         max_files = self.get_zd_count(home, device_id, year)
-        
 
         for dir_path, dirs, files in os.walk(os.path.join(home,
                                                           "Ufos_{}".format(device_id),
@@ -384,7 +427,7 @@ class AnnualOzone:
                         self.write_annual_line(fw, day_string, daily_data[pair])
                         print(pair, end=' ')
                     print()
-                    
+
             for pair, fw in annual_file_descriptors.items():
                 fw.close()
             if annual_file_descriptors:
@@ -418,7 +461,7 @@ class Correction:
             return [0] * len(o3s), 0, 0
 
     @staticmethod
-    def collect_data(data):
+    def collect_data(data, pars):
         """Collect data with First correction"""
         sh_previous = 0
         lines_arr_raw_to_file = []
@@ -434,22 +477,23 @@ class Correction:
         for line_raw in data:
             line_arr = line_raw.split(';')
             lines_arr_raw_to_file.append(line_arr)
-            # line_arr = [i for i in line_arr if i]
             sh = float(line_arr[2])
+            sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2']['visible_sunheight_max']
             if sh_previous <= sh:
                 part_of_day = "morning"
             else:
                 part_of_day = "evening"
             sh_previous = sh
             current_o3 = {"1": int(line_arr[3]), "2": int(line_arr[5])}
-            corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
+            sh_correction_on = True
+            if sh_correction_on:
+                corrects = {"1": int(line_arr[4] if sh_condition else 0), "2": int(line_arr[6] if sh_condition else 0)}
+            else:
+                corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
             for pair in ["1", "2"]:
                 for part_day in [part_of_day, 'all']:
                     o3s_k[pair][part_day]['o3'].append(current_o3[pair])
-                    if corrects[pair] == 1:
-                        o3s_k[pair][part_day]["k"].append(1)
-                    else:
-                        o3s_k[pair][part_day]["k"].append(0)
+                    o3s_k[pair][part_day]["k"].append(corrects[pair])
         return o3s_k, lines_arr_raw_to_file
 
     def second_correction(self, o3s_k1):
@@ -521,8 +565,8 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
             elif data_source_flag == "calculate":
                 data = source
             if mode == "ZD":
-                # === First correction check ===
-                o3s_k1, lines_arr_raw_to_file = corr.collect_data(data)
+                # === First correction check (100 < o3 < 600) ===
+                o3s_k1, lines_arr_raw_to_file = corr.collect_data(data, pars)
                 if perform_second_correction:
                     # === Second correction check ===
                     o3s_k2 = corr.second_correction(o3s_k1)
@@ -737,10 +781,10 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     try:
         # Mu effective correction
         correct_mu_eff_start = var_settings['calibration2']['coorect_mu_eff_start']
-        correct_mu_eff_end = var_settings['calibration2']['coorect_mu_eff_end'] 
+        correct_mu_eff_end = var_settings['calibration2']['coorect_mu_eff_end']
     except KeyError:
         correct_mu_eff_start = 0
-        correct_mu_eff_end = 30 
+        correct_mu_eff_end = 30
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
         s = sumarize(spectrum[jj - prom:jj + prom + 1])
@@ -860,7 +904,7 @@ class CalculateOnly:
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
         uv = 0
-        spectrum = spectr2zero(self.p_zero1, self.p_zero2, self.p_lamst, spectr)
+        spectrum = spectr2zero(self.p_zero, self.p_lamst, spectr)
         try:
             if uv_mode in ['uva', 'uvb']:
                 uv = sum(np.array(spectrum[p1:p2]) * np.array(sensitivity[p1:p2]))
@@ -885,59 +929,61 @@ class UfosDataToCom:
         start_mesure - S=запустить измерение, любой другой символ только переключит канал измерения."""
         self.com_obj = ''
         self.expo = expo
+        self.tries_done = 0
         self.start_mesure = start_mesure
         self.logger = logger
         self.data_send = b''
         self.accum = accummulate
-        parameters = list()
-        parameters.append(b'#')  # header = #
-        parameters.append(b'\x00\x01')  # device id = 1
-        parameters.append(bytes((int(expo) % 256, int(expo) // 256)))
-        parameters.append(b'0')  # gain = 0
-        parameters.append(bytes((int(accummulate),)))
-        parameters.append(b'0')  # cooler = 0
-        parameters.append(mesure_type.encode(encoding='utf-8'))  # Z, S, D
-        parameters.append(start_mesure.encode(encoding='utf-8'))  # S
-        for byte in parameters:
-            self.data_send += byte
+        self.mesure_type = mesure_type.encode('utf-8')  # Z, S, D
+        self.start_mesure = start_mesure.encode('utf-8')  # S
+        self.data_send = b'#\x00\x01' + \
+                         bytes((int(expo) % 256, int(expo) // 256)) + \
+                         b'0' + \
+                         bytes((int(accummulate),)) + \
+                         b'0' + \
+                         self.mesure_type + \
+                         self.start_mesure
 
-    def device_ask(self, tries):
-        data = b''
-        to = int(self.expo * self.accum / 1000) + 1
-        self.com_obj = UfosConnection(self.logger, to).get_com()['com_obj']
-        self.com_obj.open()
-        self.com_obj.write(self.data_send)
-        self.logger.debug('Sleep {} seconds...'.format(to))
-        time.sleep(to)
-        byte = self.com_obj.read(1)
-        while byte:
-            data += byte
+    def device_ask(self, tries_allowed):
+        self.tries_done = 0
+        while self.tries_done < tries_allowed:
+            data = b''
+            to = int(self.expo * self.accum / 1000) + 3
+            self.com_obj = UfosConnection(self.logger, to).get_com()['com_obj']
+            self.com_obj.open()
+            self.com_obj.write(self.data_send)
+            self.logger.debug('Sleep {} seconds...'.format(to))
+            time.sleep(to)
             byte = self.com_obj.read(1)
-        self.com_obj.close()
-        if data:
-            tries = 0
-            i = data[6:10]
-            t1 = (i[0] * 255 + i[1]) / 10  # Линейка
-            t2 = (i[2] * 255 + i[3]) / 10  # Полихроматор
-            if len(data) > 13:
-                i = len(data) - 1
-                spectr = []
-                while i > 13:
-                    i -= 1
-                    spectr.append(int(data[i + 1]) * 255 + int(data[i]))
-                    i -= 1
-                text = 'Амп = {}'.format(max(spectr[100:3600]))
+            while byte:
+                data += byte
+                byte = self.com_obj.read(1)
+            self.com_obj.close()
+            # Если получили данные с УФОС за timeout
+            if data:
+                i = data[6:10]
+                t1 = (i[0] * 255 + i[1]) / 10  # Линейка
+                t2 = (i[2] * 255 + i[3]) / 10  # Полихроматор
+                if len(data) > 13:
+                    i = len(data) - 1
+                    spectr = []
+                    while i > 13:
+                        i -= 1
+                        spectr.append(int(data[i + 1]) * 255 + int(data[i]))
+                        i -= 1
+                    text = 'Амп = {}'.format(max(spectr[100:3600]))
+                else:
+                    spectr = [0]
+                    text = ''
+                return spectr[:3691], t1, t2, text, 0
+            # Если не получили данные с УФОС за timeout
             else:
-                spectr = [0]
-                text = ''
-            return spectr[:3691], t1, t2, text, tries
-        else:
-            if tries > 1:
-                text = 'Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
-                print(text)
-                self.logger.error(text)
-            tries += 1
-            return ([0], 0, 0, '', tries)
+                if self.tries_done > 0:
+                    text = 'Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
+                    print(text)
+                    self.logger.error(text)
+                self.tries_done += 1
+        return [0], 0, 0, '', self.tries_done
 
 
 class Settings:
@@ -1089,7 +1135,8 @@ class Main:
 
     def __init__(self, home, pars, logger=False):
         self.logger = logger
-        self.tries = 0
+        self.tries_allowed = 3
+        self.tries_done = 0
         self.mesure_count = 0
         self.last_file_o3 = ''
         self.last_file_uv = ''
@@ -1104,6 +1151,8 @@ class Main:
         self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'])
         self.sensitivity_eritem = read_sensitivity_eritem(self.home, self.pars['device']['id'])
         self.time_now = datetime.datetime.now()
+        self.time_now_local = self.time_now + datetime.timedelta(
+            hours=int(self.pars["station"]["timezone"]))  # Local Datetime
         dirs = ['Ufos_{}'.format(self.pars['device']['id']),
                 'Mesurements',
                 datetime.datetime.strftime(self.time_now, '%Y'),
@@ -1130,7 +1179,7 @@ class Main:
                                                            self.time_now,
                                                            self.pars["station"]["timezone"])
             """Запись шапки файла"""
-            self.text = {
+            self.all_measured_data = {
                 "id": {
                     "device": self.pars["device"]["id"],
                     "station": self.pars["station"]["id"]
@@ -1160,31 +1209,31 @@ class Main:
                 """Расчёт СКО для Спектра (-) altD (темновой до 500 пикс)"""
                 self.spectrZaD = np.array(spectr) - np.mean(spectr[100:500])
                 self.skoZaD = np.std(self.spectrZaD[100:3600])
-                self.text["spectr"] = np.array(spectr).tolist()
+                self.all_measured_data["spectr"] = np.array(spectr).tolist()
             elif self.chan[0] == 'D':
                 # Если 'СКО D измеренное' < 100 И 'СКО Z-aD' > 100"""
-                if self.text["calculated"]["sko"] < self.pars["calibration"]["sko_D"] and self.skoZaD > \
+                if self.all_measured_data["calculated"]["sko"] < self.pars["calibration"]["sko_D"] and self.skoZaD > \
                         self.pars["calibration"]["sko_ZaD"]:
                     self.altD_flag = 0
                 # Если 'СКО D измеренное' > 100 И 'СКО Z-aD' > 100"""
-                elif self.text["calculated"]["sko"] > self.pars["calibration"]["sko_D"] and self.skoZaD > \
+                elif self.all_measured_data["calculated"]["sko"] > self.pars["calibration"]["sko_D"] and self.skoZaD > \
                         self.pars["calibration"]["sko_ZaD"]:
                     self.altD_flag = 1
                 else:
                     self.altD_flag = 2
-                self.text["spectr"] = np.array(spectr).tolist()
+                self.all_measured_data["spectr"] = np.array(spectr).tolist()
             elif self.chan in ['ZD', 'SD']:
                 if self.altD_flag == 0:
                     # Если всё ок
-                    self.text["spectr"] = np.array(spectr).tolist()
-                    self.text["mesurement"]["status"] = 0
+                    self.all_measured_data["spectr"] = np.array(spectr).tolist()
+                    self.all_measured_data["mesurement"]["status"] = 0
                 elif self.altD_flag == 1:
                     # Если плохой темновой спектр, использовать альтернативный темновой (spectr[100:500])
-                    self.text["spectr"] = np.array(self.spectrZaD).tolist()
-                    self.text["mesurement"]["status"] = 1
+                    self.all_measured_data["spectr"] = np.array(self.spectrZaD).tolist()
+                    self.all_measured_data["mesurement"]["status"] = 1
                 else:
-                    self.text["spectr"] = np.array(spectr).tolist()
-                    self.text["mesurement"]["status"] = 2
+                    self.all_measured_data["spectr"] = np.array(spectr).tolist()
+                    self.all_measured_data["mesurement"]["status"] = 2
         except Exception as err:
             print('analyze_spectr:', end='')
             print(err, sys.exc_info()[-1].tb_lineno)
@@ -1212,7 +1261,8 @@ class Main:
             for nm in self.pars["calibration"]["points"][pair]:
                 self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    def calc_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem, print_o3_to_console):
+    def add_calculated_line_to_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem,
+                                          print_o3_to_console):
         calco = CalculateOnly(pars, home)
         o3_dict = {}
         if self.chan == 'ZD':
@@ -1250,25 +1300,25 @@ class Main:
                                                   datetime.datetime.strftime(self.time_now_local, '%Y%m%d%H%M'))
 
             with open(os.path.join(self.path, self.name), 'w') as f:
-                json.dump(self.text, f, ensure_ascii=False, indent='', sort_keys=True)
+                json.dump(self.all_measured_data, f, ensure_ascii=False, indent='', sort_keys=True)
                 print('>>> {}'.format(self.name))
                 self.logger.info('>>> {}'.format(self.name))
             if self.chan in ['ZD', 'SD']:
                 self.file2send[self.chan] = self.name
                 # self.calc_result[self.chan] <<
-                self.calc_final_file(self.pars,
-                                     self.home,
-                                     self.text['spectr'],
-                                     self.text['calculated']['mu'],
-                                     self.text['mesurement']['exposition'],
-                                     self.sensitivity,
-                                     self.sensitivity_eritem,
-                                     True)
+                self.add_calculated_line_to_final_file(self.pars,
+                                                       self.home,
+                                                       self.all_measured_data['spectr'],
+                                                       self.all_measured_data['calculated']['mu'],
+                                                       self.all_measured_data['mesurement']['exposition'],
+                                                       self.sensitivity,
+                                                       self.sensitivity_eritem,
+                                                       True)
                 path_file = write_final_file(self.pars,
                                              self.home,
                                              self.chan,
-                                             self.text["mesurement"]["datetime"],
-                                             round(self.text["calculated"]["sunheight"], 1),
+                                             self.all_measured_data["mesurement"]["datetime"],
+                                             round(self.all_measured_data["calculated"]["sunheight"], 1),
                                              self.calc_result[self.chan],
                                              '',
                                              False)
@@ -1283,11 +1333,12 @@ class Main:
             self.logger.error(str(err))
 
     def change_channel(self, chan):
+        # print("Changing channel to {}... ".format(chan))
         self.logger.debug('Переключение на канал {}.'.format(
             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8')))
-        data, t1, t2, text, self.tries = UfosDataToCom(50, self.pars['device']['accummulate'], chan, 'N',
-                                                       self.logger).device_ask(self.tries)
-        return self.tries
+        data, t1, t2, text, self.tries_done = UfosDataToCom(50, self.pars['device']['accummulate'], chan, 'N',
+                                                            self.logger).device_ask(self.tries_allowed)
+        # print("Channel changed to {} (try: {})".format(chan, self.tries_done))
 
     def write_file4send(self, chan, data4send):
         with open(os.path.join(self.path_sending, self.file2send[chan]), 'w') as f:
@@ -1432,7 +1483,8 @@ class Main:
                                                        self.connect_pars['ftp_pass'],
                                                        file2send)
                     if tex[send_type] == 'OK':
-                        print('{} Отправлен {} (dev: {})'.format(file2send, send_type, self.text['id']['device']))
+                        print('{} Отправлен {} (dev: {})'.format(file2send, send_type,
+                                                                 self.all_measured_data['id']['device']))
                     else:
                         print(tex[send_type])
 
@@ -1459,12 +1511,7 @@ class Main:
                 for chan in self.pars['device']['channel']:
                     self.expo = self.pars['device']['auto_expo_min']
                     self.ZS_spectr = [0]
-                    self.tries = 0
                     self.change_channel(chan)
-                    if self.tries > 0:
-                        raise TypeError
-                    else:
-                        print()
                     while self.expo < self.pars['device']['auto_expo_max'] \
                             and max(self.ZS_spectr) < self.pars['device']['amplitude_max']:
                         try:
@@ -1472,13 +1519,14 @@ class Main:
                                 self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                                 self.expo)
                             print(text, end='')
-                            self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
-                                                                                                self.pars['device'][
-                                                                                                    'accummulate'],
-                                                                                                chan,
-                                                                                                'S',
-                                                                                                self.logger).device_ask(
-                                self.tries)
+                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                                     self.pars[
+                                                                                                         'device'][
+                                                                                                         'accummulate'],
+                                                                                                     chan,
+                                                                                                     'S',
+                                                                                                     self.logger).device_ask(
+                                self.tries_allowed)
                             text += ' ' + text2
                             print('\r{}'.format(text))
                             self.logger.info(text)
@@ -1500,12 +1548,13 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
-                                                                                            self.pars['device'][
-                                                                                                'accummulate'], chan,
-                                                                                            'S',
-                                                                                            self.logger).device_ask(
-                            self.tries)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                                 self.pars['device'][
+                                                                                                     'accummulate'],
+                                                                                                 chan,
+                                                                                                 'S',
+                                                                                                 self.logger).device_ask(
+                            self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1519,11 +1568,12 @@ class Main:
                     text = 'Канал {}. Эксп = {}'.format(
                         self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'), self.expo)
                     print(text)
-                    self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
-                                                                                      self.pars['device'][
-                                                                                          'accummulate'],
-                                                                                      'D', 'S', self.logger).device_ask(
-                        self.tries)
+                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                           self.pars['device'][
+                                                                                               'accummulate'],
+                                                                                           'D', 'S',
+                                                                                           self.logger).device_ask(
+                        self.tries_allowed)
                     text += ' ' + text2
                     print('\r{}'.format(text), end=' ')
                     self.logger.info(text)
@@ -1538,7 +1588,7 @@ class Main:
                     self.ZDspectr = np.array(self.ZS_spectr) - np.array(self.Dspectr)
                     self.analyze_spectr(self.ZDspectr)
                     self.write_file()
-                    self.mesure_data[self.chan] = self.text
+                    self.mesure_data[self.chan] = self.all_measured_data
 
             else:
                 for expo in self.pars['device']['manual_expo']:
@@ -1551,12 +1601,12 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
-                                                                                            self.pars['device'][
-                                                                                                'accummulate'],
-                                                                                            chan, 'S',
-                                                                                            self.logger).device_ask(
-                            self.tries)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                                 self.pars['device'][
+                                                                                                     'accummulate'],
+                                                                                                 chan, 'S',
+                                                                                                 self.logger).device_ask(
+                            self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1571,11 +1621,12 @@ class Main:
                             self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.Dspectr, self.t1, self.t2, text2, self.tries = UfosDataToCom(self.expo,
-                                                                                          self.pars['device'][
-                                                                                              'accummulate'], 'D', 'S',
-                                                                                          self.logger).device_ask(
-                            self.tries)
+                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                               self.pars['device'][
+                                                                                                   'accummulate'], 'D',
+                                                                                               'S',
+                                                                                               self.logger).device_ask(
+                            self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1590,7 +1641,7 @@ class Main:
                         self.ZDspectr = np.array(self.ZS_spectr) - np.array(self.Dspectr)
                         self.analyze_spectr(self.ZDspectr)
                         self.write_file()
-                        self.mesure_data[self.chan] = self.text
+                        self.mesure_data[self.chan] = self.all_measured_data
         except TypeError:
             #            print("No data from UFOS")
             pass
@@ -1629,7 +1680,7 @@ class CheckSunAndMesure:
                     print('=== Запуск измерения ===                      ', end='\r')
                     main.mesure()
 
-                    if main.tries > 0:
+                    if main.tries_done > 0:
                         print('Кабель подключен к ПК, но не подключен к УФОС!', end='\r')
                         time.sleep(10)
                     else:
