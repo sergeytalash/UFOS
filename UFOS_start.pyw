@@ -143,7 +143,10 @@ class Gui:
                     t = self.retype(old, new)
                     self.new_pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = t
         for key in self.new_pars.keys():
-            self.pars[key] = self.new_pars[key]
+            if isinstance(self.pars[key], str):
+                self.pars[key] = self.new_pars[key]
+            elif isinstance(self.pars[key], dict):
+                self.pars[key].update(self.new_pars[key])
         self.new_pars = self.pars
 
         try:

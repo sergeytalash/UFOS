@@ -1000,7 +1000,7 @@ class Settings:
     @staticmethod
     def set(home, pars, dev_id):
         with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.json'.format(dev_id)), 'w') as f:
-            return json.dump(pars, f, ensure_ascii=False, indent='    ', sort_keys=True)
+            return json.dump(pars, f, ensure_ascii=False, indent='  ', sort_keys=True)
 
 
 def sunheight(altitude, longitude, date_time, timezone):

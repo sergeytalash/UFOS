@@ -55,8 +55,10 @@ class Main:
         for key, value in upadated_descriptions.items():
             if value:
                 print("{}: {}".format(text[value], key))
+        else:
+            print('Done')
 
 
 if __name__ == "__main__":
     a = Main()
-    a.update_settings(ufos_num=13)
+    a.update_settings(ufos_num=int(input("Input UFOS id: ")))
