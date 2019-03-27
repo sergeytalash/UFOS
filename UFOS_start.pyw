@@ -5,10 +5,7 @@ import os
 from tkinter import *
 from tkinter import ttk
 
-# import _tkinter
-
 import procedures
-from procedures import HoverInfo
 
 
 class Gui:
@@ -28,6 +25,7 @@ class Gui:
             self.gui_ignore = ['calibration', 'calibration2', 'channel_names', 'device', 'version']
         else:
             self.gui_ignore = []
+        self.default_pars = procedures.Settings.get_defaults(os.getcwd())
 
     def make_admin_entry(self):
         self.ent.grid(column=1, row=0, sticky='e', padx=self.padding_x, pady=self.padding_y)
@@ -81,23 +79,23 @@ class Gui:
                     if i in description.keys():
                         description = description[i]
                     if not isinstance(description, dict):
-                        HoverInfo(lab, description)
+                        try:
+                            procedures.HoverInfo(lab, description)
+                        except:
+                            # Are there any missing descriptions in settings?
+                            pass
 
             if self.selected_keys[-1] != "description":
                 self.selected_keys.pop()
 
-    def retype(self, data_need, type_of_data_to_change):
-        typ = type(data_need)
-        if typ == int:
-            return int(type_of_data_to_change)
-        elif typ == list:
-            type_of_data_to_change = [i.strip() for i in type_of_data_to_change.split(';')]
-            return [self.retype(need, change) for need, change in zip(data_need, type_of_data_to_change)]
-
-        elif typ == float:
-            return float(type_of_data_to_change)
+    def retype(self, default_value, new_value):
+        if isinstance(default_value, (int, float)):
+            return type(default_value)(new_value)
+        if isinstance(default_value, list):
+            new_value = [i.strip() for i in new_value.split(';')]
+            return [self.retype(need_t, new_v) for need_t, new_v in zip(default_value, new_value)]
         else:
-            return str(type_of_data_to_change)
+            return str(new_value)
 
     def save_params(self, *event):
         tmp_queue = []
@@ -112,46 +110,26 @@ class Gui:
                     for k in range(old_fs - fs + 1):
                         tmp_queue.pop()
                 tmp_queue.append(t.strip())
-                if fs == 0:
-                    self.new_pars[tmp_queue[-1]] = {}
-                elif fs == 1:
-                    self.new_pars[tmp_queue[-2]][tmp_queue[-1]] = {}
-                elif fs == 2:
-                    self.new_pars[tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = {}
-                elif fs == 3:
-                    self.new_pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = {}
+                position = ''.join(["['{}']".format(item) for item in tmp_queue])
+                # Inserting all keys and values from default settings
+                exec("self.new_pars{0} = self.default_pars{0}".format(position))
                 old_fs = fs
             elif type(i) == ttk.Entry:
                 new = i.get()
-                if len(tmp_queue) == 1:
-                    old = self.pars[tmp_queue[-1]]
-                    t = self.retype(old, new)
-                    self.new_pars[tmp_queue[-1]] = t
-
-                elif len(tmp_queue) == 2:
-                    old = self.pars[tmp_queue[-2]][tmp_queue[-1]]
-                    t = self.retype(old, new)
-                    self.new_pars[tmp_queue[-2]][tmp_queue[-1]] = t
-
-                elif len(tmp_queue) == 3:
-                    old = self.pars[tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]]
-                    t = self.retype(old, new)
-                    self.new_pars[tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = t
-
-                elif len(tmp_queue) == 4:
-                    old = self.pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]]
-                    t = self.retype(old, new)
-                    self.new_pars[tmp_queue[-4]][tmp_queue[-3]][tmp_queue[-2]][tmp_queue[-1]] = t
+                # print([new])
+                position = ''.join(["['{}']".format(item) for item in tmp_queue])
+                # Inserting values from GUI
+                exec("self.new_pars{0} = self.retype(self.default_pars{0}, new)".format(position))
         for key in self.new_pars.keys():
             if isinstance(self.pars[key], str):
                 self.pars[key] = self.new_pars[key]
             elif isinstance(self.pars[key], dict):
-                self.pars[key].update(self.new_pars[key])
+                self.pars[key] =self.new_pars[key]
         self.new_pars = self.pars
 
         try:
             procedures.Settings.set(os.getcwd(), self.new_pars, common_pars['device']['id'])
-            print('New settings are written.')
+            print('UFOS {}: New settings were written successfully.'.format(common_pars['device']['id']))
         except Exception as err:
             print('ERROR! New settings are incorrect! {}'.format(err))
 

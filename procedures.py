@@ -24,7 +24,7 @@ from select import select
 # TODO: Проработать отбраковку (?)
 # Выяснить, почему утром и вечером измерения производятся чаще
 
-# TODO: Исправить сохранение файла настроек (удаляет description) -> (Можно сделать station: {values: {...}, description: {...}} )
+# Исправить сохранение файла настроек (удаляет description) -> Чтение файла настроек из defaults
 
 
 # Selivanova
@@ -56,7 +56,7 @@ class HoverInfo(Menu):
     def Display(self, event):
         if not self._displayed:
             self._displayed = True
-            self.post(event.x_root, event.y_root)
+            self.post(event.x_root + 20, event.y_root - 10)
         if self._com != None:
             self.master.unbind_all("<Return>")
             self.master.bind_all("<Return>", self.Click)
@@ -478,7 +478,8 @@ class Correction:
             line_arr = line_raw.split(';')
             lines_arr_raw_to_file.append(line_arr)
             sh = float(line_arr[2])
-            sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2']['visible_sunheight_max']
+            sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2'][
+                'visible_sunheight_max']
             if sh_previous <= sh:
                 part_of_day = "morning"
             else:
@@ -995,6 +996,11 @@ class Settings:
     @staticmethod
     def get_device(home, dev_id):
         with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.json'.format(dev_id)), 'r') as f:
+            return json.load(f)
+
+    @staticmethod
+    def get_defaults(home):
+        with open(os.path.join(home, 'defaults\\settings.json'), 'r') as f:
             return json.load(f)
 
     @staticmethod
