@@ -13,7 +13,7 @@ import json
 import numpy as np
 import socket
 import base64
-import asyncio
+# import asyncio
 import queue as queue_th
 from select import select
 
@@ -136,7 +136,7 @@ class AnnualOzone:
         # threading =   0:00:05.311453
 
     def run(self):
-        asyncio.run(self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year))
+        self.make_annual_ozone_file(self.home, self.data.var_settings, self.device_id, self.year)
         # self.write_annual_ozone()
         self.but_annual_ozone.configure(text="Сохранить озон за год")
         self.root.update()
@@ -177,7 +177,7 @@ class AnnualOzone:
         else:
             print(os.path.basename(list(line.values())[0][0]))
 
-    async def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
+    def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
         data = self.data.get_spectr(file_path, False)
         calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
                                                                    data["calculated"]["mu"],
@@ -301,7 +301,7 @@ class AnnualOzone:
                     count += 1
         return count
 
-    async def make_annual_ozone_file(self, home, settings, device_id, year):
+    def make_annual_ozone_file(self, home, settings, device_id, year):
         """data - PlotClass.init()"""
         annual_file_descriptors = {}
         main = Main(home, settings)
@@ -319,9 +319,9 @@ class AnnualOzone:
             annual_file_descriptors = {}
             if self.type_of_parallel:
                 print('Running in parallel: ' + self.type_of_parallel)
-            if self.type_of_parallel == 'asyncio':
+            #if self.type_of_parallel == 'asyncio':
                 # Asyncio
-                queue = asyncio.Queue()
+                #queue = asyncio.Queue()
             elif self.type_of_parallel == 'threading':
                 # Threading
                 queue_th_input = queue_th.Queue()
