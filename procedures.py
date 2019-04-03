@@ -355,12 +355,8 @@ class AnnualOzone:
                         annual_file_descriptors = self.open_annual_files_for_write(home, device_id, year)
                         create_annual_files = False
                     file_path = os.path.join(dir_path, file)
-                    if self.type_of_parallel == 'asyncio':
-                        task = asyncio.create_task(
-                            self.process_one_file_async(home, settings, file_path, main, saving, day, num, queue,
-                                                        debug=self.debug))
-                        tasks.append(task)
-                    elif self.type_of_parallel == 'threading':
+                    
+                    if self.type_of_parallel == 'threading':
                         queue_th_input.put((file_path, num, day))
                     else:
                         line = self.process_one_file_none(home, settings, file_path, main, saving, day, num,
@@ -375,17 +371,8 @@ class AnnualOzone:
             if day:
                 self.but_annual_ozone.configure(text=files[-1][-16:-4])
                 self.root.update()
-                if self.type_of_parallel == 'asyncio':
-                    await queue.join()
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                    while not queue.empty():
-                        line = await queue.get()
-                        line = json.loads(line)
-                        all_data.update(line)
-                        if self.debug:
-                            print('dict', all_data[list(line.keys())[0]])
-                    pass
-                elif self.type_of_parallel == 'threading':
+                
+                if self.type_of_parallel == 'threading':
 
                     # Block until all Input tasks are done
                     queue_th_input.join()
