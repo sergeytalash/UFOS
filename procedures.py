@@ -177,40 +177,7 @@ class AnnualOzone:
         else:
             print(os.path.basename(list(line.values())[0][0]))
 
-    def process_one_file_async(self, home, settings, file_path, main, saving, day, num, queue, debug=False):
-        data = self.data.get_spectr(file_path, False)
-        calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
-                                                                   data["calculated"]["mu"],
-                                                                   data["mesurement"]["exposition"],
-                                                                   self.data.sensitivity,
-                                                                   self.data.sensitivity_eritem, False)
-        # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
-        try:
-            data["mesurement"]["datetime_local"]
-        except KeyError:
-            data["mesurement"]["datetime_local"] = datetime.datetime.strptime(
-                data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + datetime.timedelta(
-                hours=int(data["mesurement"]['timezone']))
 
-        # Prepare daily ozone
-        date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
-        # Prepare day for annual ozone
-        day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
-                                                      data["mesurement"]["datetime_local"],
-                                                      data["calculated"]["sunheight"],
-                                                      calc_result[chan]["o3_1"],
-                                                      calc_result[chan]["correct_1"],
-                                                      calc_result[chan]["o3_2"],
-                                                      calc_result[chan]["correct_2"]
-                                                      ]
-                                     ]
-                                    )
-                      }
-        out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
-        self.print_line(out, debug)
-        out = json.dumps(out)
-        await queue.put(out)
-        queue.task_done()
 
     def process_one_file_none(self, home, settings, file_path, main, saving, day, num, debug=False):
         data = self.data.get_spectr(file_path, False)
@@ -229,7 +196,7 @@ class AnnualOzone:
 
         # Prepare daily ozone
         date_utc_str, sh, calc_result = saving.prepare(data["mesurement"]['datetime'], calc_result)
-        # Prepare day for annual ozone
+        # Prepare day for annual ozon
         day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
                                                       data["mesurement"]["datetime_local"],
                                                       data["calculated"]["sunheight"],
