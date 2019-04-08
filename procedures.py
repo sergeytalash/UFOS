@@ -177,8 +177,6 @@ class AnnualOzone:
         else:
             print(os.path.basename(list(line.values())[0][0]))
 
-
-
     def process_one_file_none(self, home, settings, file_path, main, saving, day, num, debug=False):
         data = self.data.get_spectr(file_path, False)
         calc_result, chan = main.add_calculated_line_to_final_file(settings, home, data["spectr"],
@@ -322,7 +320,7 @@ class AnnualOzone:
                         annual_file_descriptors = self.open_annual_files_for_write(home, device_id, year)
                         create_annual_files = False
                     file_path = os.path.join(dir_path, file)
-                    
+
                     if self.type_of_parallel == 'threading':
                         queue_th_input.put((file_path, num, day))
                     else:
@@ -338,7 +336,7 @@ class AnnualOzone:
             if day:
                 self.but_annual_ozone.configure(text=files[-1][-16:-4])
                 self.root.update()
-                
+
                 if self.type_of_parallel == 'threading':
 
                     # Block until all Input tasks are done
@@ -636,12 +634,11 @@ def get_ozone_by_nomographs(home, r12clear, mueff, dev_id, o3_num):
 
 # ==========================================================
 
-
 def read_connect(home):
     with open(os.path.join(home, 'connect.ini')) as f:
         connection_settings = {}
         for i in f.readlines():
-            if i[0] not in ['\n', ' ', '#']:
+            if i[0] not in ['\n', ' ', '#'] and not i.startswith('п»ї#'):
                 line = i.replace(' ', '').replace('\n', '').split('=')
                 connection_settings[line[0]] = line[1]
         return connection_settings
@@ -701,7 +698,8 @@ def pix2nm(abc, pix, digs, add):
     """
     try:
         return round(eval(abc[0]) * pix ** 2 + eval(abc[1]) * pix + eval(abc[2]) + add, digs)
-    except:
+    except Exception as err:
+        print("Check settings file nm(pix) section")
         return 0
 
 
@@ -1656,14 +1654,20 @@ class CheckSunAndMesure:
                         print('Следующее измерение: {}'.format(str(next_time).split('.')[0]))
 
                         # Send files
+                        send_ok = True
                         for file2send in os.listdir(main.path_sending):
-                            if datetime.datetime.now() < next_time:
+                            if datetime.datetime.now() < next_time and send_ok:
                                 sending_file = os.path.join(main.path_sending, file2send)
                                 tex = main.send_file(sending_file)
                                 self.logger.debug(str(tex))
                                 for status in tex.keys():
                                     if tex[status] == 'OK':
                                         os.remove(sending_file)
+                                    else:
+                                        send_ok = False
+                            else:
+                                break
+
                         while datetime.datetime.now() < next_time:
                             time.sleep(1)
                 else:
