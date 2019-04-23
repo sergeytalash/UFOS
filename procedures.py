@@ -6,7 +6,7 @@ from tkinter import NORMAL, Menu
 import serial
 import time
 import datetime
-import winreg
+# import winreg
 import os
 import sys
 import json
@@ -790,18 +790,19 @@ class UfosConnection:
 
     def get_com(self):
         try:
-            registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
-            for i in range(255):
-                name, value, typ = winreg.EnumValue(registry_key, i)
-                if name.count('Silab') > 0:
-                    self.opened_serial = serial.Serial(port='//./' + value,
-                                                       baudrate=self.br,
-                                                       bytesize=self.bs,
-                                                       parity=self.par,
-                                                       stopbits=self.sb,
-                                                       timeout=self.to)
-                    self.opened_serial.close()
-                    return {'com_number': value, 'com_obj': self.opened_serial}
+            # registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
+            # for i in range(255):
+            #     name, value, typ = winreg.EnumValue(registry_key, i)
+            #     if name.count('Silab') > 0:
+            #         self.opened_serial = serial.Serial(port='//./' + value,
+            #                                            baudrate=self.br,
+            #                                            bytesize=self.bs,
+            #                                            parity=self.par,
+            #                                            stopbits=self.sb,
+            #                                            timeout=self.to)
+            #         self.opened_serial.close()
+            #         return {'com_number': value, 'com_obj': self.opened_serial}
+            pass
         except WindowsError:
             text = "Кабель не подключен к ПК!                   "
             print(text, end='\r')
@@ -947,17 +948,17 @@ class Settings:
 
     @staticmethod
     def get_device(home, dev_id):
-        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.json'.format(dev_id)), 'r') as f:
+        with open(os.path.join(home, 'Ufos_{}'.format(dev_id), 'Settings', 'settings.json'), 'r') as f:
             return json.load(f)
 
     @staticmethod
     def get_defaults(home):
-        with open(os.path.join(home, 'defaults\\settings.json'), 'r') as f:
+        with open(os.path.join(home, 'defaults', 'settings.json'), 'r') as f:
             return json.load(f)
 
     @staticmethod
     def set(home, pars, dev_id):
-        with open(os.path.join(home, 'Ufos_{}\\Settings\\settings.json'.format(dev_id)), 'w') as f:
+        with open(os.path.join(home, 'Ufos_{}'.format(dev_id), 'Settings', 'settings.json'), 'w') as f:
             return json.dump(pars, f, ensure_ascii=False, indent='  ', sort_keys=True)
 
 
