@@ -6,7 +6,7 @@ from tkinter import NORMAL, Menu
 import serial
 import time
 import datetime
-# import winreg
+import winreg
 import os
 import sys
 import json
@@ -790,18 +790,18 @@ class UfosConnection:
 
     def get_com(self):
         try:
-            # registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
-            # for i in range(255):
-            #     name, value, typ = winreg.EnumValue(registry_key, i)
-            #     if name.count('Silab') > 0:
-            #         self.opened_serial = serial.Serial(port='//./' + value,
-            #                                            baudrate=self.br,
-            #                                            bytesize=self.bs,
-            #                                            parity=self.par,
-            #                                            stopbits=self.sb,
-            #                                            timeout=self.to)
-            #         self.opened_serial.close()
-            #         return {'com_number': value, 'com_obj': self.opened_serial}
+            registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
+            for i in range(255):
+                name, value, typ = winreg.EnumValue(registry_key, i)
+                if name.count('Silab') > 0:
+                    self.opened_serial = serial.Serial(port='//./' + value,
+                                                       baudrate=self.br,
+                                                       bytesize=self.bs,
+                                                       parity=self.par,
+                                                       stopbits=self.sb,
+                                                       timeout=self.to)
+                    self.opened_serial.close()
+                    return {'com_number': value, 'com_obj': self.opened_serial}
             pass
         except WindowsError:
             text = "Кабель не подключен к ПК!                   "
