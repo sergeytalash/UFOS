@@ -1410,23 +1410,22 @@ class Main:
 
     @staticmethod
     def sock_send(host, port, data2send, buffer=2048):
-        t = 'ERR'
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            for ip in host.split(','):
-                try:
-                    sock.connect((ip, port))
-                    break
-                except:
-                    continue
-                finally:
-                    sock.send(data2send.encode(encoding='utf-8'))
-                    sock.close()
-                    t = 'OK'
-        except Exception as err:
+        t = []
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        for ip in host.split(','):
+            try:
+                sock.connect((ip, port))
+                sock.send(data2send.encode(encoding='utf-8'))
+                sock.close()
+                t.append('OK')
+            except Exception as err:
+                t.append('ERR')
+                continue
+        if 'OK' in t:
+            return 'OK'
+        else:
             print('procedures.sock_send(): {} - line {}'.format(err, sys.exc_info()[2].tb_lineno))
-        finally:
-            return t
+            return 'ERR'
 
     def send_file(self, file2send):
         tex = {}
