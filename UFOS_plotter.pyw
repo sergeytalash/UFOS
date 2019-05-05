@@ -1056,7 +1056,7 @@ if __name__ == '__main__':
     chk_var_read_file.set(0)
     chk_read_file = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=chk_var_read_file)
     chk_var_show_all = IntVar()
-    chk_var_show_all.set(1)
+    chk_var_show_all.set(0)
     chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=chk_var_show_all)
     chk_var_show_correct1 = IntVar()
     chk_var_show_correct1.set(1)
