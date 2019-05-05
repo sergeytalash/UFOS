@@ -1413,10 +1413,16 @@ class Main:
         t = 'ERR'
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((host, port))
-            sock.send(data2send.encode(encoding='utf-8'))
-            sock.close()
-            t = 'OK'
+            for ip in host.split(','):
+                try:
+                    sock.connect((ip, port))
+                    break
+                except:
+                    continue
+                finally:
+                    sock.send(data2send.encode(encoding='utf-8'))
+                    sock.close()
+                    t = 'OK'
         except Exception as err:
             print('procedures.sock_send(): {} - line {}'.format(err, sys.exc_info()[2].tb_lineno))
         finally:
