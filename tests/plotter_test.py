@@ -1,8 +1,11 @@
 import unittest
-import UFOS_plotter
 import os
 import datetime
 import json
+import sys
+sys.path.append('../')
+import UFOS_plotter
+
 
 from procedures import *
 

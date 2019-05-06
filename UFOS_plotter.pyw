@@ -4,7 +4,6 @@
 from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
-# from Shared_ import *
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -66,8 +65,6 @@ class PlotClass:
         elif self.o3_mode == 'spectr':
             self.point = '-'
         # Calc ozone
-        # self.o3_1 = 0
-        # self.o3_2 = 0
         self.o3 = {}
         self.uvs_or_o3['ZD'] = {}
         self.confZ = self.var_settings['calibration']['nm(pix)']['Z']
@@ -262,8 +259,6 @@ class PlotClass:
             conf = self.confZ
             if self.data['channel'].count('S') > 0:
                 conf = self.confS
-            #            if self.data['channel'].count('Z')>0:
-            #                conf = self.confZ
             self.ax.set_ylabel('mWt/m^2*nm')
             if self.var_with_sens:  # Use sensitivity
                 new_spectr = []
@@ -412,7 +407,7 @@ def make_list():
             disks.append(os.getcwd()[:1])
         except:
             pass
-    return (tuple(disks))
+    return tuple(disks)
 
 
 def bit_change():
@@ -540,8 +535,6 @@ def plot_spectr(*event):
             start.data['expo'],
             start.data['accumulate']))
     currnt_data.configure(text=data)
-    #    start.x = range(len(start.data['spectr']))
-    #    start.y = start.data['spectr']
     start.x2 = range(len(start.spectrum))
     start.y2 = start.spectrum
     start.plot(path)
