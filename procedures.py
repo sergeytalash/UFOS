@@ -6,7 +6,7 @@ from tkinter import NORMAL, Menu
 import serial
 import time
 import datetime
-import winreg
+
 import os
 import sys
 import json
@@ -16,6 +16,14 @@ import base64
 # import asyncio
 import queue as queue_th
 from select import select
+
+if os.name != 'posix':
+    import winreg
+    p_sep = '\\'
+else:
+    p_sep = '/'
+    pass
+
 
 
 # Увеличить степени полиномов (DONE: unlimited)
@@ -555,7 +563,7 @@ def sumarize(a):
 
 
 def read_nomographs(home, dev_id, o3_num):
-    filename = 'Ufos_{0}\\Settings\\nomograph{0}_{1}.txt'.format(dev_id, o3_num)
+    filename = os.path.join('Ufos_{}'.format(dev_id), 'Settings', 'nomograph{}_{}.txt'.format(dev_id, o3_num))
     ozone_list = []
     r12_list = []
     mueff_list = []
@@ -657,13 +665,13 @@ def erithema(x, c):
 
 
 def read_sensitivity(path, ufos_id):
-    with open(os.path.join(path, 'Ufos_{0}\\Settings\\sensitivity{0}.txt'.format(ufos_id))) as f:
+    with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', 'sensitivity{}.txt'.format(ufos_id))) as f:
         sens = f.readlines()
     return [float(i.strip()) for i in sens if i.strip()]
 
 
 def read_sensitivity_eritem(path, ufos_id):
-    with open(os.path.join(path, 'Ufos_{0}\\Settings\\senseritem{0}.txt'.format(ufos_id))) as f:
+    with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', 'senseritem{}.txt'.format(ufos_id))) as f:
         sens = f.readlines()
     return [float(i.strip()) for i in sens if i.strip()]
 
@@ -789,24 +797,25 @@ class UfosConnection:
         self.to = to  # Time out (s)
 
     def get_com(self):
-        try:
-            registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
-            for i in range(255):
-                name, value, typ = winreg.EnumValue(registry_key, i)
-                if name.count('Silab') > 0:
-                    self.opened_serial = serial.Serial(port='//./' + value,
-                                                       baudrate=self.br,
-                                                       bytesize=self.bs,
-                                                       parity=self.par,
-                                                       stopbits=self.sb,
-                                                       timeout=self.to)
-                    self.opened_serial.close()
-                    return {'com_number': value, 'com_obj': self.opened_serial}
-            pass
-        except WindowsError:
-            text = "Кабель не подключен к ПК!                   "
-            print(text, end='\r')
-            self.logger.error(text)
+        if os.name != 'posix':
+            try:
+                registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
+                for i in range(255):
+                    name, value, typ = winreg.EnumValue(registry_key, i)
+                    if name.count('Silab') > 0:
+                        self.opened_serial = serial.Serial(port='//./' + value,
+                                                           baudrate=self.br,
+                                                           bytesize=self.bs,
+                                                           parity=self.par,
+                                                           stopbits=self.sb,
+                                                           timeout=self.to)
+                        self.opened_serial.close()
+                        return {'com_number': value, 'com_obj': self.opened_serial}
+                pass
+            except WindowsError:
+                text = "Кабель не подключен к ПК!                   "
+                print(text, end='\r')
+                self.logger.error(text)
 
 
 class CalculateOnly:

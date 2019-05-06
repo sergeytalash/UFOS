@@ -5,12 +5,18 @@ from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
 import numpy as np
+from shutil import copy
+import gc
+
+from sys import platform as sys_pf
+if sys_pf == 'darwin':
+    import matplotlib
+    matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import MultipleLocator
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from shutil import copy
-import gc
+
 from procedures import *
 
 
@@ -390,7 +396,11 @@ def plot_more():
 
 def set_disk_but(event):
     global path
-    path = disks[disk_list.current()] + ':\\'
+    if os.name != 'posix':
+        path = disks[disk_list.current()] + ':\\'
+    else:
+        path = p_sep
+    print(path)
     drive = path
     only_draw_dirs()
     refresh_txtlist(path)
@@ -398,15 +408,18 @@ def set_disk_but(event):
 
 def make_list():
     global disks
-    alp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-           'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-    disks = []
-    for i in alp:
-        try:
-            os.chdir(i + ':\\')
-            disks.append(os.getcwd()[:1])
-        except:
-            pass
+    if os.name == 'posix':
+        disks = '/'
+    else:
+        alp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+               'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        disks = []
+        for i in alp:
+            try:
+                os.chdir(i + ':\\')
+                disks.append(os.getcwd()[:1])
+            except:
+                pass
     return tuple(disks)
 
 
@@ -610,8 +623,8 @@ def only_draw_dirs():
     for i in new_dirs:
         if os.path.isdir(os.path.join(path, i)):
             dirs_list.insert(END, i)
-    t = path.split('\\')
-    t2 = t[0] + '\\'
+    t = path.split(p_sep)
+    t2 = t[0] + p_sep
     last_dir.append(t2)
     i = 1
     while i < len(t) - 1:
@@ -647,7 +660,7 @@ def dir_list(set_dir):
     dir_list.dirs_window.title('Каталог')
     dir_list.dirs_window.protocol('WM_DELETE_WINDOW', dirs_window_destroy)
     geom = root.geometry().split('+')
-    AxB = '150x320+'
+    AxB = '200x320+'
     da, db = 25, 65
     dir_list.dirs_window.geometry('{0}{1}+{2}'.format(AxB, int(geom[1]) + da, int(geom[2]) + db))
     dir_list.dirs_window.resizable(False, False)
@@ -856,7 +869,7 @@ def make_o3file():
         else:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
-{}\\Ufos_{}\\Mesurements?)""".format(home, start.var_settings['device']['id'])
+{0}{1}Ufos_{2}\{1}Mesurements?)""".format(home, p_sep, start.var_settings['device']['id'])
 
     else:  # Пересчёт
         mean_file = 0
@@ -979,7 +992,10 @@ if __name__ == '__main__':
     tmp_path = home
     common_pars = Settings.get_common(home)
     var_settings = Settings.get_device(home, common_pars['device']['id'])
-    drive = os.getcwd()[:3]
+    if os.name != 'posix':
+        drive = os.getcwd()[:3]
+    else:
+        drive = p_sep
     path2 = ''
     plotx, ploty = change_geometry(root)
     o3min = 200

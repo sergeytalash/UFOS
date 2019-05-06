@@ -5,6 +5,10 @@ import json
 import sys
 sys.path.append('../')
 import UFOS_plotter
+if os.name == 'posix':
+    p_sep = '/'
+else:
+    p_sep = '\\'
 
 
 from procedures import *
@@ -23,7 +27,7 @@ def print_name(*args):
 def get_tests_dir():
     path = os.path.basename(os.getcwd())
     if path == 'UFOS':
-        tests_dir = 'tests\\'
+        tests_dir = 'tests' + p_sep
     elif path == 'tests':
         tests_dir = ''
     return tests_dir
@@ -56,7 +60,7 @@ class TestProcedures(unittest.TestCase):
 
     def test_finalfile_save_a(self):
         init = UFOS_plotter.FinalFile(settings(), '.', True, '')
-        ozone_file = '{}Ufos_14\\Ozone\\2018\\2018-12\\New_m14_Ozone_20181203.txt'.format(get_tests_dir())
+        ozone_file = os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12', 'New_m14_Ozone_20181203.txt')
         if os.path.exists(ozone_file):
             os.remove(ozone_file)
         self.assertEqual(init.save(settings(), get_tests_dir(), 'ZD',
@@ -180,7 +184,7 @@ class TestProcedures(unittest.TestCase):
         # self.assertEqual(out.items(), ["1", "2"])
 
     def test_finalfile_save_b_file_is_correct(self):
-        with open('{}Ufos_14\\Ozone\\2018\\2018-12\\New_m14_Ozone_20181203.txt'.format(get_tests_dir())) as fr:
+        with open(os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12', 'New_m14_Ozone_20181203.txt')) as fr:
             d = fr.readlines()
             self.assertEqual(d[0],
                              'DatetimeUTC;DatetimeLocal;Sunheight[°];OzoneP1[D.u.];CorrectP1;OzoneP2[D.u.];CorrectP2\n')

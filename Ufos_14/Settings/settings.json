@@ -126,8 +126,8 @@
     "mu_effect_1": 2,
     "mu_effect_2": 2,
     "pix+-": 2,
-    "visible_sunheight_max": 20,
-    "visible_sunheight_min": 10
+    "visible_sunheight_max": 30,
+    "visible_sunheight_min": 5
   },
   "channel_names": {
     "D": "D",
