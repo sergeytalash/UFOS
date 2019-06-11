@@ -1,9 +1,10 @@
 import os
+from os.path import split as p_split
 import json
 import numpy as np
 import datetime
-from sys import path as sys_path
 
+import procedures
 from procedures import Settings
 
 
@@ -82,8 +83,6 @@ def convert_file(directory, file, new_data_example, pars):
                         new_data[key].update(text[key])
                     count_pars += 8
                 break
-
-        ##                            print(file)
         print(',', end='')
         _next = ''
         if count_pars != 16:
@@ -104,7 +103,6 @@ def convert_file(directory, file, new_data_example, pars):
                                                     new_data["mesurement"]["channel"],
                                                     new_data["mesurement"]["datetime"].replace(':', '').replace(' ', '')
                                                     )
-        ##        path = os.getcwd()
         path = home
         for i in dirs:
             path = os.path.join(path, str(i))
@@ -127,70 +125,68 @@ def change_channel(_in, file, files):
         return out
 
 
-# home = os.getcwd()
-home = [i for i in sys_path if i.endswith("UFOS")][0]
-pars = Settings.get_device(home, Settings.get_common(home).get('device').get('id'))
-new_data_example = {
-    "calculated": {
-        "amas": 0,
-        "dispersia": 0,
-        "mean": 0,
-        "mu": 0,
-        "sko": 0,
-        "sunheight": 0
-        },
-    "id": {
-        "device": 0,
-        "station": ""
-        },
-    "mesurement": {
-        "accummulate": 0,
-        "channel": "",
-        "datetime": "",
-        "datetime_local": "",
-        "exposition": 0,
-        "latitude": 0,
-        "longitude": 0,
-        "timezone": "+0",
-        "temp_polychromator": 0,
-        "temp_ccd": 0
-        },
-    "spectr": []
-    }
+if __name__ == "__main__":
+    home = p_split(p_split(os.getcwd())[0])[0]
+    pars = Settings.get_device(home, Settings.get_common(home).get('device').get('id'))
+    new_data_example = {
+        "calculated": {
+            "amas": 0,
+            "dispersia": 0,
+            "mean": 0,
+            "mu": 0,
+            "sko": 0,
+            "sunheight": 0
+            },
+        "id": {
+            "device": 0,
+            "station": ""
+            },
+        "mesurement": {
+            "accummulate": 0,
+            "channel": "",
+            "datetime": "",
+            "datetime_local": "",
+            "exposition": 0,
+            "latitude": 0,
+            "longitude": 0,
+            "timezone": "+0",
+            "temp_polychromator": 0,
+            "temp_ccd": 0
+            },
+        "spectr": []
+        }
 
-ch = input('Обработать даты, заданные в файле Calibration_dates.txt [1] или ВСЕ даты [2]? [1,2] ')
-if ch == '1':
-    with open(os.path.join("Calibration_files", "Calibration_dates.txt")) as f:
-        dates = f.readlines()
-    date_find = []
-    for i in dates:
-        date_find.append(i.split()[0])
-    for date in date_find:
-        d = date.split('.')
-        directory = os.path.join(home, "ZEN", str(d[0]), str(d[1]), str(d[2]))
-        print(directory)
-        if os.path.isdir(directory):
-            mesure_count = 1
-            current_channels = set()
-            files = sorted(os.listdir(directory))
-            for file in files:
-                if '.txt' in file and 'm' == file[0] and '_' in file:
-                    convert_file(directory, file, new_data_example, pars)
-
-# ====================================================================
-if ch == '2':
-    for directory, a, files in os.walk(home):
-        if directory.count('ZEN') > 0:
-            d1 = directory.split('ZEN')
-            d2 = d1[-1].replace('\\', '.')
-            d2 = d2[1:]  # 2015.03.19          
-            if len(d2) == 10:
-                ##                print('.',end='')
-                print(d2)
+    ch = input('Обработать даты, заданные в файле Calibration_dates.txt [1] или ВСЕ даты [2]? [1,2] ')
+    if ch == '1':
+        with open(os.path.join("Calibration_files", "Calibration_dates.txt")) as f:
+            dates = f.readlines()
+        date_find = []
+        for i in dates:
+            date_find.append(i.split()[0])
+        for date in date_find:
+            d = date.split('.')
+            directory = os.path.join(home, "ZEN", str(d[0]), str(d[1]), str(d[2]))
+            print("\n" + directory)
+            if os.path.isdir(directory):
                 mesure_count = 1
                 current_channels = set()
+                files = sorted(os.listdir(directory))
                 for file in files:
-                    if '.txt' in file and 'm' in file and '_' in file:
+                    if '.txt' in file and 'm' == file[0] and '_' in file:
                         convert_file(directory, file, new_data_example, pars)
 
-print('Done.')
+    # ====================================================================
+    if ch == '2':
+        for directory, a, files in os.walk(os.path.join(home, 'ZEN')):
+            if directory.count('ZEN') > 0:
+                d1 = directory.split('ZEN')
+                current_date = d1[-1].replace(procedures.p_sep, '.')[1:]  # 2015.03.19
+                if len(current_date) == 10:
+                    print("\n{}".format(current_date))
+                    mesure_count = 1
+                    current_channels = set()
+                    for file in files:
+                        if '.txt' in file and 'm' in file and '_' in file:
+                            convert_file(directory, file, new_data_example, pars)
+
+    print('Done.')
