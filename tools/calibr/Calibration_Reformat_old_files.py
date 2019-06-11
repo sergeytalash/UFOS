@@ -165,7 +165,7 @@ if __name__ == "__main__":
             date_find.append(i.split()[0])
         for date in date_find:
             d = date.split('.')
-            directory = os.path.join(home, "ZEN", str(d[0]), str(d[1]), str(d[2]))
+            directory = os.path.join(*((home, "ZEN") + tuple(d)))
             print("\n" + directory)
             if os.path.isdir(directory):
                 mesure_count = 1
@@ -182,11 +182,11 @@ if __name__ == "__main__":
                 d1 = directory.split('ZEN')
                 current_date = d1[-1].replace(procedures.p_sep, '.')[1:]  # 2015.03.19
                 if len(current_date) == 10:
-                    print("\n{}".format(current_date))
+                    print("\n{}".format(directory))
                     mesure_count = 1
                     current_channels = set()
                     for file in files:
                         if '.txt' in file and 'm' in file and '_' in file:
                             convert_file(directory, file, new_data_example, pars)
 
-    print('Done.')
+    print('\nDone.')
