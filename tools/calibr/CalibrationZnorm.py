@@ -20,6 +20,9 @@ from tkinter import *
 from tkinter import ttk
 import numpy as np
 import matplotlib.pyplot as plt
+
+settings_home = p_split(p_split(os.getcwd())[0])[0]
+sys_path.insert(0, settings_home)
 import procedures
 from procedures import Settings
 
@@ -459,10 +462,7 @@ class GUI():
 
 
 if __name__ == "__main__":
-    settings_home = p_split(p_split(os.getcwd())[0])[0]
-    sys_path.insert(0, settings_home)
     pars = Settings.get_device(settings_home, Settings.get_common(settings_home).get('device').get('id'))
-
     calc = Calc()
     dates = calc.get_dates()
     calc.get_filenames()

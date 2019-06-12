@@ -3,7 +3,10 @@ from os.path import split as p_split
 import json
 import numpy as np
 import datetime
+from sys import path as sys_path
 
+settings_home = p_split(p_split(os.getcwd())[0])[0]
+sys_path.insert(0, settings_home)
 import procedures
 from procedures import Settings
 
