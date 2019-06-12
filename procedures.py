@@ -1433,7 +1433,7 @@ class Main:
         if 'OK' in t:
             return 'OK'
         else:
-            print('procedures.sock_send(): {} - line {}'.format(err, sys.exc_info()[2].tb_lineno))
+            print('No connection to server')
             return 'ERR'
 
     def send_file(self, file2send):
