@@ -29,14 +29,14 @@
     },
     "nm(pix)": {
       "S": [
-        "3.23553847*10**-8",
-        "0.0393587546",
-        "272.703981"
+        "-5*10**-8",
+        "0.0403286",
+        "270.063388"
       ],
       "Z": [
-        "7.454057229*10**-8",
-        "0.03923741803",
-        "273.905099"
+        "1*10**-8",
+        "0.03999413",
+        "269.3139"
       ]
     },
     "pix_interval": 51,
@@ -72,7 +72,7 @@
       "mu_start": 1,
       "mu_step": 0.05
     },
-    "sigma_count": 2,
+    "sigma_count": 3,
     "sko_D": 100,
     "sko_ZaD": 100,
     "uva_koef": 1,
@@ -80,8 +80,8 @@
     "uve_koef": 1
   },
   "calibration2": {
-    "coorect_mu_eff_end": 3,
-    "coorect_mu_eff_start": 2,
+    "coorect_mu_eff_end": 12,
+    "coorect_mu_eff_start": 1,
     "description": {
       "kzLarger1": "List of coefficients. Can be unlimited",
       "kzLarger2": "List of coefficients. Can be unlimited",
@@ -128,8 +128,8 @@
     "mu_effect_1": 2,
     "mu_effect_2": 2,
     "pix+-": 2,
-    "visible_sunheight_max": 20,
-    "visible_sunheight_min": 10
+    "visible_sunheight_max": 40,
+    "visible_sunheight_min": 15
   },
   "channel_names": {
     "D": "D",

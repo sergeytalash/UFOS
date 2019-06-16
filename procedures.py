@@ -422,8 +422,14 @@ class Correction:
 
     @staticmethod
     def collect_data(data, pars):
-        """Collect data with First correction"""
+        """
+        Collect data with First correction
+        :param data: List of o3 in CSV format (20190518 02:14:04;20190518 05:14:04;5.1;431;0;386;0)
+        :param pars: Settings dict
+        :return: o3s_k, lines_arr_raw_to_file
+        """
         sh_previous = 0
+        sh_correction_on = True
         lines_arr_raw_to_file = []
         o3s_k = {"1": {"all": {"o3": [], "k": []},
                        "morning": {"o3": [], "k": []},
@@ -438,17 +444,17 @@ class Correction:
             line_arr = line_raw.split(';')
             lines_arr_raw_to_file.append(line_arr)
             sh = float(line_arr[2])
-            sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2'][
-                'visible_sunheight_max']
+            # print([pars['calibration2']['visible_sunheight_min'], sh, pars['calibration2']['visible_sunheight_max']])
+            sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2']['visible_sunheight_max']
             if sh_previous <= sh:
                 part_of_day = "morning"
             else:
                 part_of_day = "evening"
             sh_previous = sh
             current_o3 = {"1": int(line_arr[3]), "2": int(line_arr[5])}
-            sh_correction_on = True
             if sh_correction_on:
                 corrects = {"1": int(line_arr[4] if sh_condition else 0), "2": int(line_arr[6] if sh_condition else 0)}
+                # print(corrects)
             else:
                 corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
             for pair in ["1", "2"]:
@@ -479,10 +485,11 @@ class Correction:
                     for o3, k in zip(o3s_k1[pair][part_of_day]['o3'], o3s_k1[pair][part_of_day]['k']):
                         if k == 1:
                             o3_corrected.append(o3)
-                    o3s_k2[pair][part_of_day]['k'], o3s_k2[pair][part_of_day]["sigma"], o3s_k2[pair][part_of_day][
-                        "mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
-                                                           o3_corrected,
-                                                           self.pars)
+                    o3s_k2[pair][part_of_day]['k'], \
+                    o3s_k2[pair][part_of_day]["sigma"], \
+                    o3s_k2[pair][part_of_day]["mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
+                                                                                 o3_corrected,
+                                                                                 self.pars)
                     # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
                     o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
                                                       zip(o3s_k1[pair][part_of_day]["k"],
@@ -507,11 +514,13 @@ class Correction:
 
 def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag):
     """
-    pars - parameters
-    source - source to read
-    mode - "ZD" or "SD"
-    write_daily_file - True or False - allow to write file with mean ozone, else just calculate
-    data_source_flag - "file" or "calculate" - select source of data: read from file or get ozone from variable
+
+    :param pars: parameters
+    :param source: source to read (Filename or Data)
+    :param mode: "ZD" or "SD"
+    :param write_daily_file: Allow writing file with mean ozone, else just calculate (True or False)
+    :param data_source_flag: Select source of data: read from file or get ozone from variable ("file" or "calculate")
+    :return:
     """
     perform_second_correction = True
     all_data = []
@@ -664,16 +673,22 @@ def erithema(x, c):
     return a
 
 
-def read_sensitivity(path, ufos_id):
-    with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', 'sensitivity{}.txt'.format(ufos_id))) as f:
-        sens = f.readlines()
-    return [float(i.strip()) for i in sens if i.strip()]
+def read_sensitivity(path, ufos_id, mode):
+    """
 
-
-def read_sensitivity_eritem(path, ufos_id):
-    with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', 'senseritem{}.txt'.format(ufos_id))) as f:
+    :param path: Home dir
+    :param ufos_id: UFOS Id from common_settings
+    :param mode: "sensitivity", "senseritem", "sensitivityZen"
+    :return: list of float values
+    """
+    with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', '{}{}.txt'.format(mode, ufos_id))) as f:
         sens = f.readlines()
-    return [float(i.strip()) for i in sens if i.strip()]
+        out = [float(i.strip()) for i in sens if i.strip()]
+        if len(out) == 3691:
+            return out
+        else:
+            print("Check {}{}.txt file. There are only {} lines".format(mode, ufos_id, len(out)))
+            return [1]*3691
 
 
 def nm2pix(nm, configure2, add):
@@ -1116,8 +1131,8 @@ class Main:
         self.pars = pars
         self.home = home
         self.connect_pars = read_connect(self.home)
-        self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'])
-        self.sensitivity_eritem = read_sensitivity_eritem(self.home, self.pars['device']['id'])
+        self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'], "sensitivity")
+        self.sensitivity_eritem = read_sensitivity(self.home, self.pars['device']['id'], "senseritem")
         self.time_now = datetime.datetime.now()
         self.time_now_local = self.time_now + datetime.timedelta(
             hours=int(self.pars["station"]["timezone"]))  # Local Datetime

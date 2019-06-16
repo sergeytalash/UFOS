@@ -9,8 +9,10 @@ from shutil import copy
 import gc
 
 from sys import platform as sys_pf
+
 if sys_pf == 'darwin':
     import matplotlib
+
     matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -32,12 +34,22 @@ def canvs_destroy(canvs):
 
 
 class PlotClass:
-    def __init__(self, window, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all, var_with_sens):
+    def __init__(self, window, o3_mode, plotx, ploty, recalculate_value, show_all, use_sensitivity):
+        """
+
+        :param window: ttk.Frame where graph is created
+        :param o3_mode: Mode of measurements ('spectr', 'ozone', 'uva', 'uvb', 'uve')
+        :param plotx: Width of picture in pixels
+        :param ploty: Height of picture in pixels
+        :param recalculate_value: Read measured files (1 or 0)
+        :param show_all: Show all calculated values, ignore correction filters (1 or 0)
+        :param use_sensitivity: Use sensitivity (1 or 0)
+        """
         global timer
         global canvs
-        self.chk_show_all = chk_show_all
-        self.var_with_sens = var_with_sens
-        self.chk_read_file_get = chk_read_file_get
+        self.show_all = show_all
+        self.use_sensitivity = use_sensitivity
+        self.recalculate_value = recalculate_value
         self.common_pars = Settings.get_common(home)
         self.var_settings = Settings.get_device(home, self.common_pars['device']['id'])
         self.plotx = plotx
@@ -88,8 +100,8 @@ class PlotClass:
         self.curr_o3_dict = {'uva': [2, p_uva1, p_uva2],
                              'uvb': [3, p_uvb1, p_uvb2],
                              'uve': [4, p_uve1, p_uve2]}
-        self.sensitivity = read_sensitivity(home, self.var_settings['device']['id'])
-        self.sensitivity_eritem = read_sensitivity_eritem(home, self.var_settings['device']['id'])
+        self.sensitivity = read_sensitivity(home, self.var_settings['device']['id'], "sensitivity")
+        self.sensitivity_eritem = read_sensitivity(home, self.var_settings['device']['id'], "senseritem")
         self.confS = self.var_settings['calibration']['nm(pix)']['S']
 
     def calc_ozon(self):
@@ -102,13 +114,15 @@ class PlotClass:
                                                        self.prom,
                                                        self.data['mu'],
                                                        self.var_settings, home, pair)
-        self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"], 'o3_2': self.o3["2"], 'correct_1': correct["1"],
+        self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"],
+                                'o3_2': self.o3["2"],
+                                'correct_1': correct["1"],
                                 'correct_2': correct["2"]}
         if self.o3_mode != 'spectr':
-            if self.chk_show_all or correct["1"] == 1:
+            if self.show_all or correct["1"] == 1:
                 self.x1.append(self.data['datetime'])
                 self.y1.append(self.o3["1"])
-            if self.chk_show_all or correct["2"] == 1:
+            if self.show_all or correct["2"] == 1:
                 self.x2.append(self.data['datetime'])
                 self.y2.append(self.o3["2"])
 
@@ -119,15 +133,16 @@ class PlotClass:
         ultraviolet = 0
         try:
             if uv_mode in ['uva', 'uvb']:
-                if self.var_with_sens:
+                if self.use_sensitivity:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]) * np.array(self.sensitivity[p1:p2]))
                 else:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]))
             elif uv_mode == 'uve':
-                if self.var_with_sens:
-                    ultraviolet = sum(
-                        [float(self.spectrum[i]) * self.sensitivity_eritem[i] * self.sensitivity[i] for i in
-                         range(p1, p2, 1)])
+                if self.use_sensitivity:
+                    ultraviolet = sum([float(self.spectrum[i]) *
+                                       self.sensitivity_eritem[i] *
+                                       self.sensitivity[i] for i in range(p1, p2, 1)]
+                                      )
                 else:
                     ultraviolet = sum([float(self.spectrum[i]) * self.sensitivity_eritem[i] for i in range(p1, p2, 1)])
 
@@ -175,10 +190,9 @@ class PlotClass:
             line = '1'
             while line:
                 if line.count('time') > 0:
-                    new_data['channel'] = line.split(' = ')[1].split(',')[0]
-                    new_data['datetime'] = datetime.datetime.strptime('{} {}'.format(line.split(' = ')[2].split(',')[0],
-                                                                                     line.split(' = ')[3].strip()
-                                                                                     ),
+                    tmp = line.split(' = ')
+                    new_data['channel'] = tmp[1].split(',')[0]
+                    new_data['datetime'] = datetime.datetime.strptime('{} {}'.format(tmp[2].split(',')[0], tmp[3].strip()),
                                                                       '%d.%m.%Y %H:%M:%S')
                 elif line.count('Exposure') > 0:
                     new_data['expo'] = int(line.split('=')[1])
@@ -266,12 +280,14 @@ class PlotClass:
             if self.data['channel'].count('S') > 0:
                 conf = self.confS
             self.ax.set_ylabel('mWt/m^2*nm')
-            if self.var_with_sens:  # Use sensitivity
+            if self.use_sensitivity:  # Use sensitivity
                 new_spectr = []
                 for i in range(len(self.spectrum)):
                     new_spectr.append(
-                        self.spectrum[i] * self.sensitivity[i] * var_settings['device']['graduation_expo'] / self.data[
-                            'expo'])
+                        self.spectrum[i] *
+                        self.sensitivity[i] *
+                        var_settings['device']['graduation_expo'] /
+                        self.data['expo'])
                 self.spectrum = new_spectr
             self.ax.plot([pix2nm(conf, i, 3, 0) for i in range(len(self.spectrum))], self.spectrum, self.point,
                          color='k')
@@ -335,17 +351,17 @@ class PlotClass:
         canvas.draw()
 
 
-def send_all_files_plotter():
-    lab_err.configure(text='')
-    root.update()
-    for i in os.listdir(path):
-        if i.find('-D') != -1:
-            file2send = os.path.join(path, i)
-            tex = send_files(home, file2send)
-            if tex != 'OK':
-                print(tex)
-            lab_err.configure(text=i + tex)
-            root.update()
+# def send_all_files_plotter():
+#     lab_err.configure(text='')
+#     root.update()
+#     for i in os.listdir(path):
+#         if i.find('-D') != -1:
+#             file2send = os.path.join(path, i)
+#             tex = send_files(home, file2send)
+#             if tex != 'OK':
+#                 print(tex)
+#             lab_err.configure(text=i + tex)
+#             root.update()
 
 
 def check_code(*event):
@@ -367,7 +383,7 @@ def obj_grid():
     c = 0
     admin_panel.grid(row=r, column=c, sticky='nwe')
     but_annual_ozone.configure(command=lambda: AnnualOzone(home, ent_year.get(), start, root, but_annual_ozone).run())
-    if not chk_var_read_file.get():
+    if not var_recalculate_source_files.get():
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
     for i in admin_menu_obj:
@@ -732,9 +748,9 @@ def make_o3file():
             pass
         return txtfiles
 
-    chk_read_file_get = chk_var_read_file.get()
-    chk_show_all_get = chk_var_show_all.get()
-    chk_show_correct1_get = chk_var_show_correct1.get()
+    recalculate_source_files_value = var_recalculate_source_files.get()
+    show_all_value = var_show_all.get()
+    show_correct1_value = chk_var_show_correct1.get()
     canvs_destroy(canvs)
     try:
         dir_list.dirs_window.destroy()
@@ -771,8 +787,8 @@ def make_o3file():
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
     mean_file = 0
-    start = PlotClass(right_panel, o3_mode, plotx, ploty, chk_read_file_get, chk_show_all_get, chk_var_with_sens.get())
-    if chk_read_file_get == 0:  # Чтение из файла
+    start = PlotClass(right_panel, o3_mode, plotx, ploty, recalculate_source_files_value, show_all_value, chk_var_with_sens.get())
+    if recalculate_source_files_value == 0:  # Чтение из файла
         column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
         # datetime_index = 0 # UTC
         datetime_index = 1  # Local time
@@ -787,7 +803,7 @@ def make_o3file():
         file = os.path.join(directory, name0)
         if mode == 'Ozone':
             # Mean file
-            if chk_show_correct1_get == 0:
+            if show_correct1_value == 0:
                 mean_file = 1
                 name = 'mean_' + name0
                 file = os.path.join(directory, name)
@@ -796,7 +812,7 @@ def make_o3file():
                     name = 'mean_New_' + name0
                     file = os.path.join(directory, name)
             # Common file
-            elif chk_show_correct1_get == 1:
+            elif show_correct1_value == 1:
                 mean_file = 0
                 name = name0
                 file = os.path.join(directory, name)
@@ -831,17 +847,17 @@ def make_o3file():
                         if use_correct:
                             if column['ozone'] == [-4, -2]:
                                 if "1" in show_ozone_pairs:
-                                    if int(line_arr[-1]) or chk_show_all_get:
+                                    if int(line_arr[-1]) or show_all_value:
                                         start.x1.append(
                                             datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                         start.y1.append(int(line_arr[column[o3_mode][0]]))
                                 if "2" in show_ozone_pairs:
-                                    if int(line_arr[-1]) or chk_show_all_get:
+                                    if int(line_arr[-1]) or show_all_value:
                                         start.x2.append(
                                             datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                         start.y2.append(int(line_arr[column[o3_mode][1]]))
                             if column['ozone'] == -2:
-                                if int(line_arr[-1]) or chk_show_all_get:
+                                if int(line_arr[-1]) or show_all_value:
                                     start.x2.append(
                                         datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                     start.y2.append(int(line_arr[column[o3_mode]]))
@@ -966,7 +982,7 @@ def make_o3file():
     for i in buttons:
         i.configure(state=NORMAL)
 
-    if not chk_read_file_get:
+    if not recalculate_source_files_value:
         but_save_to_final_file.configure(state=DISABLED)
         but_make_mean_file.configure(state=DISABLED)
 
@@ -1019,14 +1035,14 @@ if __name__ == '__main__':
     curr_o3 = [0, 0, 0, 0, 0]
 
     try:
-        ome = read_sensitivity(home, var_settings['device']['id'])  # Чувствительность прибора
+        ome = read_sensitivity(home, var_settings['device']['id'], "sensitivity")  # Чувствительность прибора
     except Exception as err:
         print(err)
         input('Чувствительность прибора УФОС sensitivity{} - не найдена в каталоге программы!'.format(
             var_settings['device']['id']))
         raise
     try:
-        ome = read_sensitivity_eritem(home, var_settings['device']['id'])  # Чувствительность прибора erithem
+        ome = read_sensitivity(home, var_settings['device']['id'], "senseritem")  # Чувствительность прибора erithem
     except Exception as err:
         print(err)
         input('Чувствительность прибора УФОС senseritem{} - не найдена в каталоге программы!'.format(
@@ -1061,12 +1077,12 @@ if __name__ == '__main__':
     chk_var_with_sens = IntVar()
     chk_var_with_sens.set(0)
     chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
-    chk_var_read_file = IntVar()
-    chk_var_read_file.set(0)
-    chk_read_file = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=chk_var_read_file)
-    chk_var_show_all = IntVar()
-    chk_var_show_all.set(0)
-    chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=chk_var_show_all)
+    var_recalculate_source_files = IntVar()
+    var_recalculate_source_files.set(0)
+    chk_recalculate_source_files = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=var_recalculate_source_files)
+    var_show_all = IntVar()
+    var_show_all.set(0)
+    chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=var_show_all)
     chk_var_show_correct1 = IntVar()
     chk_var_show_correct1.set(1)
     chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Корр 1 исходный файл', variable=chk_var_show_correct1)
@@ -1088,7 +1104,7 @@ if __name__ == '__main__':
     ent_year.insert(0, "2018")
     but_annual_ozone = ttk.Button(admin_panel, text='Сохранить озон за год')
 
-    admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_read_file, but_save_to_final_file,
+    admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_recalculate_source_files, but_save_to_final_file,
                       but_make_mean_file,
                       rad_4096, rad_ytop, but_plot_more, but_remake,
                       # but_send
@@ -1169,7 +1185,7 @@ if __name__ == '__main__':
 
     # Скрыть следующие кнопки
     common = [rad_4096, rad_ytop, but_plot_more, but_remake]
-    sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake, chk_read_file,
+    sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake, chk_recalculate_source_files,
                      but_save_to_final_file, but_make_mean_file]
 
     # Uncomment after debug will be finished
