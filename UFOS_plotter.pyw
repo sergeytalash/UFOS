@@ -513,7 +513,7 @@ def make_txt_list(directory):
                 pass
 
         file_list.delete(0, END)
-        for i in txtfiles:
+        for i in sorted(txtfiles):
             file_list.insert(END, i)
         file_list.selection_set(old_selection)
         file_list.see(old_selection)
@@ -1075,13 +1075,13 @@ if __name__ == '__main__':
 
     # Admin Menu
     chk_var_with_sens = IntVar()
-    chk_var_with_sens.set(0)
+    chk_var_with_sens.set(1)
     chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
     var_recalculate_source_files = IntVar()
     var_recalculate_source_files.set(0)
     chk_recalculate_source_files = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=var_recalculate_source_files)
     var_show_all = IntVar()
-    var_show_all.set(0)
+    var_show_all.set(1)
     chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=var_show_all)
     chk_var_show_correct1 = IntVar()
     chk_var_show_correct1.set(1)

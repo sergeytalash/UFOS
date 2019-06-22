@@ -295,7 +295,7 @@ class AnnualOzone:
             #if self.type_of_parallel == 'asyncio':
                 # Asyncio
                 #queue = asyncio.Queue()
-            elif self.type_of_parallel == 'threading':
+            if self.type_of_parallel == 'threading':
                 # Threading
                 queue_th_input = queue_th.Queue()
                 queue_th_output = queue_th.Queue()
