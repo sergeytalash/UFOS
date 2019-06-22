@@ -94,6 +94,8 @@ class PlotClass:
         self.y2 = []
         self.x1 = []
         self.x2 = []
+        # self.sh1 = []
+        # self.sh2 = []
         # Calc UV
         self.uv = 0
         self.uvs_or_o3['SD'] = {}
@@ -122,9 +124,11 @@ class PlotClass:
             if self.show_all or correct["1"] == 1:
                 self.x1.append(self.data['datetime'])
                 self.y1.append(self.o3["1"])
+                # self.sh1.append(self.data["calculated"]["sunheight"])
             if self.show_all or correct["2"] == 1:
                 self.x2.append(self.data['datetime'])
                 self.y2.append(self.o3["2"])
+                # self.sh2.append(self.data["calculated"]["sunheight"])
 
     def calc_uv(self, uv_mode, add_point):
         p1 = self.curr_o3_dict[uv_mode][1]
@@ -330,12 +334,20 @@ class PlotClass:
             # ===================================================
             for x_mas, y_mas, color in zip([self.x1, self.x2], [self.y1, self.y2], ['blue', 'green']):
                 if y_mas:
-                    tmp = []
-                    for i in y_mas:
-                        if i < 0:
-                            i = 0
-                        tmp.append(i)
-                    y_mas = tmp
+                    tmp_y = []
+                    tmp_x = []
+                    # print([_sh])
+                    for x, y in zip(x_mas, y_mas):
+                        if y < 0:
+                            y = 0
+                        # print([var_settings["calibration2"]["visible_sunheight_min"],
+                        #        s,
+                        #        var_settings["calibration2"]["visible_sunheight_max"]])
+                        # if var_settings["calibration2"]["visible_sunheight_min"] < s < var_settings["calibration2"]["visible_sunheight_max"]:
+                        tmp_y.append(y)
+                        tmp_x.append(x)
+                    y_mas = tmp_y
+                    x_mas = tmp_x
                     self.ax.plot(x_mas, y_mas, self.point, color=color)
                     self.set_x_limit(x_mas, y_mas, min(x_mas), min(x_mas) + datetime.timedelta(hours=2),
                                      100,
@@ -971,6 +983,7 @@ def make_o3file():
     except Exception as err:
         print('plotter.make_o3file():', end='')
         print(err, sys.exc_info()[-1].tb_lineno)
+        raise err
 
     finally:
         lab_ozon.configure(text=tex)
@@ -1081,11 +1094,11 @@ if __name__ == '__main__':
     var_recalculate_source_files.set(0)
     chk_recalculate_source_files = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=var_recalculate_source_files)
     var_show_all = IntVar()
-    var_show_all.set(1)
+    var_show_all.set(0)
     chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=var_show_all)
     chk_var_show_correct1 = IntVar()
-    chk_var_show_correct1.set(1)
-    chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Корр 1 исходный файл', variable=chk_var_show_correct1)
+    chk_var_show_correct1.set(0)
+    chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Откл Корр 1', variable=chk_var_show_correct1)
     but_save_to_final_file = ttk.Button(admin_panel, text='Сохранить в файл')
     but_make_mean_file = ttk.Button(admin_panel, text='Сохранить в файл среднего')
     var_top = IntVar()

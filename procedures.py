@@ -412,6 +412,7 @@ class Correction:
             mean = int(np.mean(o3s_first_corrected))
             corrects = []
             for i in o3s:
+                # corrects.append('1')
                 if mean - sigma_count * sigma < i < mean + sigma_count * sigma:
                     corrects.append('1')
                 else:
@@ -429,7 +430,8 @@ class Correction:
         :return: o3s_k, lines_arr_raw_to_file
         """
         sh_previous = 0
-        sh_correction_on = True
+        # Sunheight correction
+        sh_correction_on = False
         lines_arr_raw_to_file = []
         o3s_k = {"1": {"all": {"o3": [], "k": []},
                        "morning": {"o3": [], "k": []},
@@ -444,7 +446,6 @@ class Correction:
             line_arr = line_raw.split(';')
             lines_arr_raw_to_file.append(line_arr)
             sh = float(line_arr[2])
-            # print([pars['calibration2']['visible_sunheight_min'], sh, pars['calibration2']['visible_sunheight_max']])
             sh_condition = pars['calibration2']['visible_sunheight_min'] < sh < pars['calibration2']['visible_sunheight_max']
             if sh_previous <= sh:
                 part_of_day = "morning"
@@ -454,13 +455,13 @@ class Correction:
             current_o3 = {"1": int(line_arr[3]), "2": int(line_arr[5])}
             if sh_correction_on:
                 corrects = {"1": int(line_arr[4] if sh_condition else 0), "2": int(line_arr[6] if sh_condition else 0)}
-                # print(corrects)
             else:
                 corrects = {"1": int(line_arr[4]), "2": int(line_arr[6])}
             for pair in ["1", "2"]:
                 for part_day in [part_of_day, 'all']:
                     o3s_k[pair][part_day]['o3'].append(current_o3[pair])
                     o3s_k[pair][part_day]["k"].append(corrects[pair])
+                    o3s_k[pair][part_day]["text"] = ""
         return o3s_k, lines_arr_raw_to_file
 
     def second_correction(self, o3s_k1):
@@ -491,9 +492,12 @@ class Correction:
                                                                                  o3_corrected,
                                                                                  self.pars)
                     # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
-                    o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
-                                                      zip(o3s_k1[pair][part_of_day]["k"],
-                                                          o3s_k2[pair][part_of_day]["k"])]
+                    # TODO: Repair mean/sigma correct condition
+                    # o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
+                    #                                   zip(o3s_k1[pair][part_of_day]["k"],
+                    #                                       o3s_k2[pair][part_of_day]["k"])]
+
+                    o3s_k2[pair][part_of_day]["k"] = o3s_k1[pair][part_of_day]["k"]
 
                     try:
                         text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(pair,
@@ -531,16 +535,15 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
             if data_source_flag == "file":
                 with open(source) as f:
                     all_data = f.readlines()
-                    data = all_data[1:]
+                    data = sorted(all_data[1:])
             elif data_source_flag == "calculate":
                 data = source
             if mode == "ZD":
-                # === First correction check (100 < o3 < 600) ===
+                # === First correction check (100 < o3 < 600) and sunheight values from parameters (15 < 40) ===
                 o3s_k1, lines_arr_raw_to_file = corr.collect_data(data, pars)
                 if perform_second_correction:
                     # === Second correction check ===
                     o3s_k2 = corr.second_correction(o3s_k1)
-                    # print(o3s_k2)
                     if write_daily_file is True and data_source_flag == "file":
                         with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
                             print(';'.join(all_data[:1]), file=f, end='')
@@ -548,7 +551,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                                                                 o3s_k2["2"]["all"]['k']):
                                 part1 = line[:-3]
                                 part2 = line[-2:-1]
-                                print(';'.join(part1 + [correct1] + part2 + [correct2]), file=f)
+                                print(';'.join(part1 + [str(correct1)] + part2 + [str(correct2)]), file=f)
                             print(o3s_k2['1']['all']['text'] + o3s_k2['2']['all']['text'], file=f)
                             print('2) Mean File Saved: {}'.format(
                                 os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
@@ -783,7 +786,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     except Exception as err:
         print('Plotter: {} (line: {})'.format(err, sys.exc_info()[-1].tb_lineno))
         o3 = -1
-    if 100 <= o3 <= 600 and correct_mu_eff_start <= mueff <= correct_mu_eff_end:
+    if 100 <= o3 <= 600: # and correct_mu_eff_start <= mueff <= correct_mu_eff_end:
         correct = 1
     else:
         correct = 0
