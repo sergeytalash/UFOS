@@ -9,10 +9,8 @@ from shutil import copy
 import gc
 
 from sys import platform as sys_pf
-
 if sys_pf == 'darwin':
     import matplotlib
-
     matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates

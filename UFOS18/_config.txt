@@ -1,0 +1,6 @@
+nm_srednee = 1
+nm1 = 312
+nm2 = 332
+nm3 = 332
+nm4 = 352
+mu_max = 12
