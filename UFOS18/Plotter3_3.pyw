@@ -5,7 +5,6 @@ from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
 from math import *
-from UFOS18.Shared_ import *
 
 import numpy as np
 
@@ -13,6 +12,9 @@ from sys import platform as sys_pf
 if sys_pf == 'darwin':
     import matplotlib
     matplotlib.use("TkAgg")
+    from UFOS18.Shared_ import *
+else:
+    from Shared_ import *
 
 import matplotlib.pyplot as plt
 from matplotlib.widgets import SpanSelector
