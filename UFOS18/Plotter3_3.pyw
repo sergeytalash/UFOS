@@ -30,6 +30,21 @@ else:
 expo_grad = 1100  # Экспозиция градуировки. Сейчас не используется
 
 
+class LastCalculatedOzone:
+    def __init__(self):
+        pass
+
+    def get(self):
+        with open("last_calculated_ozone.txt", "r") as fr:
+            lines = fr.readlines()
+            return _strptime(str(lines[0]).strip())
+
+    def set(self, date_time):
+        with open("last_calculated_ozone.txt", "w") as fw:
+            print(_strftime(date_time), file=fw)
+        return date_time
+
+
 def send_all_files_plotter():
     lab_err.configure(text='')
     root.update()
@@ -642,14 +657,20 @@ class Ozone:
                         print('Plotter: ', err)
 
 
-def save_csv(path, headers, data):
-    if len(headers) == len(data[0]):
-        out_name = '{}.csv'.format(os.path.join(path, headers[1] + datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d_%H-%M")))
+def save_csv(path, headers, data, new=True, file_name_text=""):
+    if file_name_text == []:
+        file_name_text = _strftime(datetime.datetime.now())
+    out_name = os.path.join(path, '{}{}.csv'.format(headers[1], file_name_text))
+    if not os.path.exists(out_name) or new:
         with open(out_name, 'w') as fw:
             print(';'.join(headers), file=fw)
             for line in data:
                 print(';'.join([str(i) for i in line]), file=fw)
-            print("File saved to: {}".format(out_name))
+    else:
+        with open(out_name, 'a') as fa:
+            for line in data:
+                print(';'.join([str(i) for i in line]), file=fa)
+    return out_name
 
 
 def bit_change():
@@ -1178,34 +1199,93 @@ def after_o3file():
     make_o3file()
 
 
-def calc_ozone(*event):
-    a = Ozone(home)
-    data = []
-    mean_data = []
+def _strptime(string):
+    return datetime.datetime.strptime(string, "%Y{0}%m{0}%d".format(p_sep))
+
+
+def _strftime(date_time):
+    return datetime.datetime.strftime(date_time, "%Y{0}%m{0}%d".format(p_sep))
+
+
+def count_files(home, last_calculated_o3_date):
+    working_files = 0
+    out = False
     for top, dirs, nondirs in os.walk(home):
-        daily_ozone = []
+        for file in nondirs:
+            if file.count("Z-D") > 0:
+                a = _strptime(os.path.join(*top.split(p_sep)[-3:]))
+                b = last_calculated_o3_date
+                if a <= b:
+                    out = True
+                    break
+                else:
+                    working_files += 1
+        if out:
+            out = False
+            continue
+    return working_files
+
+
+def calc_ozone(new=True, *event):
+    a = Ozone(home)
+    try:
+        if not new:
+            last_calculated_o3_date = LastCalculatedOzone().get()
+        else:
+            raise
+    except:
+        last_calculated_o3_date = LastCalculatedOzone().set(datetime.datetime(1990, 1, 1))
+    all_files_count = count_files(home, last_calculated_o3_date)
+    current_count = 0
+    start_flag = True
+    for top, dirs, nondirs in os.walk(home):
         working_files = []
         for file in sorted(nondirs):
             if file.count("Z-D") > 0:
                 working_files.append(file)
         if working_files:
+            if start_flag:
+                start_flag = False
+                save_csv(home, ["Datetime", "Ozone"], [], new=new)
+                save_csv(home, ["Datetime", "MeanOzone"], [], new=new)
+            daily_ozone = []
+            data = []
+            mean_data = []
             date_from_dir = top.split(p_sep)[-3:]
             path = os.path.join(*date_from_dir)
-            for file in working_files:
-                try:
-                    file_path = os.path.join(path, file)
-                    out = a.main_func_2(file_path)
-                    data.append([str(out["datetime"]), str(out["o3"])])
-                    daily_ozone.append(out["o3"])
-                    but_calc_all_ozone.configure(text=str(out["datetime"]))
-                    root.update()
-                    # print(str(out["datetime"]))
-                except Exception as err:
-                    print(err)
-            mean_data.append(['-'.join(date_from_dir), sredne(daily_ozone, 'ozone', 0)])
-    save_csv(home, ["Datetime", "Ozone"], data)
-    save_csv(home, ["Datetime", "MeanOzone"], mean_data)
-    but_calc_all_ozone.configure(text="Пересчёт завершён!")
+            # Дата текущей директории меньше пследней считанной?
+            if _strptime(path) <= last_calculated_o3_date:
+                continue
+            # Дата текущей директории больше пследней считанной?
+            else:
+                for file in working_files:
+                    try:
+                        file_path = os.path.join(path, file)
+                        out = a.main_func_2(file_path)
+                        data.append([out["datetime"], out["o3"]])
+                        daily_ozone.append(out["o3"])
+                        current_count += 1
+                        but_calc_all_ozone.configure(text="{} {}/{}".format(out["datetime"],
+                                                                            current_count,
+                                                                            all_files_count))
+                        root.update()
+
+                    except Exception as err:
+                        print(err)
+                mean_data.append(['.'.join(date_from_dir), sredne(daily_ozone, 'ozone', 0)])
+                out_name = save_csv(home, ["Datetime", "Ozone"], data, new=False)
+                out_name_mean = save_csv(home, ["Datetime", "MeanOzone"], mean_data, new=False)
+                last_calculated_o3_date = LastCalculatedOzone().set(_strptime(path))
+    if current_count == all_files_count:
+        try:
+            print("File saved to: {}".format(out_name))
+            print("File saved to: {}".format(out_name_mean))
+        except:
+            pass
+    if new:
+        but_calc_all_ozone.configure(text="Пересчёт завершён!")
+    else:
+        but_calc_all_ozone_continue.configure(text="Пересчёт завершён!")
 
 
 def make_txt_list_ZSD(directory):
@@ -1445,7 +1525,8 @@ but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
 
 # ================================================================================================
 
-but_calc_all_ozone = ttk.Button(admin_panel, text='Пересчёт озона', command=calc_ozone)
+but_calc_all_ozone = ttk.Button(admin_panel, text='Новый пересчёт озона', command=lambda: calc_ozone(new=True))
+but_calc_all_ozone_continue = ttk.Button(admin_panel, text='Продолжить пересчёт озона', command=lambda: calc_ozone(new=False))
 
 # ================================================================================================
 
@@ -1476,6 +1557,7 @@ obj_grid()
 
 but_send.grid(row=0, column=10, sticky='w')
 but_calc_all_ozone.grid(row=0, column=11, sticky='w')
+but_calc_all_ozone_continue.grid(row=0, column=12, sticky='w')
 ent_code.grid(row=0, column=13, sticky='e')
 right_panel.grid(row=1, column=3, sticky='nwse', padx=1)
 left_panel.grid(row=1, column=0, sticky='nwse', padx=1)
