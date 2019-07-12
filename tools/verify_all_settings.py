@@ -5,7 +5,6 @@ import os
 class Main:
     def __init__(self):
         self.home = os.path.dirname(os.getcwd())
-        self.spectrometers = {}
 
     def get_path_by_num(self, ufos_num=None):
         if ufos_num:
@@ -61,4 +60,8 @@ class Main:
 
 if __name__ == "__main__":
     a = Main()
-    a.update_settings(ufos_num=int(input("Input UFOS id: ")))
+    try:
+        while True:
+            a.update_settings(ufos_num=int(input("Input UFOS id: ")))
+    except KeyboardInterrupt:
+        exit(0)

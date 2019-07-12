@@ -1,10 +1,6 @@
 # Version: 2.0
-# Modified: 17.03.2018
+# Modified: 12.07.2019
 # Author: Sergey Talash
-from tkinter import *
-from tkinter import ttk
-import tkinter.font as font2
-import numpy as np
 from shutil import copy
 import gc
 
@@ -23,13 +19,16 @@ from procedures import *
 
 
 def canvs_destroy(canvs):
-    global timer
-    try:
-        timer.stop()
-    except:
-        pass
+    # global timer
+    # try:
+    #     timer.stop()
+    # except:
+    #     pass
     for i in canvs:
-        i.get_tk_widget().destroy()
+        try:
+            i.get_tk_widget().destroy()
+        except TclError:
+            pass
     gc.collect()
 
 
@@ -164,27 +163,33 @@ class PlotClass:
     @staticmethod
     def get_spectr_new(file_path, flag):
         """Get data from NEW file"""
-        with open(file_path) as f:
-            data = json.load(f)
-            if flag:
-                new_data = {'spectr': data['spectr'],
-                            'datetime': datetime.datetime.strptime(data['mesurement']['datetime'], '%Y%m%d %H:%M:%S'),
-                            'hs': data['calculated']['sunheight'],
-                            'amas': data['calculated']['amas'],
-                            'mu': data['calculated']['mu'],
-                            'expo': data['mesurement']['exposition'],
-                            'accumulate': data['mesurement']['accummulate'],
-                            'channel': data['mesurement']['channel']
-                            }
-                try:
-                    new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
-                    new_data['temperature_poly'] = data['mesurement']['temperature_poly']
-                except KeyError:
-                    new_data['temperature_ccd'] = 'None'
-                    new_data['temperature_poly'] = 'None'
-            else:
-                new_data = data
+        try:
+            with open(file_path) as f:
+                data = json.load(f)
+                if flag:
+                    new_data = {'spectr': data['spectr'],
+                                'datetime': datetime.datetime.strptime(data['mesurement']['datetime'],
+                                                                       '%Y%m%d %H:%M:%S'),
+                                'hs': data['calculated']['sunheight'],
+                                'amas': data['calculated']['amas'],
+                                'mu': data['calculated']['mu'],
+                                'expo': data['mesurement']['exposition'],
+                                'accumulate': data['mesurement']['accummulate'],
+                                'channel': data['mesurement']['channel']
+                                }
+                    try:
+                        new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
+                        new_data['temperature_poly'] = data['mesurement']['temperature_poly']
+                    except KeyError:
+                        new_data['temperature_ccd'] = 'None'
+                        new_data['temperature_poly'] = 'None'
+                else:
+                    new_data = data
             return new_data
+        except json.decoder.JSONDecodeError as err:
+            show_error_in_separate_window(err, "Ufos measurement file is invalid.")
+        except Exception as err:
+            show_error_in_separate_window(err)
 
     @staticmethod
     def get_spectr_old(file_path):
@@ -196,8 +201,9 @@ class PlotClass:
                 if line.count('time') > 0:
                     tmp = line.split(' = ')
                     new_data['channel'] = tmp[1].split(',')[0]
-                    new_data['datetime'] = datetime.datetime.strptime('{} {}'.format(tmp[2].split(',')[0], tmp[3].strip()),
-                                                                      '%d.%m.%Y %H:%M:%S')
+                    new_data['datetime'] = datetime.datetime.strptime(
+                            '{} {}'.format(tmp[2].split(',')[0], tmp[3].strip()),
+                            '%d.%m.%Y %H:%M:%S')
                 elif line.count('Exposure') > 0:
                     new_data['expo'] = int(line.split('=')[1])
                 elif line.count('Temperature') > 0:
@@ -222,14 +228,11 @@ class PlotClass:
 
     def get_spectr(self, file_path, flag=True):
         """Get data from OLD file"""
-        try:
-            if os.path.basename(file_path).split('_')[2] in ['ZD', 'Dz', 'Z', 'SD', 'Ds', 'S']:
-                self.data = self.get_spectr_new(file_path, flag)
-            else:
-                self.data = self.get_spectr_old(file_path)
-            self.spectrum = self.data['spectr']
-        except Exception as err:
-            print('ERROR', err)
+        if os.path.basename(file_path).split('_')[2] in ['ZD', 'Dz', 'Z', 'SD', 'Ds', 'S']:
+            self.data = self.get_spectr_new(file_path, flag)
+        else:
+            self.data = self.get_spectr_old(file_path)
+        self.spectrum = self.data['spectr']
         return self.data
 
     def fig_destroy(self):
@@ -288,10 +291,10 @@ class PlotClass:
                 new_spectr = []
                 for i in range(len(self.spectrum)):
                     new_spectr.append(
-                        self.spectrum[i] *
-                        self.sensitivity[i] *
-                        var_settings['device']['graduation_expo'] /
-                        self.data['expo'])
+                            self.spectrum[i] *
+                            self.sensitivity[i] *
+                            var_settings['device']['graduation_expo'] /
+                            self.data['expo'])
                 self.spectrum = new_spectr
             self.ax.plot([pix2nm(conf, i, 3, 0) for i in range(len(self.spectrum))], self.spectrum, self.point,
                          color='k')
@@ -552,35 +555,39 @@ def plot_spectr(*event):
         file = file_list.selection_get()
     start.data = start.get_spectr(os.path.join(path, file))
     if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
-        start.calc_ozon()
-        lab_ozon.configure(text='Значение озона\n' + '\n'.join(
-            ['(P{}): {} е.Д.'.format(pair, start.o3[pair]) for pair in show_ozone_pairs]))
+        try:
+            start.calc_ozon()
+            lab_ozon.configure(text='\n'.join(
+                    ['Значение озона'] + ['(P{}): {} е.Д.'.format(pair, start.o3[pair]) for pair in show_ozone_pairs]))
+        except TclError:
+            pass
     if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
         for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
             start.calc_uv(mode, False)
             var.configure(text='Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(), int(start.uv)))
     data = (
-        """Канал: {}
+            """Канал: {}
 Дата Время: {}
 Высота Солнца: {} (mu={})
 Темп. CCD: {}
 Темп. Полихроматора: {}
 Экспозиция: {}
 Число суммирований: {}""".format(
-            start.data['channel'],
-            start.data['datetime'],
-            start.data['hs'],
-            start.data['mu'],
-            start.data['temperature_ccd'],
-            start.data['temperature_poly'],
-            start.data['expo'],
-            start.data['accumulate']))
+                    start.data['channel'],
+                    start.data['datetime'],
+                    start.data['hs'],
+                    start.data['mu'],
+                    start.data['temperature_ccd'],
+                    start.data['temperature_poly'],
+                    start.data['expo'],
+                    start.data['accumulate']))
     currnt_data.configure(text=data)
     start.x2 = range(len(start.spectrum))
     start.y2 = start.spectrum
     start.plot(path)
     for i in buttons:
         i.configure(state=NORMAL)
+
 
 
 def change_dir(event):
@@ -611,7 +618,7 @@ def change_dir(event):
     dirs_list.delete(0, END)
     dirs_list.insert(END, '..')
     dirs_list.selection_set(0)
-    for i in new_dirs:
+    for i in sorted(new_dirs):
         if os.path.isdir(os.path.join(path, i)):
             dirs_list.insert(END, i)
     refresh_txtlist(path)
@@ -627,7 +634,7 @@ def refresh_txtlist(path):
         else:
             path2 = path
         if last_path != path:
-            last_path = read_path(home, path, 'w').split('\n')[0]
+            last_path = last_used_path(home, path, 'w')
         lab_path.configure(text=path2)
 
 
@@ -648,7 +655,7 @@ def only_draw_dirs():
     dirs_list.insert(END, '..')
     dirs_list.selection_set(old_selection)
     dirs_list.see(old_selection)
-    for i in new_dirs:
+    for i in sorted(new_dirs):
         if os.path.isdir(os.path.join(path, i)):
             dirs_list.insert(END, i)
     t = path.split(p_sep)
@@ -799,7 +806,8 @@ def make_o3file():
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
     mean_file = 0
-    start = PlotClass(right_panel, o3_mode, plotx, ploty, recalculate_source_files_value, show_all_value, chk_var_with_sens.get())
+    start = PlotClass(right_panel, o3_mode, plotx, ploty, recalculate_source_files_value, show_all_value,
+                      chk_var_with_sens.get())
     if recalculate_source_files_value == 0:  # Чтение из файла
         column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
         # datetime_index = 0 # UTC
@@ -861,17 +869,17 @@ def make_o3file():
                                 if "1" in show_ozone_pairs:
                                     if int(line_arr[-1]) or show_all_value:
                                         start.x1.append(
-                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                                datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                         start.y1.append(int(line_arr[column[o3_mode][0]]))
                                 if "2" in show_ozone_pairs:
                                     if int(line_arr[-1]) or show_all_value:
                                         start.x2.append(
-                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                                datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                         start.y2.append(int(line_arr[column[o3_mode][1]]))
                             if column['ozone'] == -2:
                                 if int(line_arr[-1]) or show_all_value:
                                     start.x2.append(
-                                        datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                     start.y2.append(int(line_arr[column[o3_mode]]))
                     sr = {"1": 0, "2": 0}
                     if start.y1:
@@ -893,7 +901,7 @@ def make_o3file():
         if file_opened:
             if len(start.x1) == 0 and len(start.x2) == 0:
                 tex = "Корректных значений озона в файле не найдено!\nПопробуйте отключить корректировку\n({})".format(
-                    os.path.basename(file))
+                        os.path.basename(file))
         else:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
@@ -949,7 +957,7 @@ def make_o3file():
                     calc_results.append(cr)
         if start.x1:
             but_save_to_final_file.configure(
-                command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
+                    command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
         else:
             tex = 'Файлов измерений\nне найдено'
     try:
@@ -1001,222 +1009,236 @@ def make_o3file():
 
 
 if __name__ == '__main__':
-    args = sys.argv[1:]
-    if args:
-        show_ozone_pairs = [i for i in args if i in ["1", "2"]]
-    else:
-        show_ozone_pairs = ["2"]
-    root = Tk()
-    host, port, data4send = "10.65.25.2", 20000, ''
-    ida = ''
-    img = ''
-    last_dir = []
-    disks = []
-    file_name = ''
-    timer = ''
-    canvs = []
-    ts, shs, calc_results = [], [], []
-    path = os.getcwd()
-    home = os.getcwd()
-    tmp_path = home
-    common_pars = Settings.get_common(home)
-    var_settings = Settings.get_device(home, common_pars['device']['id'])
-    if os.name != 'posix':
-        drive = os.getcwd()[:3]
-    else:
-        drive = p_sep
-    path2 = ''
-    plotx, ploty = change_geometry(root)
-    o3min = 200
-    ozon_scale_max = 600
-    color = 'black'
-    ima = []
-    label = ''
-    o3srednee = ''
-    bit = 1
-    ok = 1
-    scale_printed = 0
-    canvs = []
-    last_path = read_path(home, path, 'r').split('\n')[0]
+    human_text = ""
     try:
-        if path != last_path and os.path.exists(last_path):
-            path = last_path
+        args = sys.argv[1:]
+        if args:
+            show_ozone_pairs = [i for i in args if i in ["1", "2"]]
         else:
-            pass
-    except:
-        path = home
-    curr_o3 = [0, 0, 0, 0, 0]
+            show_ozone_pairs = ["2"]
+        root = Tk()
+        host, port, data4send = "10.65.25.2", 20000, ''
+        ida = ''
+        img = ''
+        last_dir = []
+        disks = []
+        file_name = ''
+        timer = ''
+        canvs = []
+        ts, shs, calc_results = [], [], []
+        path = os.getcwd()
+        home = os.getcwd()
+        tmp_path = home
+        human_text = "Common settings file is invalid"
+        common_pars = Settings.get_common(home)
+        human_text = "Ufos settings file is invalid"
+        var_settings = Settings.get_device(home, common_pars['device']['id'])
+        if os.name != 'posix':
+            drive = os.getcwd()[:3]
+        else:
+            drive = p_sep
+        path2 = ''
+        plotx, ploty = change_geometry(root)
+        o3min = 200
+        ozon_scale_max = 600
+        color = 'black'
+        ima = []
+        label = ''
+        o3srednee = ''
+        bit = 1
+        ok = 1
+        scale_printed = 0
+        canvs = []
+        last_path = last_used_path(home, path, 'r')
+        try:
+            if path != last_path and os.path.exists(last_path):
+                path = last_path
+            else:
+                pass
+        except:
+            path = home
+        curr_o3 = [0, 0, 0, 0, 0]
+        try:
+            # Check if file exists
+            human_text = 'Чувствительность прибора УФОС' \
+                         ' sensitivity{} - не найдена в каталоге программы!'.format(var_settings['device']['id'])
+            read_sensitivity(home, var_settings['device']['id'], "sensitivity")  # Световая чувствительность прибора
+            human_text = 'Чувствительность прибора УФОС' \
+                         ' senseritem{} - не найдена в каталоге программы!'.format(var_settings['device']['id'])
+            read_sensitivity(home, var_settings['device']['id'], "senseritem")  # Эритемная Чувствительность прибора
+        except Exception as err:
+            raise err
+        curr_time = []
+        gr_ok = 2
+        o3_mode = ''
+        o3_plotted = 1
+        """
+        gr_ok = 0 - озон расчитывается, график не строится
+        gr_ok = 1 - озон не расчитывается, график строится
+        gr_ok = 2 - озон расчитывается, график строится
+        """
 
-    try:
-        ome = read_sensitivity(home, var_settings['device']['id'], "sensitivity")  # Чувствительность прибора
-    except Exception as err:
-        print(err)
-        input('Чувствительность прибора УФОС sensitivity{} - не найдена в каталоге программы!'.format(
-            var_settings['device']['id']))
-        raise
-    try:
-        ome = read_sensitivity(home, var_settings['device']['id'], "senseritem")  # Чувствительность прибора erithem
-    except Exception as err:
-        print(err)
-        input('Чувствительность прибора УФОС senseritem{} - не найдена в каталоге программы!'.format(
-            var_settings['device']['id']))
-        raise
-    curr_time = []
-    gr_ok = 2
-    o3_mode = ''
-    o3_plotted = 1
-    """
-    gr_ok = 0 - озон расчитывается, график не строится
-    gr_ok = 1 - озон не расчитывается, график строится
-    gr_ok = 2 - озон расчитывается, график строится
-    """
+        root.title('УФОС Просмотр')
+        root.protocol('WM_DELETE_WINDOW', window_closed)
+        root.wm_state('zoomed')
+        # root.geometry('908x530+200+100') #'908x530+200+100'
+        root.resizable(True, True)
+        appHighlightFont = font2.Font(family='Helvetica', size=14)  # , weight='bold')
+        top_panel = ttk.Frame(root, padding=(1, 1), relief='solid')  # ,width=800
+        menu_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
+        admin_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
+        left_panel = ttk.Frame(root, padding=(1, 1), relief='sunken')
+        right_panel = ttk.Frame(root, padding=(1, 1), relief='sunken')
+        downline = ttk.Frame(root, padding=(1, 1), relief='solid', height=20)
 
-    root.title('УФОС Просмотр')
-    root.protocol('WM_DELETE_WINDOW', window_closed)
-    root.wm_state('zoomed')
-    # root.geometry('908x530+200+100') #'908x530+200+100'
-    root.resizable(True, True)
-    appHighlightFont = font2.Font(family='Helvetica', size=14)  # , weight='bold')
-    top_panel = ttk.Frame(root, padding=(1, 1), relief='solid')  # ,width=800
-    menu_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
-    admin_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
-    left_panel = ttk.Frame(root, padding=(1, 1), relief='sunken')
-    right_panel = ttk.Frame(root, padding=(1, 1), relief='sunken')
-    downline = ttk.Frame(root, padding=(1, 1), relief='solid', height=20)
+        canvas = Canvas(right_panel, bg="white", width=plotx, height=ploty)  # white
 
-    canvas = Canvas(right_panel, bg="white", width=plotx, height=ploty)  # white
+        # Admin Menu
+        chk_var_with_sens = IntVar()
+        chk_var_with_sens.set(1)
+        chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
+        var_recalculate_source_files = IntVar()
+        var_recalculate_source_files.set(0)
+        chk_recalculate_source_files = ttk.Checkbutton(admin_panel, text='Пересчёт графика',
+                                                       variable=var_recalculate_source_files)
+        var_show_all = IntVar()
+        var_show_all.set(0)
+        chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=var_show_all)
+        chk_var_show_correct1 = IntVar()
+        chk_var_show_correct1.set(0)
+        chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Откл Корр 1', variable=chk_var_show_correct1)
+        but_save_to_final_file = ttk.Button(admin_panel, text='Сохранить в файл')
+        but_make_mean_file = ttk.Button(admin_panel, text='Сохранить в файл среднего')
+        var_top = IntVar()
+        var_top.set(1)
+        rad_4096 = ttk.Radiobutton(admin_panel, text='Единая шкала', variable=var_top, value=0)
+        rad_ytop = ttk.Radiobutton(admin_panel, text='Оптимальная шкала', variable=var_top, value=1)
 
-    # Admin Menu
-    chk_var_with_sens = IntVar()
-    chk_var_with_sens.set(1)
-    chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
-    var_recalculate_source_files = IntVar()
-    var_recalculate_source_files.set(0)
-    chk_recalculate_source_files = ttk.Checkbutton(admin_panel, text='Пересчёт графика', variable=var_recalculate_source_files)
-    var_show_all = IntVar()
-    var_show_all.set(0)
-    chk_show_all = ttk.Checkbutton(admin_panel, text='Отобразить всё', variable=var_show_all)
-    chk_var_show_correct1 = IntVar()
-    chk_var_show_correct1.set(0)
-    chk_show_correct1 = ttk.Checkbutton(admin_panel, text='Откл Корр 1', variable=chk_var_show_correct1)
-    but_save_to_final_file = ttk.Button(admin_panel, text='Сохранить в файл')
-    but_make_mean_file = ttk.Button(admin_panel, text='Сохранить в файл среднего')
-    var_top = IntVar()
-    var_top.set(1)
-    rad_4096 = ttk.Radiobutton(admin_panel, text='Единая шкала', variable=var_top, value=0)
-    rad_ytop = ttk.Radiobutton(admin_panel, text='Оптимальная шкала', variable=var_top, value=1)
+        but_plot_more = ttk.Button(admin_panel, text='Подробный просмотр', command=plot_more)
+        uv = IntVar()
+        uv.set(4)
+        but_remake = ttk.Button(admin_panel, text='Новый формат Z-D', command=b_remake)
+        # but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
 
-    but_plot_more = ttk.Button(admin_panel, text='Подробный просмотр', command=plot_more)
-    uv = IntVar()
-    uv.set(4)
-    but_remake = ttk.Button(admin_panel, text='Новый формат Z-D', command=b_remake)
-    # but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
+        # Annual ozone calculations
+        ent_year = ttk.Entry(admin_panel)
+        ent_year.insert(0, "2018")
+        but_annual_ozone = ttk.Button(admin_panel, text='Сохранить озон за год')
 
-    # Annual ozone calculations
-    ent_year = ttk.Entry(admin_panel)
-    ent_year.insert(0, "2018")
-    but_annual_ozone = ttk.Button(admin_panel, text='Сохранить озон за год')
+        admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_recalculate_source_files,
+                          but_save_to_final_file,
+                          but_make_mean_file,
+                          rad_4096, rad_ytop, but_plot_more, but_remake,
+                          # but_send
+                          ent_year, but_annual_ozone
+                          ]
 
-    admin_menu_obj = [chk_with_sens, chk_show_all, chk_show_correct1, chk_recalculate_source_files, but_save_to_final_file,
-                      but_make_mean_file,
-                      rad_4096, rad_ytop, but_plot_more, but_remake,
-                      # but_send
-                      ent_year, but_annual_ozone
-                      ]
+        # Main Menu
+        but_refresh = ttk.Button(menu_panel, text='Обновить', command=refresh)
+        but_dir = ttk.Button(menu_panel, text='Выбор каталога', command=dir_list_show)
+        rad_spectr = ttk.Radiobutton(menu_panel, text='Спектр', variable=uv, value=4, command=plot_spectr)
+        rad_o3file = ttk.Radiobutton(menu_panel, text='Озон', variable=uv, value=0, command=make_o3file)
+        rad_uva = ttk.Radiobutton(menu_panel, text='УФ-А', variable=uv, value=1, command=make_o3file)
+        rad_uvb = ttk.Radiobutton(menu_panel, text='УФ-Б', variable=uv, value=2, command=make_o3file)
+        rad_uve = ttk.Radiobutton(menu_panel, text='УФ-Э', variable=uv, value=3, command=make_o3file)
+        ent_code = ttk.Entry(menu_panel, width=2)
+        main_menu_obj = [but_refresh, but_dir, rad_spectr, rad_o3file, rad_uva, rad_uvb, rad_uve, ent_code]
 
-    # Main Menu
-    but_refresh = ttk.Button(menu_panel, text='Обновить', command=refresh)
-    but_dir = ttk.Button(menu_panel, text='Выбор каталога', command=dir_list_show)
-    rad_spectr = ttk.Radiobutton(menu_panel, text='Спектр', variable=uv, value=4, command=plot_spectr)
-    rad_o3file = ttk.Radiobutton(menu_panel, text='Озон', variable=uv, value=0, command=make_o3file)
-    rad_uva = ttk.Radiobutton(menu_panel, text='УФ-А', variable=uv, value=1, command=make_o3file)
-    rad_uvb = ttk.Radiobutton(menu_panel, text='УФ-Б', variable=uv, value=2, command=make_o3file)
-    rad_uve = ttk.Radiobutton(menu_panel, text='УФ-Э', variable=uv, value=3, command=make_o3file)
-    ent_code = ttk.Entry(menu_panel, width=2)
-    main_menu_obj = [but_refresh, but_dir, rad_spectr, rad_o3file, rad_uva, rad_uvb, rad_uve, ent_code]
+        file_list = Listbox(left_panel, selectmode=SINGLE, height=16, width=28)
+        scr_lefty = ttk.Scrollbar(left_panel, command=file_list.yview)
+        file_list.configure(yscrollcommand=scr_lefty.set)
+        lab_currnt_data = ttk.Label(left_panel, text='Данные: ')
+        currnt_data = ttk.Label(left_panel, text='')
+        lab_ozon = ttk.Label(left_panel, text='', foreground='blue', font=appHighlightFont)
+        lab_uva = ttk.Label(left_panel, text=': ', foreground='blue')
+        lab_uvb = ttk.Label(left_panel, text=': ', foreground='blue')
+        lab_uve = ttk.Label(left_panel, text=': ', foreground='blue')
+        lab_sun = ttk.Label(left_panel, text='')
+        lab_path = ttk.Label(downline, text=path)
+        lab_err = ttk.Label(downline, text='', width=20)
 
-    file_list = Listbox(left_panel, selectmode=SINGLE, height=16, width=28)
-    scr_lefty = ttk.Scrollbar(left_panel, command=file_list.yview)
-    file_list.configure(yscrollcommand=scr_lefty.set)
-    lab_currnt_data = ttk.Label(left_panel, text='Данные: ')
-    currnt_data = ttk.Label(left_panel, text='')
-    lab_ozon = ttk.Label(left_panel, text='', foreground='blue', font=appHighlightFont)
-    lab_uva = ttk.Label(left_panel, text=': ', foreground='blue')
-    lab_uvb = ttk.Label(left_panel, text=': ', foreground='blue')
-    lab_uve = ttk.Label(left_panel, text=': ', foreground='blue')
-    lab_sun = ttk.Label(left_panel, text='')
-    lab_path = ttk.Label(downline, text=path)
-    lab_err = ttk.Label(downline, text='', width=20)
+        buttons = main_menu_obj + admin_menu_obj
 
-    buttons = main_menu_obj + admin_menu_obj
+        """============== GUI Structure =============="""
+        top_panel.grid(row=0, column=0, sticky='nwe', columnspan=4)
+        menu_panel.grid(row=0, column=0, sticky='nwe')
+        but_refresh.grid(row=0, column=0, sticky='w')
+        but_dir.grid(row=0, column=1, sticky='w')
 
-    """============== GUI Structure =============="""
-    top_panel.grid(row=0, column=0, sticky='nwe', columnspan=4)
-    menu_panel.grid(row=0, column=0, sticky='nwe')
-    but_refresh.grid(row=0, column=0, sticky='w')
-    but_dir.grid(row=0, column=1, sticky='w')
+        obj_grid()
 
-    obj_grid()
+        # but_send.grid(row=0, column=10, sticky='w')
+        ent_code.grid(row=0, column=13, sticky='e')
+        right_panel.grid(row=1, column=3, sticky='nwse', padx=1)
+        left_panel.grid(row=1, column=0, sticky='nwse', padx=1)
+        file_list.grid(row=0, column=0, sticky='nwse', padx=1)
+        scr_lefty.grid(row=0, column=1, sticky='nws')
+        lab_currnt_data.grid(row=2, column=0, sticky='we', padx=1)
+        lab_ozon.grid(row=3, column=0, sticky='we', padx=1)
+        lab_uva.grid(row=4, column=0, sticky='we', padx=1)
+        lab_uvb.grid(row=5, column=0, sticky='we', padx=1)
+        lab_uve.grid(row=6, column=0, sticky='we', padx=1)
+        lab_sun.grid(row=7, column=0, sticky='we', padx=1)
+        currnt_data.grid(row=8, column=0, sticky='we', padx=1)
+        """=============================================================="""
+        confZ = var_settings['calibration']['nm(pix)']['Z']
+        confS = var_settings['calibration']['nm(pix)']['S']
+        lambda_consts = {pair: var_settings['calibration']['points']['o3_pair_{}'.format(pair)] +
+                               var_settings['calibration']['points']['cloud_pair_{}'.format(pair)] for pair in
+                         ["1", "2"]}
+        points = var_settings['calibration']['points']
+        p_uva1, p_uva2 = nm2pix(315, confS, 0), nm2pix(400, confS, 0)
+        p_uvb1, p_uvb2 = nm2pix(280, confS, 0), nm2pix(315, confS, 0)
+        p_uve1, p_uve2 = 0, 3691  # nm2pix(290),nm2pix(420)
 
-    # but_send.grid(row=0, column=10, sticky='w')
-    ent_code.grid(row=0, column=13, sticky='e')
-    right_panel.grid(row=1, column=3, sticky='nwse', padx=1)
-    left_panel.grid(row=1, column=0, sticky='nwse', padx=1)
-    file_list.grid(row=0, column=0, sticky='nwse', padx=1)
-    scr_lefty.grid(row=0, column=1, sticky='nws')
-    lab_currnt_data.grid(row=2, column=0, sticky='we', padx=1)
-    lab_ozon.grid(row=3, column=0, sticky='we', padx=1)
-    lab_uva.grid(row=4, column=0, sticky='we', padx=1)
-    lab_uvb.grid(row=5, column=0, sticky='we', padx=1)
-    lab_uve.grid(row=6, column=0, sticky='we', padx=1)
-    lab_sun.grid(row=7, column=0, sticky='we', padx=1)
-    currnt_data.grid(row=8, column=0, sticky='we', padx=1)
-    """=============================================================="""
-    confZ = var_settings['calibration']['nm(pix)']['Z']
-    confS = var_settings['calibration']['nm(pix)']['S']
-    lambda_consts = {pair: var_settings['calibration']['points']['o3_pair_{}'.format(pair)] +
-                           var_settings['calibration']['points']['cloud_pair_{}'.format(pair)] for pair in ["1", "2"]}
-    points = var_settings['calibration']['points']
-    p_uva1, p_uva2 = nm2pix(315, confS, 0), nm2pix(400, confS, 0)
-    p_uvb1, p_uvb2 = nm2pix(280, confS, 0), nm2pix(315, confS, 0)
-    p_uve1, p_uve2 = 0, 3691  # nm2pix(290),nm2pix(420)
+        p_zero = {pair: nm2pix(nm, confZ, 0) for pair, nm in zip(["1", "2"], [290, 295])}
+        p_lamst = nm2pix(290, confZ, 0)
+        # Массив констант лямбда в пикселях
+        lambda_consts_pix = {pair: [nm2pix(i, confZ, 0) for i in const] for pair, const in lambda_consts.items()}
+        psZ = {}
+        psS = {}
+        for key in points.keys():
+            psZ[key] = []
+            psS[key] = []
+            for point in points[key]:
+                psZ[key].append(nm2pix(point, confZ, 0))
+                psS[key].append(nm2pix(point, confS, 0))
 
-    p_zero = {pair: nm2pix(nm, confZ, 0) for pair, nm in zip(["1", "2"], [290, 295])}
-    p_lamst = nm2pix(290, confZ, 0)
-    # Массив констант лямбда в пикселях
-    lambda_consts_pix = {pair: [nm2pix(i, confZ, 0) for i in const] for pair, const in lambda_consts.items()}
-    psZ = {}
-    psS = {}
-    for key in points.keys():
-        psZ[key] = []
-        psS[key] = []
-        for point in points[key]:
-            psZ[key].append(nm2pix(point, confZ, 0))
-            psS[key].append(nm2pix(point, confS, 0))
+        start = first_clear_plot(plotx, ploty, right_panel)
 
-    start = first_clear_plot(plotx, ploty, right_panel)
+        # Скрыть следующие кнопки
+        common = [rad_4096, rad_ytop, but_plot_more, but_remake]
+        sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake,
+                         chk_recalculate_source_files,
+                         but_save_to_final_file, but_make_mean_file]
 
-    # Скрыть следующие кнопки
-    common = [rad_4096, rad_ytop, but_plot_more, but_remake]
-    sertification = [rad_4096, rad_ytop, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake, chk_recalculate_source_files,
-                     but_save_to_final_file, but_make_mean_file]
+        # Uncomment after debug will be finished
+        change_privileges(common, 0)
 
-    # Uncomment after debug will be finished
-    change_privileges(common, 0)
+        """=============================================================="""
+        downline.grid(row=6, column=0, sticky='nswe', columnspan=4)
+        lab_path.grid(row=0, column=0, sticky='w')
+        lab_err.grid(row=0, column=1, sticky='e')
 
-    """=============================================================="""
-    downline.grid(row=6, column=0, sticky='nswe', columnspan=4)
-    lab_path.grid(row=0, column=0, sticky='w')
-    lab_err.grid(row=0, column=1, sticky='e')
+        """============== GUI Actions =============="""
+        file_list.bind('<Double-Button-1>', plot_spectr)
+        ##file_list.bind('<space>', plot_spectr)
+        file_list.bind('<Return>', plot_spectr)
+        file_list.bind('<Button-1>', dirs_window_destroy)
+        canvas.bind('<Button-1>', dirs_window_destroy)
+        left_panel.bind('<Button-1>', dirs_window_destroy)
+        right_panel.bind('<Button-1>', dirs_window_destroy)
+        ent_code.bind('<Return>', check_code)
 
-    """============== GUI Actions =============="""
-    file_list.bind('<Double-Button-1>', plot_spectr)
-    ##file_list.bind('<space>', plot_spectr)
-    file_list.bind('<Return>', plot_spectr)
-    file_list.bind('<Button-1>', dirs_window_destroy)
-    canvas.bind('<Button-1>', dirs_window_destroy)
-    left_panel.bind('<Button-1>', dirs_window_destroy)
-    right_panel.bind('<Button-1>', dirs_window_destroy)
-    ent_code.bind('<Return>', check_code)
-
-    root.mainloop()
+        root.mainloop()
+    except Exception as error:
+        root.destroy()
+        err = ""
+        try:
+            raise error
+        except FileNotFoundError as e:
+            err = e
+        except json.decoder.JSONDecodeError as e:
+            err = e
+        show_error_in_separate_window(err, human_text)
+        # raise error

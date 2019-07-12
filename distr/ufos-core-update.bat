@@ -1,5 +1,4 @@
-d:
-cd d:\ufos
+cd /D D:\Ufos
 git fetch --all
 git checkout origin/master -- procedures.py
 git checkout origin/master -- connect.ini
