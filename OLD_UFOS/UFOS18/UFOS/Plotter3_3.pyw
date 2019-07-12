@@ -9,10 +9,12 @@ from math import *
 import numpy as np
 
 from sys import platform as sys_pf
+
 if sys_pf == 'darwin':
     import matplotlib
+
     matplotlib.use("TkAgg")
-    from UFOS18.Shared_ import *
+    from OLD_UFOS.UFOS18.UFOS.Shared_ import *
 else:
     from Shared_ import *
 
@@ -23,6 +25,7 @@ from shutil import copy
 
 if os.name != 'posix':
     import winreg
+
     p_sep = '\\'
 else:
     p_sep = '/'
@@ -374,11 +377,11 @@ def graph_in(o3_mode, gr_ok, t, kx, ky, x, y, plotx, ploty, xshag, yshag, some_r
                 elif main_func.channel == 'S-D':
                     if o3_mode == 'spectr':
                         curr_o3[2] = round(
-                                make_uv(p_uva1, p_uva2, main_func.data, ome, 'uva', file_name, expo_grad, ini_s))
+                            make_uv(p_uva1, p_uva2, main_func.data, ome, 'uva', file_name, expo_grad, ini_s))
                         curr_o3[3] = round(
-                                make_uv(p_uvb1, p_uvb2, main_func.data, ome, 'uvb', file_name, expo_grad, ini_s))
+                            make_uv(p_uvb1, p_uvb2, main_func.data, ome, 'uvb', file_name, expo_grad, ini_s))
                         curr_o3[4] = round(
-                                make_uv(p_uve1, p_uve2, main_func.data, ome, 'uve', file_name, expo_grad, ini_s))
+                            make_uv(p_uve1, p_uve2, main_func.data, ome, 'uve', file_name, expo_grad, ini_s))
 
                 curr_o3[1] = o3
                 uvalab = str(curr_o3[2])
@@ -1247,7 +1250,7 @@ def calc_ozone(new=True, *event):
             if start_flag:
                 start_flag = False
                 save_csv(home, ["Datetime", "Ozone"], [], new=new)
-                save_csv(home, ["Datetime", "MeanOzone"], [], new=new)
+                save_csv(home, ["Datetime", "DailyMeanOzone"], [], new=new)
             daily_ozone = []
             data = []
             mean_data = []
@@ -1274,7 +1277,7 @@ def calc_ozone(new=True, *event):
                         print(err)
                 mean_data.append(['.'.join(date_from_dir), sredne(daily_ozone, 'ozone', 0)])
                 out_name = save_csv(home, ["Datetime", "Ozone"], data, new=False)
-                out_name_mean = save_csv(home, ["Datetime", "MeanOzone"], mean_data, new=False)
+                out_name_mean = save_csv(home, ["Datetime", "DailyMeanOzone"], mean_data, new=False)
                 last_calculated_o3_date = LastCalculatedOzone().set(_strptime(path))
     if current_count == all_files_count:
         try:
@@ -1318,7 +1321,7 @@ def make_o3file():
         canvas.after_cancel(ida)
         ida = ''
     mode = uv.get()
-    mode = 0
+    # mode = 0
     if mode == 0:
         o3_mode = 'ozone'
         tex = 'Идет пересчёт озона'
@@ -1420,8 +1423,8 @@ def make_o3file():
             lab_uve.configure(text='')
             lab_sun.configure(text='')
             root.update()
-            if ida == '':
-                ida = canvas.after(600000, after_o3file)
+    ##            if ida == '':
+    ##                ida = canvas.after(600000,after_o3file)
 
     for i in buttons:
         i.configure(state=NORMAL)
@@ -1526,7 +1529,8 @@ but_send = ttk.Button(admin_panel, text=host, command=send_all_files_plotter)
 # ================================================================================================
 
 but_calc_all_ozone = ttk.Button(admin_panel, text='Новый пересчёт озона', command=lambda: calc_ozone(new=True))
-but_calc_all_ozone_continue = ttk.Button(admin_panel, text='Продолжить пересчёт озона', command=lambda: calc_ozone(new=False))
+but_calc_all_ozone_continue = ttk.Button(admin_panel, text='Продолжить пересчёт озона',
+                                         command=lambda: calc_ozone(new=False))
 
 # ================================================================================================
 
@@ -1586,7 +1590,7 @@ p330_350 = [nm2pix(point[2], conf2, add), nm2pix(point[3], conf2, add)]
 
 common = [rad_4096, rad_ytop, chk_kz_obl, but_plot_more, but_remake]
 sertification = [rad_4096, rad_ytop, chk_kz_obl, but_plot_more, rad_uva, rad_uvb, rad_uve, but_remake]
-# change_privileges(common, 0)
+change_privileges(common, 0)
 
 """=============================================================="""
 downline.grid(row=6, column=0, sticky='nswe', columnspan=4)

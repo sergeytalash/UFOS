@@ -1,5 +1,7 @@
 from math import *
-import os, datetime, socket, pickle, time
+import os
+import datetime
+import socket
 import numpy as np
 import sys
 from ftplib import FTP
@@ -85,7 +87,7 @@ def make_kz_coeff(x, y, deg):
     x_arr = np.array(x)
     y_arr = np.array(y)
     a = np.polyfit(x_arr, y_arr, deg)
-    return (a.tolist())
+    return a.tolist()
 
 
 def read_sensitivity(path):
@@ -95,7 +97,7 @@ def read_sensitivity(path):
     new = []
     for i in sens:
         new.append(i.replace('\n', ''))
-    return (new)
+    return new
 
 
 def erithema(x):
@@ -367,38 +369,38 @@ def send_files(home, file2send):
         kdX1 = pars['kdX']
         ##        expo1,channel1,accum1,gain1,set_run,dev_id1,time1,repeat1,max1,latitude1,longitude1,pix2nm1,kz1,kz_obl1,omega1,hs1,points1,pixels1,hour_pelt1,auto_exp1 = pars['expo'],pars['channel'],pars['accummulate'],pars['gain'],pars['set_run'],pars['dev_id'],pars['time'],pars['repeat'],pars['max'],pars['latitude'],pars['longitude'],pars['pix2nm'],pars['kz'],pars['kz_obl'],pars['omega'],pars['hs'],pars['points'],pars['pix+-'],pars['hour_pelt'],pars['auto_exp']
         data4send = """#{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};{11}@{12};{13};{14};{15};{16};{17};{18};{19};{20};{21};{22};{23};{24};{25};{26};{27};{28};{29};{30};{31}#""".format(
-            dev_id,
-            station_id,
-            channel,
-            date_time,
-            exp,
-            gain,
-            temp,
-            ozone,
-            uva,
-            uvb,
-            uve,
-            spect,
-            expo1,
-            channel1,
-            accum1,
-            gain1,
-            set_run,
-            dev_id1,
-            time1,
-            repeat1,
-            max1,
-            latitude1,
-            longitude1,
-            pix2nm1,
-            kz1,
-            kz_obl1,
-            omega1,
-            hs1,
-            points1,
-            pixels1,
-            hour_pelt1,
-            auto_exp1)
+                dev_id,
+                station_id,
+                channel,
+                date_time,
+                exp,
+                gain,
+                temp,
+                ozone,
+                uva,
+                uvb,
+                uve,
+                spect,
+                expo1,
+                channel1,
+                accum1,
+                gain1,
+                set_run,
+                dev_id1,
+                time1,
+                repeat1,
+                max1,
+                latitude1,
+                longitude1,
+                pix2nm1,
+                kz1,
+                kz_obl1,
+                omega1,
+                hs1,
+                points1,
+                pixels1,
+                hour_pelt1,
+                auto_exp1)
         # -----------socket-------------
         s_type = ''
         tex = ''
@@ -448,7 +450,7 @@ def plot_uv(v, t, curr_time, canvas, plotx, ploty, kx, ky, mx, my, o3_mode):
                 color = t['color'][i]
                 if color == 'blue':
                     point1x = round(
-                        ((int(t['time'][i][:2]) + int(t['time'][i][3:5]) / 60) - curr_time[0]) / ppp * plotx)
+                            ((int(t['time'][i][:2]) + int(t['time'][i][3:5]) / 60) - curr_time[0]) / ppp * plotx)
                     point1y = round(t['data'][i] * ky)
                     canvas.create_oval(point1x + mx - r, ploty - point1y + my - r, point1x + mx + r,
                                        ploty - point1y + my + r, outline=color, fill=color)
