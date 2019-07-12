@@ -1,8 +1,6 @@
 # Version: 2.0
 # Modified: 12.07.2019
 # Author: Sergey Talash
-import os
-import datetime
 import logging
 import logging.handlers as handlers
 
