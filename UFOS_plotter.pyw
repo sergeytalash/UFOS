@@ -5,7 +5,6 @@ from shutil import copy
 import gc
 
 from sys import platform as sys_pf
-
 if sys_pf == 'darwin':
     import matplotlib
 
@@ -1080,7 +1079,10 @@ if __name__ == '__main__':
 
         root.title('УФОС Просмотр')
         root.protocol('WM_DELETE_WINDOW', window_closed)
-        root.wm_state('zoomed')
+        if sys_pf != 'linux':
+            root.wm_state('zoomed')
+        else:
+            root.wm_state('normal')
         # root.geometry('908x530+200+100') #'908x530+200+100'
         root.resizable(True, True)
         appHighlightFont = font2.Font(family='Helvetica', size=14)  # , weight='bold')
