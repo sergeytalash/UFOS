@@ -5,7 +5,6 @@ from tkinter import *
 from tkinter import ttk
 import tkinter.font as font2
 from math import *
-import shutil
 import numpy as np
 
 from sys import platform as sys_pf
@@ -700,7 +699,7 @@ def b_remake():
     while i < len(filesZD) and bit == 1:
         file_old = os.path.join(path, filesZD[i])
         file_new = os.path.join(path, '{0}.txt'.format(j))
-        shutil.copy(file_old, file_new)
+        copy(file_old, file_new)
         but_remake.config(text='{0}/{1}'.format(j, len(filesZD)))
         i += 1
         j += 1
