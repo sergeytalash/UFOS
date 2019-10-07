@@ -5,6 +5,7 @@ from shutil import copy
 import gc
 
 from sys import platform as sys_pf
+
 if sys_pf == 'darwin':
     import matplotlib
 
@@ -23,9 +24,10 @@ def canvs_destroy(canvs):
     #     timer.stop()
     # except:
     #     pass
-    for i in canvs:
+    while len(canvs) > 0:
         try:
-            i.get_tk_widget().destroy()
+            canv, fig = canvs.pop()
+            canv.get_tk_widget().destroy()
         except TclError:
             pass
     gc.collect()
@@ -65,8 +67,11 @@ class PlotClass:
         self.spectr = []
         self.uvs_or_o3 = {}
         self.ozon = 0
-        self.fig = ''
-        self.ax = ''
+        # self.fig = ''
+        # self.ax = ''
+        self.fig, self.ax = plt.subplots(1)
+        plt.subplots_adjust(left=0.07, right=0.97, bottom=0.07, top=0.95)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         self.nexday_allow_flag = 0
         self.dates = []
         self.hss = []
@@ -234,10 +239,17 @@ class PlotClass:
         self.spectrum = self.data['spectr']
         return self.data
 
-    def fig_destroy(self):
+    def fig_prepare(self):
+        while len(canvs) > 0:
+            canvas_i, fig_i = canvs.pop()
+            fig_i.clf()
+            canvas_i.get_tk_widget().destroy()
         self.fig.clf()
         plt.close()
         gc.collect()
+        self.plotx, self.ploty = update_geometry(root)
+        self.fig, self.ax = plt.subplots(1)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
 
     def set_x_limit(self, x, y, x_min, x_max, y_min, y_max, mode):
         if self.o3_mode != 'ozone':
@@ -253,7 +265,8 @@ class PlotClass:
             y_max = self.ozone_y_max
             y_min = self.ozone_y_min
         if mode == 'hour':
-            self.ax.set(xlim=[x_min - datetime.timedelta(minutes=15), x_max + datetime.timedelta(minutes=15)],
+            self.ax.set(xlim=[x_min - datetime.timedelta(minutes=15),
+                              x_max + datetime.timedelta(minutes=15)],
                         ylim=[y_min, y_max])
             self.ax.xaxis.set_major_locator(mdates.HourLocator())
             self.ax.xaxis.set_minor_locator(mdates.MinuteLocator(np.arange(0, 60, 10)))
@@ -266,36 +279,37 @@ class PlotClass:
         global timer
         global canvs
         self.zen_path = path
-        try:
-            self.fig_destroy()
-        except:
-            pass
-        self.fig, self.ax = plt.subplots(1)
-        # print(self.fig.get_size_inches())
-        self.fig.set_size_inches(self.plotx / 80, self.ploty / 80)
+        self.fig_prepare()
+
+        self.fig.set_size_inches(self.plotx / 82, self.ploty / 80)
         self.fig.set_dpi(80)
-        plt.subplots_adjust(left=0.07, right=0.97, bottom=0.07, top=0.95)
+
         if self.o3_mode == 'first':
+            # self.canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
+            # canvs.append(self.canvas)
+            # self.canvas.draw()
+            # print("canvs: {}".format(len(canvs)))
+            # canvs.append(self.canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe'))
             pass
         # ====================== Spectr ======================
         elif self.o3_mode == 'spectr':
             print('new spectr')
             self.ax.set_xlabel('nm')
             self.ax.set_ylabel('mV')
-            conf = self.confZ
-            if self.data['channel'].count('S') > 0:
+            if self.data['channel'].count('S') == 0:
+                conf = self.confZ
+            else:
                 conf = self.confS
             self.ax.set_ylabel('mWt/m^2*nm')
             if self.use_sensitivity:  # Use sensitivity
                 new_spectr = []
-                for i in range(len(self.spectrum)):
+                for index, value in enumerate(self.spectrum):
                     new_spectr.append(
-                            self.spectrum[i] *
-                            self.sensitivity[i] *
-                            var_settings['device']['graduation_expo'] /
-                            self.data['expo'])
+                        value * self.sensitivity[index] * var_settings['device']['graduation_expo'] / self.data['expo'])
                 self.spectrum = new_spectr
-            self.ax.plot([pix2nm(conf, i, 3, 0) for i in range(len(self.spectrum))], self.spectrum, self.point,
+            self.ax.plot([pix2nm(conf, index, 3, 0) for index, value in enumerate(self.spectrum)],
+                         self.spectrum,
+                         self.point,
                          color='k')
             if var_top.get():
                 self.max_y = max(self.spectrum) + 100
@@ -316,7 +330,6 @@ class PlotClass:
             self.ax.grid(True)
 
             self.fig.canvas.draw()
-            canvs_destroy(canvs)
         else:
             self.ax.set_xlabel('Time')
             # ====================== Ozone ======================
@@ -356,13 +369,13 @@ class PlotClass:
                                      600,
                                      'hour')
             self.ax.grid(True)
-            self.fig.canvas.draw()
-            canvs_destroy(canvs)
 
-        canvas = FigureCanvasTkAgg(self.fig, master=self.window)
-        canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
-        canvs.append(canvas)
-        canvas.draw()
+            self.fig.canvas.draw()
+
+        # self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
+        self.canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
+        canvs.append([self.canvas, self.fig])
+        self.canvas.draw()
 
 
 # def send_all_files_plotter():
@@ -545,7 +558,7 @@ def plot_spectr(*event):
     for mode, var in zip(['uva', 'uvb', 'uve'], [lab_uva, lab_uvb, lab_uve]):
         var.configure(text='Значение UV-{}: '.format(mode[-1].upper()))
     root.update()
-    plotx, ploty = change_geometry(root)
+    plotx, ploty = update_geometry(root)
     start = PlotClass(right_panel, 'spectr', plotx, ploty, 1, 0, chk_var_with_sens.get())
     try:
         file = file_list.selection_get()
@@ -565,28 +578,27 @@ def plot_spectr(*event):
             start.calc_uv(mode, False)
             var.configure(text='Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(), int(start.uv)))
     data = (
-            """Канал: {}
+        """Канал: {}
 Дата Время: {}
 Высота Солнца: {} (mu={})
 Темп. CCD: {}
 Темп. Полихроматора: {}
 Экспозиция: {}
 Число суммирований: {}""".format(
-                    start.data['channel'],
-                    start.data['datetime'],
-                    start.data['hs'],
-                    start.data['mu'],
-                    start.data['temperature_ccd'],
-                    start.data['temperature_poly'],
-                    start.data['expo'],
-                    start.data['accumulate']))
+                start.data['channel'],
+                start.data['datetime'],
+                start.data['hs'],
+                start.data['mu'],
+                start.data['temperature_ccd'],
+                start.data['temperature_poly'],
+                start.data['expo'],
+                start.data['accumulate']))
     currnt_data.configure(text=data)
     start.x2 = range(len(start.spectrum))
     start.y2 = start.spectrum
     start.plot(path)
     for i in buttons:
         i.configure(state=NORMAL)
-
 
 
 def change_dir(event):
@@ -728,7 +740,7 @@ def normalize(var):
         return var
 
 
-def change_geometry(root):
+def update_geometry(root):
     geom = root.geometry().split('+')[0].split('x')
     if geom[0] == '1' or geom[1] == '1':
         (plotx, ploty) = root.maxsize()
@@ -737,6 +749,7 @@ def change_geometry(root):
     else:
         plotx = int(geom[0]) - 225
         ploty = int(geom[1]) - 70
+    print((plotx, ploty))
     return plotx, ploty
 
 
@@ -800,7 +813,7 @@ def make_o3file():
     currnt_data.configure(text='')
     lab_ozon.configure(text=tex)
     root.update()
-    plotx, ploty = change_geometry(root)
+    plotx, ploty = update_geometry(root)
     curr_time = []
     txt = make_txt_list_ZSD(path)
     gr_ok = 0
@@ -1037,7 +1050,7 @@ if __name__ == '__main__':
         else:
             drive = p_sep
         path2 = ''
-        plotx, ploty = change_geometry(root)
+        plotx, ploty = update_geometry(root)
         o3min = 200
         ozon_scale_max = 600
         color = 'black'
