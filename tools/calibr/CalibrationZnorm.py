@@ -82,7 +82,7 @@ class Calc:
         self.p_zero1 = nm2pix(290, confZ, 0)
         self.p_zero2 = nm2pix(295, confZ, 0)
         self.p_lamst = nm2pix(300, confZ, 0)
-        self.sensitivity_zenith = procedures.read_sensitivity(settings_home, Settings.get_common(settings_home).get('device').get('id'), "sensitivity")
+        self.sensitivity_zenith = procedures.read_sensitivity(settings_home, Settings.get_common(settings_home).get('device').get('id'), "sensitivityS")
 
     def get_dates(self):
         with open(os.path.join(self.home, 'Calibration_dates.txt')) as f:

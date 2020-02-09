@@ -43,11 +43,6 @@ else:
 
 # Selivanova
 
-
-def now():
-    return datetime.datetime.now()
-
-
 def show_error_in_separate_window(reason="", human_text="", fixit=None):
     try:
         reason = str(reason).split()
@@ -348,7 +343,7 @@ class AnnualOzone:
             day = None
             tasks = []
             all_data = {}
-            timer = [now()]
+            timer = [datetime.datetime.now()]
             for file in files:
                 if file.count("ZD") > 0:
                     current += 1
@@ -399,7 +394,7 @@ class AnnualOzone:
                     queue_th_output.join()
                 else:
                     pass
-                [print(now() - i) for i in timer]
+                [print(datetime.datetime.now() - i) for i in timer]
                 # loop.close()
                 ts = [all_data[str(j)][1] for j in range(max_day_files)]
                 shs = [all_data[str(j)][2] for j in range(max_day_files)]
@@ -716,7 +711,7 @@ def read_sensitivity(path, ufos_id, mode):
 
     :param path: Home dir
     :param ufos_id: UFOS Id from common_settings
-    :param mode: "sensitivity", "senseritem", "sensitivityZen"
+    :param mode: "sensitivityS", "senseritem", "sensitivityZ"
     :return: list of float values
     """
     with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', '{}{}.txt'.format(mode, ufos_id))) as f:
@@ -729,23 +724,16 @@ def read_sensitivity(path, ufos_id, mode):
             return [1] * 3691
 
 
-def nm2pix(nm, configure2, add):
+def nm2pix(nm, abc, add):
     nm = float(nm)
-    abc = configure2
-    if 270 < nm < 350:
-        pix = 0
-        ans_nm = pix2nm(abc, pix, 1, add)
-        while ans_nm < nm:
-            pix += 1
-            ans_nm = pix2nm(abc, pix, 1, add)
-    elif 350 <= nm < 430:
-        pix = 1500
-        ans_nm = pix2nm(abc, pix, 1, add)
-        while ans_nm < nm:
-            pix += 1
-            ans_nm = pix2nm(abc, pix, 1, add)
-    else:
+    pix = 0
+    if not 270 < nm < 430:
         print(nm, 'nm2pix: error')
+        return 0
+    if 350 < nm < 430:
+        pix = 1500
+    while pix2nm(abc, pix, 1, add) < nm:
+        pix += 1
     return pix
 
 
@@ -1169,7 +1157,7 @@ class Main:
         self.pars = pars
         self.home = home
         self.connect_pars = read_connect(self.home)
-        self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'], "sensitivity")
+        self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'], "sensitivityS")
         self.sensitivity_eritem = read_sensitivity(self.home, self.pars['device']['id'], "senseritem")
         self.time_now = datetime.datetime.now()
         self.time_now_local = self.time_now + datetime.timedelta(

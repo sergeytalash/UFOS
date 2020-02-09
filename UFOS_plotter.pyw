@@ -105,7 +105,7 @@ class PlotClass:
         self.curr_o3_dict = {'uva': [2, p_uva1, p_uva2],
                              'uvb': [3, p_uvb1, p_uvb2],
                              'uve': [4, p_uve1, p_uve2]}
-        self.sensitivity = read_sensitivity(home, self.var_settings['device']['id'], "sensitivity")
+        self.sensitivity = read_sensitivity(home, self.var_settings['device']['id'], "sensitivityS")
         self.sensitivity_eritem = read_sensitivity(home, self.var_settings['device']['id'], "senseritem")
         self.confS = self.var_settings['calibration']['nm(pix)']['S']
 
@@ -1074,7 +1074,7 @@ if __name__ == '__main__':
             # Check if file exists
             human_text = 'Чувствительность прибора УФОС' \
                          ' sensitivity{} - не найдена в каталоге программы!'.format(var_settings['device']['id'])
-            read_sensitivity(home, var_settings['device']['id'], "sensitivity")  # Световая чувствительность прибора
+            read_sensitivity(home, var_settings['device']['id'], "sensitivityS")  # Световая чувствительность прибора
             human_text = 'Чувствительность прибора УФОС' \
                          ' senseritem{} - не найдена в каталоге программы!'.format(var_settings['device']['id'])
             read_sensitivity(home, var_settings['device']['id'], "senseritem")  # Эритемная Чувствительность прибора
