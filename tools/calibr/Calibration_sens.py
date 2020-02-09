@@ -186,6 +186,7 @@ class Calc:
               print("Spectr and sensitivity length not equal for {}"
                     "(Spectr: {}, SensitivityZ: {})".format(date, len_sp, len_sens))
             len_min = min(len_sp, len_sens)
+
             spectr = [i * k for i, k in zip(spectr[:len_min], self.sensitivityZ[:len_min])]
 
             sko = file_data['calculated']['sko']
