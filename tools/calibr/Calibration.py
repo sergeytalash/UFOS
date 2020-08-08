@@ -76,7 +76,7 @@ class Calc:
         self.home = 'Calibration_files'
         self.dict_polynoms = {}
         self.dict_polynom_tmp = {}
-        self.Ls = {'sko': [], 'mean': [], 'mu': []}
+        self.Ls = {'sko': [], 'mean': [], 'mu': [], 'temp_ccd': [], 'temp_poly': [], 'datetime_local': []}
         self.data2file = []
         confZ = pars['calibration']['nm(pix)']['Z']
         self.p_zero1 = nm2pix(290, confZ, 0)
@@ -167,7 +167,7 @@ class Calc:
         return new_x, new_y
 
     def get_Ls(self, date, chan):
-        self.Ls = {'sko': [], 'mean': [], 'mu': []}
+        self.Ls = {'sko': [], 'mean': [], 'mu': [], 'temp_ccd': [], 'temp_poly': [], 'datetime_local': []}
         for pair in self.pixels.keys():
             if pair != 'Fraunhofer_pair':
                 self.Ls.setdefault(pair, [])
@@ -191,6 +191,9 @@ class Calc:
                         sko = file_data['calculated']['sko']
                         mean = file_data['calculated']['mean']
                         mu = file_data['calculated']['mu']
+                        temp1 = file_data['mesurement']['temperature_ccd']
+                        temp2 = file_data['mesurement']['temperature_poly']
+                        datetime_local = file_data['mesurement']['datetime_local']
                         for pair in self.pixels.keys():
                             if pair != 'Fraunhofer_pair':
                                 p1 = int(self.pixels[pair][0])
@@ -206,6 +209,10 @@ class Calc:
                         self.Ls['sko'].append(sko)
                         self.Ls['mean'].append(mean)
                         self.Ls['mu'].append(mu)
+                        self.Ls['temp_ccd'].append(temp1)
+                        self.Ls['temp_poly'].append(temp2)
+                        self.Ls['datetime_local'].append(datetime_local)
+
                     except Exception as err:
                         print(err, file)
 
@@ -318,7 +325,7 @@ class GUI():
         self.btn_prev.grid(row=r, column=0, sticky='w')
         self.btn_prev.configure(state=DISABLED)
 
-    def subplot(self, plt_name, x, y, title, pos, legend, plot_pos):
+    def subplot(self, plt_name, x, y, title, pos, legend, plot_pos, temp_ccd, temp_poly, datetime_local):
         ax = self.fig[plt_name].add_subplot(plot_pos)
         ax.set_ylim(0, max(y) * 1.1)
         ax.set_xlim(min(x) * 0.9, max(x) * 1.1)
@@ -326,19 +333,23 @@ class GUI():
         ax.grid(True)  # координатную сетку рисовать
         xx, yy = [x, x, x], [y, y, y]
         lines = []
-        calc.dict_polynom_tmp[self.date[self.dates_count]][title] = {}
-        calc.dict_polynom_tmp[self.date[self.dates_count]][title + '_mesure'] = {}
+        current_date = self.date[self.dates_count]
+        calc.dict_polynom_tmp[current_date][title] = {}
+        calc.dict_polynom_tmp[current_date][title + '_mesure'] = {}
+        calc.dict_polynom_tmp[current_date][title + '_mesure']['temp_ccd'] = temp_ccd
+        calc.dict_polynom_tmp[current_date][title + '_mesure']['temp_poly'] = temp_poly
+        calc.dict_polynom_tmp[current_date][title + '_mesure']['datetime_local'] = datetime_local
         for xi, yi, color, lab in zip(xx, yy, ['-r', '-g', '-b'], ['mu<3', '3<mu<5', '5<mu']):
             try:
-                calc.dict_polynom_tmp[self.date[self.dates_count]][title + '_mesure']['mu'] = xi
-                calc.dict_polynom_tmp[self.date[self.dates_count]][title + '_mesure']['L'] = yi
+                calc.dict_polynom_tmp[current_date][title + '_mesure']['mu'] = xi
+                calc.dict_polynom_tmp[current_date][title + '_mesure']['L'] = yi
                 sko = round(float(np.std(yi)), 4)
                 lines.append(ax.plot(xi, yi, color, label=title + ' ' + lab + ' ' + str(sko))[0])
                 z = np.polyfit(xi, yi, pars["calibration"]["polynom"]["degree"])
-                calc.dict_polynom_tmp[self.date[self.dates_count]][title][lab] = [z.tolist(), sko]
+                calc.dict_polynom_tmp[current_date][title][lab] = [z.tolist(), sko]
                 y = [calc.calculate(z.tolist(), i, 6) for i in xi]
             except Exception as err:
-                calc.dict_polynom_tmp[self.date[self.dates_count]][title][lab] = [[], None]
+                calc.dict_polynom_tmp[current_date][title][lab] = [[], None]
 
         ax.legend(loc='best', fancybox=True).get_frame().set_alpha(0.2)
 
@@ -372,10 +383,14 @@ class GUI():
         for name, row in zip(self.graph_names,
                              [i * 2 for i in range(len(self.graph_names))]):  # graph_names = ['1','2']
             self.graph(name, (12, 3), (row, 0), calc)
-            for pair, column, left, plot_pos in zip(['o3_pair_', 'cloud_pair_'], [0, 1], [0.050, 0.545], [121, 122]):
+            for pair, column, left, plot_pos in zip(['o3_pair_', 'cloud_pair_'],
+                                                    [0, 1],
+                                                    [0.050, 0.545],
+                                                    [121, 122]):
                 if calc.Ls[pair + name]:
                     self.subplot(name, calc.Ls['mu'], calc.Ls[pair + name], pair + name, (0, column),
-                                 [left, 0.1, 0.12, 0.17], plot_pos)
+                                 [left, 0.1, 0.12, 0.17], plot_pos, calc.Ls['temp_ccd'], calc.Ls['temp_poly'],
+                                 calc.Ls['datetime_local'])
                     self.canvas[name].draw()
                 else:
                     if not out:
@@ -409,9 +424,9 @@ class GUI():
                             for mu in ['mu<3', '3<mu<5', '5<mu']:
                                 if calc.dict_polynoms[date][pair + name][mu][1]:
                                     f.write(';{};{};{}'.format(
-                                            str(calc.dict_polynoms[date][pair + name][mu][0]).replace('[', '').replace(']',
-                                                                                                                       '').replace(
-                                                    ', ', ';'), calc.dict_polynoms[date][pair + name][mu][1], 1))
+                                            str(calc.dict_polynoms[date][pair + name][mu][0]
+                                                ).replace('[', '').replace(']', '').replace(', ', ';'),
+                                            calc.dict_polynoms[date][pair + name][mu][1], 1))
                                 else:
                                     f.write(';{};{};{}'.format(
                                         str([0] * (pars["calibration"]["polynom"]["degree"] + 1)).replace('[', '').replace(
@@ -424,23 +439,28 @@ class GUI():
             print("No data to save")
         else:
             for name in self.graph_names:
-                with open(os.path.join(calc.home,
-                                       '{}{}_table_{}{}'.format(self.file_meta, calc.type, name, self.file_format)),
-                          'w') as f:
-                    # Headers Date;Ozone;
-                    f.write('Date;Ozone;Mu')
+                with open(os.path.join(
+                    calc.home, '{}{}_table_{}{}'.format(self.file_meta,
+                                                        calc.type,
+                                                        name,
+                                                        self.file_format)), 'w') as f:
+                    # Headers
+                    headers = ''
+                    headers += 'Date;Ozone;Mu'
                     for pair in ['o3_pair_', 'cloud_pair_']:
-                        f.write(';{}'.format(pair + name))
-                    f.write(';;Mu')
+                        headers += ';{}'.format(pair + name)
+                    headers += ';;Mu'
                     for pair in ['o3_pair_', 'cloud_pair_']:
-                        f.write(';{}'.format(pair + name + '_mesure'))
-                    f.write('\n')
+                        headers += ';{}'.format(pair + name + '_mesure')
+                    headers += ';;temp_ccd;temp_poly'
+                    f.write('{}\n'.format(headers))
                     for date in sorted(calc.dict_polynoms.keys()):
                         i = 0
                         self.mus = calc.dict_polynoms[date][pair + name + '_mesure']['mu']
                         while i < len(self.mus):
+                            datetime_local = calc.dict_polynoms[date]['o3_pair_' + name + '_mesure']['datetime_local'][i]
                             mu = self.mus[i]
-                            text = '{};{};{}'.format(date, self.dates[date], mu)
+                            text = '{};{};{}'.format(datetime_local, self.dates[date], mu)
                             if mu < pars["calibration"]["polynom"]["mu_intervals"][0]:  # mu<3
                                 text += calc.table_create(name, date, mu, 'mu<3')
                             elif pars["calibration"]["polynom"]["mu_intervals"][0] <= mu < \
@@ -450,11 +470,17 @@ class GUI():
                                 text += calc.table_create(name, date, mu, '5<mu')
                             try:
                                 if i < len(calc.dict_polynoms[date][pair + name + '_mesure']['mu']):
-                                    text += ';;{}'.format(calc.dict_polynoms[date][pair + name + '_mesure']['mu'][i])
+                                    text += ';;{}'.format(
+                                        calc.dict_polynoms[date][pair + name + '_mesure']['mu'][i])
                                     for pair in ['o3_pair_', 'cloud_pair_']:
-                                        text += ';{}'.format(calc.dict_polynoms[date][pair + name + '_mesure']['L'][i])
+                                        text += ';{}'.format(
+                                            calc.dict_polynoms[date][pair + name + '_mesure']['L'][i])
+                                    text += ';;{};{}'.format(
+                                        calc.dict_polynoms[date]['o3_pair_' + name + '_mesure']['temp_ccd'][i],
+                                        calc.dict_polynoms[date]['o3_pair_' + name + '_mesure']['temp_poly'][i])
                             except Exception as err:
                                 pass
+                            text = text[:11] + text[11:].replace('.', ',')
                             f.write('{}\n'.format(text))
                             i += 1
                 print('Saved: {}{}_table_{}{}'.format(self.file_meta, calc.type, name, self.file_format))

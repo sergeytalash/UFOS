@@ -16,7 +16,7 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from procedures import *
-
+from tkinter import font
 
 def canvs_destroy(canvs):
     # global timer
@@ -93,6 +93,7 @@ class PlotClass:
         self.f = self.var_settings['station']['latitude']
         self.l = self.var_settings['station']['longitude']
         self.pelt = int(self.var_settings['station']['timezone'])
+        self.pix_work_interval = slice(*self.var_settings["device"]["pix_work_interval"])
         self.y1 = []
         self.y2 = []
         self.x1 = []
@@ -114,15 +115,18 @@ class PlotClass:
         """Расчет озона"""
         self.o3 = {}
         correct = {}
+        addational_data = {}
         for pair, values in lambda_consts.items():
-            self.o3[pair], correct[pair] = pre_calc_o3(lambda_consts[pair], lambda_consts_pix[pair], self.spectrum,
+            self.o3[pair], correct[pair], addational_data[pair] = pre_calc_o3(lambda_consts[pair], lambda_consts_pix[pair], self.spectrum,
                                                        self.prom,
                                                        self.data['mu'],
                                                        self.var_settings, home, pair)
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"],
                                 'o3_2': self.o3["2"],
                                 'correct_1': correct["1"],
-                                'correct_2': correct["2"]}
+                                'correct_2': correct["2"],
+                                'additional_data_1': addational_data["1"],
+                                'additional_data_2': addational_data["2"]}
         if self.o3_mode != 'spectr':
             if self.show_all or correct["1"] == 1:
                 self.x1.append(self.data['datetime'])
@@ -144,6 +148,8 @@ class PlotClass:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]) * np.array(self.sensitivity[p1:p2]))
                 else:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]))
+                ultraviolet *= float(eval(self.confS[1])) * self.var_settings['device']['graduation_expo'] / \
+                                   self.data['expo']
             elif uv_mode == 'uve':
                 if self.use_sensitivity:
                     ultraviolet = sum([float(self.spectrum[i]) *
@@ -172,7 +178,7 @@ class PlotClass:
                 data = json.load(f)
                 if flag:
                     new_data = {'spectr': data['spectr'],
-                                'datetime': datetime.datetime.strptime(data['mesurement']['datetime'],
+                                'datetime': datetime.datetime.strptime(data['mesurement']['datetime_local'],
                                                                        '%Y%m%d %H:%M:%S'),
                                 'hs': data['calculated']['sunheight'],
                                 'amas': data['calculated']['amas'],
@@ -256,7 +262,7 @@ class PlotClass:
             if max(x) > x_max: x_max = max(x)
             if min(x) < x_min: x_min = min(x)
             # if max(y) > y_max: y_max = max(y) * 1.05
-            y_max = max(y)
+            y_max = max(y[slice(*self.var_settings['device']['pix_work_interval'])])
             # if min(y) < y_min: y_min = min(y) * 0.95
             y_min = min(y)
         else:
@@ -296,9 +302,8 @@ class PlotClass:
             print('new spectr')
             self.ax.set_xlabel('nm')
             self.ax.set_ylabel('mV')
-            if self.data['channel'].count('S') == 0:
-                conf = self.confZ
-            else:
+            conf = self.confZ
+            if 'S' in self.data['channel']:
                 conf = self.confS
             self.ax.set_ylabel('mWt/m^2*nm')
             if self.use_sensitivity:  # Use sensitivity
@@ -312,7 +317,7 @@ class PlotClass:
                          self.point,
                          color='k')
             if var_top.get():
-                self.max_y = max(self.spectrum) + 100
+                self.max_y = max(self.spectrum[slice(*self.var_settings['device']['pix_work_interval'])]) + 100
             else:
                 self.max_y = 4096
             if self.data['channel'].count('Z') > 0:
@@ -369,13 +374,13 @@ class PlotClass:
                                      600,
                                      'hour')
             self.ax.grid(True)
-
             self.fig.canvas.draw()
+            canvs_destroy(canvs)
 
-        # self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
-        self.canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
-        canvs.append([self.canvas, self.fig])
-        self.canvas.draw()
+        canvas = FigureCanvasTkAgg(self.fig, master=self.window)
+        canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
+        canvs.append((canvas, self.fig))
+        canvas.draw()
 
 
 # def send_all_files_plotter():
@@ -741,15 +746,18 @@ def normalize(var):
 
 
 def update_geometry(root):
-    geom = root.geometry().split('+')[0].split('x')
-    if geom[0] == '1' or geom[1] == '1':
-        (plotx, ploty) = root.maxsize()
-        plotx -= 225
-        ploty -= 110
-    else:
-        plotx = int(geom[0]) - 225
-        ploty = int(geom[1]) - 70
-    print((plotx, ploty))
+    plotx, ploty = root.winfo_screenwidth() / 1.5, root.winfo_screenheight() / 1.5
+    # geom = root.geometry().split('+')[0].split('x')
+    # if geom[0] == '1' or geom[1] == '1':
+    #     (plotx, ploty) = root.maxsize()
+    #     plotx -= 225
+    #     ploty -= 110
+    # else:
+    #     from PIL.ImageChops import screen
+    #
+    #     # plotx = int(geom[0]) - 225
+    #     # ploty = int(geom[1]) - 70
+    # print((plotx, ploty))
     return plotx, ploty
 
 
@@ -917,7 +925,7 @@ def make_o3file():
         else:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
-{0}{1}Ufos_{2}\{1}Mesurements?)""".format(home, p_sep, start.var_settings['device']['id'])
+{0}{1}Ufos_{2}{1}Mesurements?)""".format(home, p_sep, start.var_settings['device']['id'])
 
     else:  # Пересчёт
         mean_file = 0
@@ -1098,7 +1106,7 @@ if __name__ == '__main__':
             root.wm_state('normal')
         # root.geometry('908x530+200+100') #'908x530+200+100'
         root.resizable(True, True)
-        appHighlightFont = font2.Font(family='Helvetica', size=14)  # , weight='bold')
+        appHighlightFont = font.Font(family='Helvetica', size=14)  # , weight='bold')
         top_panel = ttk.Frame(root, padding=(1, 1), relief='solid')  # ,width=800
         menu_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
         admin_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')

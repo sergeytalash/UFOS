@@ -124,7 +124,7 @@ class Gui:
             if isinstance(self.pars[key], str):
                 self.pars[key] = self.new_pars[key]
             elif isinstance(self.pars[key], dict):
-                self.pars[key] =self.new_pars[key]
+                self.pars[key] = self.new_pars[key]
         self.new_pars = self.pars
 
         try:
