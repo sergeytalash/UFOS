@@ -910,14 +910,15 @@ class CalculateOnly:
         correct = {}
         additional_data = {}
         for pair, values in self.lambda_consts.items():
-            o3[pair], correct[pair], additional_data[pair] = pre_calc_o3(self.lambda_consts[pair],
-                                                                         self.lambda_consts_pix[pair],
-                                                                         spectrum,
-                                                                         self.prom,
-                                                                         mu,
-                                                                         self.settings,
-                                                                         self.home,
-                                                                         pair)
+            o3[pair], correct[pair], additional_data[pair] = pre_calc_o3(
+                self.lambda_consts[pair],
+                self.lambda_consts_pix[pair],
+                spectrum,
+                self.prom,
+                mu,
+                self.settings,
+                self.home,
+                pair)
         return o3, correct, additional_data
 
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
@@ -940,7 +941,7 @@ class CalculateOnly:
 class UfosDataToCom:
     """UFOS mesure class"""
 
-    def __init__(self, expo, accummulate, mesure_type, start_mesure, logger):
+    def __init__(self, expo, accummulate, mesure_type, start_mesure, logger, pars):
         """Преобразование данных запроса в необходимый тип для отправки в прибор
         dev_id - номер прибора (всегда = 1)
         expo - время измерения в мс
@@ -954,6 +955,7 @@ class UfosDataToCom:
         self.logger = logger
         self.data_send = b''
         self.accum = accummulate
+        self.pars = pars
         self.mesure_type = mesure_type.encode('utf-8')  # Z, S, D
         self.start_mesure = start_mesure.encode('utf-8')  # S
         self.data_send = b'#\x00\x01' + \
@@ -991,7 +993,7 @@ class UfosDataToCom:
                         i -= 1
                         spectr.append(int(data[i + 1]) * 255 + int(data[i]))
                         i -= 1
-                    text = 'Амп = {}'.format(max(spectr[100:3600]))
+                    text = 'Амп = {}'.format(max(spectr[slice(*self.pars['device']['pix_work_interval'])]))
                 else:
                     spectr = [0]
                     text = ''
@@ -1604,28 +1606,33 @@ class Main:
                 """ Z or S mesurement """
                 for chan in self.pars['device']['channel']:
                     self.expo = self.pars['device']['auto_expo_min']
-                    self.ZS_spectr = [0]
+                    self.ZS_spectr = [0] * 3691
                     self.change_channel(chan)
                     while self.expo < self.pars['device']['auto_expo_max'] \
-                        and max(self.ZS_spectr) < self.pars['device']['amplitude_max']:
+                        and max(self.ZS_spectr[slice(*self.pars['device']['pix_work_interval'])]) < self.pars['device'][
+                        'amplitude_max']:
                         try:
                             text = 'Канал {}. Эксп = {}'.format(
                                 self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                                 self.expo)
                             print(text, end='')
-                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                                self.expo,
-                                self.pars['device']['accummulate'],
-                                chan,
-                                'S',
-                                self.logger).device_ask(self.tries_allowed)
+                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                                     self.pars[
+                                                                                                         'device'][
+                                                                                                         'accummulate'],
+                                                                                                     chan,
+                                                                                                     'S',
+                                                                                                     self.logger,
+                                                                                                     self.pars).device_ask(
+                                self.tries_allowed)
                             text += ' ' + text2
                             print('\r{}'.format(text))
                             self.logger.info(text)
-                            if max(self.ZS_spectr[self.pix_work_interval]) > self.pars['device']['amplitude_min']:
+                            if max(self.ZS_spectr[slice(*self.pars['device']['pix_work_interval'])]) > \
+                                self.pars['device']['amplitude_min']:
                                 break
-                            k[chan] = max(self.ZS_spectr[self.pix_work_interval]) / self.pars['device']['amplitude_max']
-                            print("k[chan] = {}".format(k[chan]))
+                            k[chan] = max(self.ZS_spectr[slice(*self.pars['device']['pix_work_interval'])]) / \
+                                      self.pars['device']['amplitude_max']
                             if k[chan] != 0:
                                 self.expo = int(self.expo / k[chan])
 
@@ -1641,12 +1648,14 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                            self.expo,
-                            self.pars['device']['accummulate'],
-                            chan,
-                            'S',
-                            self.logger).device_ask(self.tries_allowed)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                                 self.pars['device'][
+                                                                                                     'accummulate'],
+                                                                                                 chan,
+                                                                                                 'S',
+                                                                                                 self.logger,
+                                                                                                 self.pars).device_ask(
+                            self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1661,12 +1670,13 @@ class Main:
                         self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                         self.expo)
                     print(text)
-                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                        self.expo,
-                        self.pars['device']['accummulate'],
-                        'D',
-                        'S',
-                        self.logger).device_ask(self.tries_allowed)
+                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                           self.pars['device'][
+                                                                                               'accummulate'],
+                                                                                           'D', 'S',
+                                                                                           self.logger,
+                                                                                           self.pars).device_ask(
+                        self.tries_allowed)
                     text += ' ' + text2
                     print('\r{}'.format(text), end=' ')
                     self.logger.info(text)
@@ -1694,12 +1704,13 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                            self.expo,
-                            self.pars['device']['accummulate'],
-                            chan,
-                            'S',
-                            self.logger).device_ask(self.tries_allowed)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
+                                                                                                 self.pars['device'][
+                                                                                                     'accummulate'],
+                                                                                                 chan, 'S',
+                                                                                                 self.logger,
+                                                                                                 self.pars).device_ask(
+                            self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1718,7 +1729,8 @@ class Main:
                                                                                                self.pars['device'][
                                                                                                    'accummulate'], 'D',
                                                                                                'S',
-                                                                                               self.logger).device_ask(
+                                                                                               self.logger,
+                                                                                               self.pars).device_ask(
                             self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
