@@ -1,24 +1,19 @@
-import unittest
 import os
-import datetime
-import json
+# import datetime
+# import json
 import sys
+import unittest
+
 sys.path.append('../')
-import UFOS_plotter
+
+
 if os.name == 'posix':
     p_sep = '/'
 else:
     p_sep = '\\'
 
-
-from procedures import *
-
-
-def settings():
-    with open(r"Ufos_14\Settings\settings.json") as f:
-        settings_dict = json.load(f)
-    return settings_dict
-
+from lib.core import *
+from lib.plotter import *
 
 def print_name(*args):
     print(str(args[0]).split()[1])
@@ -30,40 +25,47 @@ def get_tests_dir():
         tests_dir = 'tests' + p_sep
     elif path == 'tests':
         tests_dir = ''
+    else:
+        tests_dir = ''
     return tests_dir
 
 
 class TestProcedures(unittest.TestCase):
+    def setUp(self):
+        with open(r"Ufos_14\Settings\settings.json") as f:
+            self.settings_dict = json.load(f)
+
     def test_get_new_corrects_a_correct_data(self):
         # print('name')
         self.assertEqual(Correction.get_second_corrects([279, 285, 275, 271, 268, 275, 282, 274, 282, 272],
                                                         [279, 285, 275, 271, 268, 275, 282, 274, 282, 272],
-                                                        settings()),
+                                                        self.settings_dict),
                          (['1', '1', '1', '1', '1', '1', '1', '1', '1', '1'], 5.22, 276))
 
     def test_get_new_corrects_b_uncorrect_data(self):
         self.assertEqual(Correction.get_second_corrects([279, 285, 275, 271, 268, 700, 1500, 274, 2000, 272],
                                                         [279, 285, 275, 271, 268, 275, 282, 274, 282, 272],
-                                                        settings()),
+                                                        self.settings_dict),
                          (['1', '1', '1', '1', '1', '0', '0', '1', '0', '1'], 5.22, 276))
 
     def test_finalfile_prepare_a_datetime_string(self):
-        init = UFOS_plotter.FinalFile(settings(), '.', True, '')
+        init = UFOS_plotter.FinalFile(self.settings_dict, '.', True, '')
         self.assertEqual(init.prepare('20181203 06:43:55', {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}),
                          ('20181203 06:43:55', 5.475, {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}))
 
     def test_finalfile_prepare_b_datetime_datetime(self):
-        init = UFOS_plotter.FinalFile(settings(), '.', True, '')
+        init = UFOS_plotter.FinalFile(self.settings_dict, '.', True, '')
         self.assertEqual(init.prepare(datetime.datetime.strptime('20181203 06:43:55', '%Y%m%d %H:%M:%S'),
                                       {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}),
                          ('20181203 06:43:55', 5.475, {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}))
 
     def test_finalfile_save_a(self):
-        init = UFOS_plotter.FinalFile(settings(), '.', True, '')
-        ozone_file = os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12', 'New_m14_Ozone_20181203.txt')
+        init = UFOS_plotter.FinalFile(self.settings_dict, '.', True, '')
+        ozone_file = os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12',
+                                  'New_m14_Ozone_20181203.txt')
         if os.path.exists(ozone_file):
             os.remove(ozone_file)
-        self.assertEqual(init.save(settings(), get_tests_dir(), 'ZD',
+        self.assertEqual(init.save(self.settings_dict, get_tests_dir(), 'ZD',
                                    ['20181203 06:43:55',
                                     '20181203 06:48:37',
                                     '20181203 06:54:19',
@@ -76,7 +78,7 @@ class TestProcedures(unittest.TestCase):
                                     {'o3_1': 731, 'o3_2': 271, 'correct_1': 0, 'correct_2': 1},
                                     {'o3_1': 713, 'o3_2': 268, 'correct_1': 0, 'correct_2': 1}]),
                          ozone_file)
-        self.assertEqual(calculate_final_files(settings(),
+        self.assertEqual(calculate_final_files(self.settings_dict,
                                                ozone_file,
                                                'ZD',
                                                True,
@@ -174,7 +176,7 @@ class TestProcedures(unittest.TestCase):
                 '20181203 11:51:20;20181203 14:51:20;5.791;721;0;270;1',
                 '20181203 11:56:02;20181203 14:56:02;5.408;728;0;273;1',
                 '20181203 12:00:43;20181203 15:00:43;5.016;759;0;285;1']
-        out = calculate_final_files(settings(),
+        out = calculate_final_files(self.settings_dict,
                                     data,
                                     'ZD',
                                     False,
@@ -184,7 +186,8 @@ class TestProcedures(unittest.TestCase):
         # self.assertEqual(out.items(), ["1", "2"])
 
     def test_finalfile_save_b_file_is_correct(self):
-        with open(os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12', 'New_m14_Ozone_20181203.txt')) as fr:
+        with open(os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12',
+                               'New_m14_Ozone_20181203.txt')) as fr:
             d = fr.readlines()
             self.assertEqual(d[0],
                              'DatetimeUTC;DatetimeLocal;Sunheight[°];OzoneP1[D.u.];CorrectP1;OzoneP2[D.u.];CorrectP2\n')
@@ -203,7 +206,7 @@ class TestProcedures(unittest.TestCase):
         self.assertEqual(sumarize([1, 2, 3, 4]), 10)
 
     def test_read_nomographs(self):
-        mueff_list, r12_list, ozone_list = read_nomographs(get_tests_dir(), settings()["device"]["id"], '1')
+        mueff_list, r12_list, ozone_list = read_nomographs('1')
         self.assertEqual(mueff_list,
                          [1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9,
                           1.95, 2.0, 2.05, 2.1, 2.15, 2.2, 2.25, 2.3, 2.35, 2.4, 2.45, 2.5, 2.55, 2.6, 2.65, 2.7, 2.75,
@@ -288,8 +291,8 @@ class TestProcedures(unittest.TestCase):
         self.assertEqual(ozone_list, [530, 434, 380, 348, 306, 270])
 
     def test_sunheight(self):
-        mu, atmosphere_mas, hg = sunheight(settings()["station"]["latitude"],
-                                           settings()["station"]["longitude"],
+        mu, atmosphere_mas, hg = sunheight(self.settings_dict["station"]["latitude"],
+                                           self.settings_dict["station"]["longitude"],
                                            datetime.datetime.strptime('20181203 06:43:55', '%Y%m%d %H:%M:%S'),
                                            "+3")
         self.assertEqual(mu, 8.085)

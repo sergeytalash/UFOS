@@ -25,8 +25,9 @@ import matplotlib.pyplot as plt
 
 settings_home = p_split(p_split(os.getcwd())[0])[0]
 sys_path.insert(0, settings_home)
-import procedures
-from procedures import Settings
+# import procedures
+# from procedures import Settings
+from lib.core import *
 
 import collections
 
@@ -67,9 +68,9 @@ def pix2nm(abc, pix, digs, add):
 
 
 class Calc:
-  def __init__(self, pars):
+  def __init__(self, PARS):
     self.dates = {}
-    self.pars = pars
+    PARS = PARS
     self.dates_no_data = []
     self.files = {}
     self.pixels = {}
@@ -80,12 +81,10 @@ class Calc:
     self.dict_polynom_tmp = {}
     self.Ls = {'sko': [], 'mean': [], 'mu': []}
     self.data2file = []
-    confZ = pars['calibration']['nm(pix)']['Z']
+    confZ = PARS['calibration']['nm(pix)']['Z']
     self.p_zero1 = nm2pix(285, confZ, 0)
     self.p_zero2 = nm2pix(290, confZ, 0)
-    self.sensitivityZ = procedures.read_sensitivity(settings_home,
-                                                    self.pars['device']['id'],
-                                                    "sensitivityZ")
+    self.sensitivityZ = read_sensitivity("Z")
 
   def get_dates(self):
     with open(os.path.join(self.home, 'Calibration_dates.txt')) as f:
@@ -99,7 +98,7 @@ class Calc:
     for date in self.dates.keys():
       d = date.split('.')  # YYYY.MM.DD
       path = os.path.join(settings_home,
-                          'Ufos_{}'.format(pars['device']['id']),
+                          'Ufos_{}'.format(PARS['device']['id']),
                           'Mesurements',
                           str(d[0]),
                           '{}-{}'.format(d[0], d[1]),
@@ -116,7 +115,7 @@ class Calc:
     return round(out, num)
 
   def pix2nm(self, pix, chan):
-    return self.calculate(pars['calibration']['nm(pix)'][chan], pix, 3)
+    return self.calculate(PARS['calibration']['nm(pix)'][chan], pix, 3)
 
   def nm2pix(self, nm, chan, pix=0):
     nm = float(nm)
@@ -131,12 +130,12 @@ class Calc:
     return pix
 
   def get_pixels(self, chan):
-    for pair in pars['calibration']['points'].keys():
+    for pair in PARS['calibration']['points'].keys():
       self.pixels[pair] = []
 
       if pair != 'Fraunhofer_pair':
         self.Ls[pair] = []
-      for nm in pars['calibration']['points'][pair]:
+      for nm in PARS['calibration']['points'][pair]:
         self.pixels[pair].append(self.nm2pix(nm, chan))
 
   def open_file(self, path):
@@ -196,8 +195,8 @@ class Calc:
               if pair_name != 'Fraunhofer_pair':
                 p = {str(i): int(pixels[i]) for i in [0, 1]}
                 I = {str(i): spectr[
-                             p[str(i)] - int(pars['calibration']['pix_interval']):
-                             p[str(i)] + int(pars['calibration']['pix_interval'])] for i in [0, 1]}
+                             p[str(i)] - int(PARS['calibration']['pix_interval']):
+                             p[str(i)] + int(PARS['calibration']['pix_interval'])] for i in [0, 1]}
                 self.Ls[pair_name].append(round(sum(I['0']) / sum(I['1']), 6))
             self.Ls['sko'].append(sko)
             self.Ls['mean'].append(mean)
@@ -232,14 +231,14 @@ class GUI():
   def __init__(self, root, dates):
     self.plt = {}
     self.fig = {}
-    self.file_meta = 'Sens_dev{}_{}_'.format(pars["device"]["id"],
+    self.file_meta = 'Sens_dev{}_{}_'.format(PARS["device"]["id"],
                                         datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d-%H%M'))
     self.file_format = '.csv'
     self.text_polynoms = '{}{}_polynoms_{}{}'
     self.text_tables = '{}{}_table_{}{}'
-    self.mus = np.arange(pars["calibration"]["polynom"]["mu_start"],
-                         pars["calibration"]["polynom"]["mu_end"],
-                         pars["calibration"]["polynom"]["mu_step"])
+    self.mus = np.arange(PARS["calibration"]["polynom"]["mu_start"],
+                         PARS["calibration"]["polynom"]["mu_end"],
+                         PARS["calibration"]["polynom"]["mu_step"])
     self.channel = 'Z'  # Take ZD files (or set 'S' to taket ZS files)
     self.graph_names = ['1', '2']  # For pairs ['o3_pair_','cloud_pair_']
     self.polynom_vars = {i: [] for i in self.graph_names}
@@ -259,9 +258,9 @@ class GUI():
     self.left_frame = ttk.Frame(self.root)
     self.right_frame = ttk.Frame(self.root)
     self.gui_elements.append(ttk.Label(self.left_frame, text='Номер прибора:'))
-    self.gui_elements.append(ttk.Label(self.left_frame, text=pars['device']['id']))
+    self.gui_elements.append(ttk.Label(self.left_frame, text=PARS['device']['id']))
     self.gui_elements.append(ttk.Label(self.left_frame, text='Номер станции:'))
-    self.gui_elements.append(ttk.Label(self.left_frame, text=pars['station']['id']))
+    self.gui_elements.append(ttk.Label(self.left_frame, text=PARS['station']['id']))
     self.gui_elements.append(ttk.Label(self.left_frame))
     self.gui_elements.append(ttk.Label(self.left_frame))
     self.gui_elements.append(ttk.Label(self.left_frame, text='Дата'))
@@ -334,7 +333,7 @@ class GUI():
         calc.dict_polynom_tmp[self.date[self.dates_count]][title + '_mesure']['L'] = yi
         sko = round(float(np.std(yi)), 4)
         lines.append(ax.plot(xi, yi, color, label=title + ' ' + lab + ' ' + str(sko))[0])
-        z = np.polyfit(xi, yi, pars["calibration"]["polynom"]["degree"])
+        z = np.polyfit(xi, yi, PARS["calibration"]["polynom"]["degree"])
         calc.dict_polynom_tmp[self.date[self.dates_count]][title][lab] = [z.tolist(), sko]
         y = [calc.calculate(z.tolist(), i, 6) for i in xi]
       except Exception as err:
@@ -396,7 +395,7 @@ class GUI():
           f.write('Date;Ozone')
           for pair in ['o3_pair_', 'cloud_pair_']:
             for mu in ['mu<3', '3<mu<5', '5<mu']:
-              for coeff in 'abcdef'[:pars["calibration"]["polynom"]["degree"] + 1]:
+              for coeff in 'abcdef'[:PARS["calibration"]["polynom"]["degree"] + 1]:
                 f.write(';{}{}_{}'.format(pair, mu, coeff))
               f.write(';SKO;Status')
           f.write('\n')
@@ -412,7 +411,7 @@ class GUI():
                       ', ', ';'), calc.dict_polynoms[date][pair + name][mu][1], 1))
                 else:
                   f.write(';{};{};{}'.format(
-                    str([0] * (pars["calibration"]["polynom"]["degree"] + 1)).replace('[', '').replace(
+                    str([0] * (PARS["calibration"]["polynom"]["degree"] + 1)).replace('[', '').replace(
                       ']', '').replace(', ', ';'), 'NaN', 0))
             f.write('\n')
         print("Saved: " + self.text_polynoms.format(self.file_meta, calc.type, name, self.file_format))
@@ -439,12 +438,12 @@ class GUI():
             while i < len(self.mus):
               mu = self.mus[i]
               text = '{};{};{}'.format(date, self.dates[date], mu)
-              if mu < pars["calibration"]["polynom"]["mu_intervals"][0]:  # mu<3
+              if mu < PARS["calibration"]["polynom"]["mu_intervals"][0]:  # mu<3
                 text += calc.table_create(name, date, mu, 'mu<3')
-              elif pars["calibration"]["polynom"]["mu_intervals"][0] <= mu < \
-                pars["calibration"]["polynom"]["mu_intervals"][1]:  # 3<=mu<5
+              elif PARS["calibration"]["polynom"]["mu_intervals"][0] <= mu < \
+                PARS["calibration"]["polynom"]["mu_intervals"][1]:  # 3<=mu<5
                 text += calc.table_create(name, date, mu, '3<mu<5')
-              elif mu >= pars["calibration"]["polynom"]["mu_intervals"][1]:  # mu>=5
+              elif mu >= PARS["calibration"]["polynom"]["mu_intervals"][1]:  # mu>=5
                 text += calc.table_create(name, date, mu, '5<mu')
               try:
                 if i < len(calc.dict_polynoms[date][pair + name + '_mesure']['mu']):
@@ -459,8 +458,8 @@ class GUI():
 
 
 if __name__ == "__main__":
-  pars = Settings.get_device(settings_home, Settings.get_common(settings_home).get('device').get('id'))
-  calc = Calc(pars)
+  PARS = Settings.get_device(settings_home, Settings.get_common(settings_home).get('device').get('id'))
+  calc = Calc(PARS)
   dates = calc.get_dates()
   calc.get_filenames()
   calc.get_pixels('Z')

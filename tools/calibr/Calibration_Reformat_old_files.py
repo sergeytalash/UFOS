@@ -11,7 +11,7 @@ import procedures
 from procedures import Settings
 
 
-def convert_file(directory, file, new_data_example, pars):
+def convert_file(directory, file, new_data_example, PARS):
     global mesure_count
     global current_channels
     with open(os.path.join(directory, file)) as f:
@@ -30,7 +30,7 @@ def convert_file(directory, file, new_data_example, pars):
                 current_channels.add(new_data["mesurement"]["channel"])
                 date_time = datetime.datetime.strptime(
                     l[1].split(' = ')[-1].replace('.', '') + ' ' + l[2].split(' = ')[-1][:-1], '%d%m%Y %H:%M:%S')
-                date_time_local = date_time + datetime.timedelta(hours=int(pars["station"]["timezone"]))
+                date_time_local = date_time + datetime.timedelta(hours=int(PARS["station"]["timezone"]))
                 new_data["mesurement"]["datetime"] = datetime.datetime.strftime(date_time, '%Y%m%d %H:%M:%S')
                 new_data["mesurement"]["datetime_local"] = datetime.datetime.strftime(date_time_local,
                                                                                       '%Y%m%d %H:%M:%S')
@@ -68,13 +68,13 @@ def convert_file(directory, file, new_data_example, pars):
                     count_pars += 1
                     text = {
                         "id": {
-                            "device": pars["device"]["id"],
-                            "station": pars["station"]["id"]
+                            "device": PARS["device"]["id"],
+                            "station": PARS["station"]["id"]
                             },
                         "mesurement": {
-                            "timezone": pars["station"]["timezone"],
-                            "latitude": pars["station"]["latitude"],
-                            "longitude": pars["station"]["longitude"]
+                            "timezone": PARS["station"]["timezone"],
+                            "latitude": PARS["station"]["latitude"],
+                            "longitude": PARS["station"]["longitude"]
                             },
                         "calculated": {
                             "sko": round(float(np.std(spectr[300:3600])), 4),
@@ -96,12 +96,12 @@ def convert_file(directory, file, new_data_example, pars):
         year = new_data["mesurement"]["datetime"].split()[0][:4]
         month = new_data["mesurement"]["datetime"].split()[0][4:6]
         day = new_data["mesurement"]["datetime"].split()[0][6:]
-        dirs = ['Ufos_{}'.format(pars["device"]["id"]),
+        dirs = ['Ufos_{}'.format(PARS["device"]["id"]),
                 'Mesurements',
                 year,
                 year + '-' + month,
                 year + '-' + month + '-' + day]
-        new_file = name = 'm{}_{}_{}_{}.txt'.format(pars['device']['id'],
+        new_file = name = 'm{}_{}_{}_{}.txt'.format(PARS['device']['id'],
                                                     str(mesure_count).zfill(3),
                                                     new_data["mesurement"]["channel"],
                                                     new_data["mesurement"]["datetime"].replace(':', '').replace(' ', '')
@@ -130,7 +130,7 @@ def change_channel(_in, file, files):
 
 if __name__ == "__main__":
     home = p_split(p_split(os.getcwd())[0])[0]
-    pars = Settings.get_device(home, Settings.get_common(home).get('device').get('id'))
+    PARS = Settings.get_device(home, Settings.get_common(home).get('device').get('id'))
     new_data_example = {
         "calculated": {
             "amas": 0,
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                 files = sorted(os.listdir(directory))
                 for file in files:
                     if '.txt' in file and 'm' == file[0] and '_' in file:
-                        convert_file(directory, file, new_data_example, pars)
+                        convert_file(directory, file, new_data_example, PARS)
 
     # ====================================================================
     if ch == '2':
@@ -190,6 +190,6 @@ if __name__ == "__main__":
                     current_channels = set()
                     for file in files:
                         if '.txt' in file and 'm' in file and '_' in file:
-                            convert_file(directory, file, new_data_example, pars)
+                            convert_file(directory, file, new_data_example, PARS)
 
     print('\nDone.')
