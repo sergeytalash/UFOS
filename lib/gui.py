@@ -1,7 +1,5 @@
 import gc
-from tkinter import TclError
-from lib.core import *
-from tkinter import *
+import tkinter
 from tkinter import ttk, Menu
 
 
@@ -10,7 +8,7 @@ def canvs_destroy(canvas):
         try:
             canv, fig = canvas.pop()
             canv.get_tk_widget().destroy()
-        except TclError:
+        except tkinter.TclError:
             pass
     gc.collect()
 
@@ -28,7 +26,7 @@ def show_error_in_separate_window(reason="", human_text="", fixit=None):
                 continue
             out += line + '\n'
             line = ""
-        err_root = Tk()
+        err_root = tkinter.Tk()
         err_root.title('Ошибка')
         err_root.resizable(False, False)
         text = ttk.Label(err_root, text=out)

@@ -3,6 +3,16 @@ import logging
 import logging.handlers as handlers
 import os
 from datetime import datetime
+import string
+import inspect
+import sys
+
+
+def print_error(err):
+    print(inspect.currentframe().f_code.co_name)
+    text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
+    print(text)
+    LOGGER.error(text)
 
 
 def measure_year_dir(dt, dir_type, deep=False):
@@ -41,7 +51,7 @@ def measure_month_dir(dt, dir_type, deep=False):
         return os.path.join(*dirs_list)
 
 
-def measure_day_dir(dt, dir_type, deep=False):
+def measure_day_dir(dt, dir_type='Mesurements', deep=False):
     """
     Args:
         dt (datetime):
@@ -65,7 +75,7 @@ def get_device_id():
     Returns:
         Int
     """
-    with open(os.path.join(HOME, 'common_settings.json'), 'r') as f:
+    with open(os.path.join(HOME, DEVICE_ID_FILE), 'r') as f:
         return json.load(f)['device']['id']
 
 
@@ -147,8 +157,8 @@ def read_nomographs(o3_num):
     if os.path.exists(filename):
         with open(filename, 'r') as fr:
             ozone_number = 0
-            mueff_number = 0
-            mueff_step = 0.05
+            # mueff_number = 0
+            # mueff_step = 0.05
             # TODO: Refactor nomograph file for better operations
             while True:
                 line = fr.readline()
@@ -158,12 +168,12 @@ def read_nomographs(o3_num):
                 if line.find('Ozone\tnumber\t\t\t') != -1:
                     ozone_number = int(line.split('\t')[0])
                     continue
-                if line.find('Mueff\tnumber\t\t\t') != -1:
-                    mueff_number = int(line.split('\t')[0])
-                    continue
-                if line.find('Mueff\tstep\t\t\t') != -1:
-                    mueff_step = float(line.split('\t')[0])
-                    continue
+                # if line.find('Mueff\tnumber\t\t\t') != -1:
+                #     mueff_number = int(line.split('\t')[0])
+                #     continue
+                # if line.find('Mueff\tstep\t\t\t') != -1:
+                #     mueff_step = float(line.split('\t')[0])
+                #     continue
                 'массив со значениями озона'
                 if line.find('\tOzon\tnumber\n') != -1:
                     ozone_list_str = line.split('\t')[:ozone_number]
@@ -218,20 +228,28 @@ def make_dirs(dirs, reset_counter=False):
 
 
 def make_list():
-    global disks
-    if os.name == 'posix':
+    if not WINDOWS_OS:
         disks = '/'
     else:
-        alp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-               'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        alp = string.ascii_uppercase
         disks = []
         for i in alp:
             try:
                 os.chdir(i + ':\\')
                 disks.append(os.getcwd()[:1])
-            except:
+            except OSError:
                 pass
     return tuple(disks)
+
+
+def get_home():
+    current = os.getcwd()
+    for d in [".", "UFOS", ".."]:
+        path = os.path.join(current, d)
+        if DEVICE_ID_FILE in os.listdir(path):
+            return path
+    else:
+        raise OSError("Can't find UFOS root directory.")
 
 
 # class Profiler(object):
@@ -248,12 +266,11 @@ else:
     WINDOWS_OS = True
     SEP = '\\'
 
-NOW = datetime.now
-HOME = os.getcwd()
+DEVICE_ID_FILE = 'common_settings.json'
+os.chdir("..")
+HOME = get_home()
 PATH = HOME
-TMP_PATH = HOME
 LAST_DIR = []
-DISKS = []
 DEVICE_ID = get_device_id()
 SETTINGS_DIR = os.path.join(HOME, 'Ufos_{}'.format(DEVICE_ID), 'Settings')
 DEVICE_SETTINGS_PATH = os.path.join(SETTINGS_DIR, 'settings.json')
@@ -284,3 +301,5 @@ handler = handlers.RotatingFileHandler(
 LOGGER.addHandler(handler)
 
 PIX_WORK_INTERVAL = slice(*PARS["device"]["pix_work_interval"])
+
+
