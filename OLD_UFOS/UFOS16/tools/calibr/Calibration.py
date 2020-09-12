@@ -1,17 +1,17 @@
 # Version: 1.0
 # Modified: 04.02.2018
 # Author: Sergey Talash
-import matplotlib
 
-from sys import platform as sys_pf
 from sys import path as sys_path
+from sys import platform as sys_pf
+
 if sys_pf == 'darwin':
     import matplotlib
+
     matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-import gc
 import datetime
 import os
 from os.path import split as p_split
@@ -23,7 +23,6 @@ import matplotlib.pyplot as plt
 
 settings_home = p_split(p_split(os.getcwd())[0])[0]
 sys_path.insert(0, settings_home)
-import procedures
 from procedures import Settings
 
 import collections
@@ -31,6 +30,7 @@ import collections
 
 def sumarize(a):
     return round(sum([float(i) for i in a if i != '']), 3)
+
 
 def nm2pix(nm, abc, add):
     nm = float(nm)
@@ -269,9 +269,11 @@ class GUI():
             self.gui_elements.append(ttk.Label(self.left_frame, text=i))
             self.gui_elements.append(ttk.Label(self.left_frame, text=dates[i]))
 
-        self.btn_save_table = ttk.Button(self.right_frame, text='Сохранить табличные данные', command=self.save_to_table)
+        self.btn_save_table = ttk.Button(self.right_frame, text='Сохранить табличные данные',
+                                         command=self.save_to_table)
         self.btn_save_koeff = ttk.Button(self.right_frame, text='Сохранить коэффициенты', command=self.save_to_file)
-        self.btn_save_poly = ttk.Button(self.right_frame, text='Запомнить эти полиномы', command=lambda: calc.polynom_add(self.date, self.dates_count))
+        self.btn_save_poly = ttk.Button(self.right_frame, text='Запомнить эти полиномы',
+                                        command=lambda: calc.polynom_add(self.date, self.dates_count))
         self.btn_next = ttk.Button(self.right_frame, text='Далее >', command=self.next_graphs)
         self.btn_refresh = ttk.Button(self.right_frame, text='Обновить', command=self.refresh_graphs)
         self.btn_prev = ttk.Button(self.right_frame, text='< Назад', command=self.prev_graphs)
@@ -357,7 +359,10 @@ class GUI():
             self.btn_prev.configure(state=DISABLED)
 
     def refresh_graphs(self, *event):
-        curr_date = self.date[self.dates_count]
+        try:
+            curr_date = self.date[self.dates_count]
+        except IndexError:
+            return
         for i in self.gui_elements:
             if i.cget("text") == curr_date:
                 i.configure(font='Arial 10 bold')
@@ -407,12 +412,13 @@ class GUI():
                             for mu in ['mu<3', '3<mu<5', '5<mu']:
                                 if calc.dict_polynoms[date][pair + name][mu][1]:
                                     f.write(';{};{};{}'.format(
-                                            str(calc.dict_polynoms[date][pair + name][mu][0]).replace('[', '').replace(']',
-                                                                                                                       '').replace(
-                                                    ', ', ';'), calc.dict_polynoms[date][pair + name][mu][1], 1))
+                                        str(calc.dict_polynoms[date][pair + name][mu][0]).replace('[', '').replace(']',
+                                                                                                                   '').replace(
+                                            ', ', ';'), calc.dict_polynoms[date][pair + name][mu][1], 1))
                                 else:
                                     f.write(';{};{};{}'.format(
-                                        str([0] * (pars["calibration"]["polynom"]["degree"] + 1)).replace('[', '').replace(
+                                        str([0] * (pars["calibration"]["polynom"]["degree"] + 1)).replace('[',
+                                                                                                          '').replace(
                                             ']', '').replace(', ', ';'), 'NaN', 0))
                         f.write('\n')
                 print('Saved: {}{}_polynoms_{}{}'.format(self.file_meta, calc.type, name, self.file_format))
@@ -442,7 +448,7 @@ class GUI():
                             if mu < pars["calibration"]["polynom"]["mu_intervals"][0]:  # mu<3
                                 text += calc.table_create(name, date, mu, 'mu<3')
                             elif pars["calibration"]["polynom"]["mu_intervals"][0] <= mu < \
-                                    pars["calibration"]["polynom"]["mu_intervals"][1]:  # 3<=mu<5
+                                pars["calibration"]["polynom"]["mu_intervals"][1]:  # 3<=mu<5
                                 text += calc.table_create(name, date, mu, '3<mu<5')
                             elif mu >= pars["calibration"]["polynom"]["mu_intervals"][1]:  # mu>=5
                                 text += calc.table_create(name, date, mu, '5<mu')
