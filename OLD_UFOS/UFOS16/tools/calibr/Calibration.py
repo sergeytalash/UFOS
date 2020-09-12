@@ -25,7 +25,7 @@ settings_home = p_split(p_split(os.getcwd())[0])[0]
 sys_path.insert(0, settings_home)
 from procedures import Settings
 
-import collections
+from collections import Mapping
 
 
 def sumarize(a):
@@ -213,7 +213,7 @@ class Calc:
 
     def update(self, d, u):
         for k, v in u.items():
-            if isinstance(v, collections.Mapping):
+            if isinstance(v, Mapping):
                 d[k] = self.update(d.get(k, {}), v)
             else:
                 d[k] = v
