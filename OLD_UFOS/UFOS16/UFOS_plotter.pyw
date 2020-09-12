@@ -940,7 +940,7 @@ def make_o3file():
                     # cr - o3
                     t, sh, cr = saving.prepare(start.data['datetime'],
                                                start.uvs_or_o3['ZD'])
-                    
+
                     ts.append(t)
                     shs.append(sh)
                     calc_results.append(cr)
@@ -1101,7 +1101,7 @@ if __name__ == '__main__':
 
         # Admin Menu
         chk_var_with_sens = IntVar()
-        chk_var_with_sens.set(1)
+        chk_var_with_sens.set(0)
         chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
         var_recalculate_source_files = IntVar()
         var_recalculate_source_files.set(0)
