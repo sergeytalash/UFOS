@@ -115,11 +115,12 @@ class PlotClass:
             print("sum:", pair, sum(self.spectrum))
             print({pair: [lambda_consts[pair], lambda_consts_pix[pair]]})
 
-            self.o3[pair], correct[pair], addational_data[pair] = pre_calc_o3(lambda_consts[pair],
-                                                                              lambda_consts_pix[pair], self.spectrum,
-                                                                              self.prom,
-                                                                              self.data['mu'],
-                                                                              self.var_settings, home, pair)
+            self.o3[pair], correct[pair], addational_data[pair] = pre_calc_o3(
+                lambda_consts[pair],
+                lambda_consts_pix[pair], self.spectrum,
+                self.prom,
+                self.data['mu'],
+                self.var_settings, home, pair)
             print(self.o3[pair], correct[pair], addational_data[pair])
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"],
                                 'o3_2': self.o3["2"],
@@ -938,10 +939,6 @@ def make_o3file():
                 chan = 'ZD'
                 if i.count("Z-D") > 0 or i.count("ZD") > 0:
                     start.data = start.get_spectr(file)
-                    if 'm11_002_ZD_202008200542.txt' in i:
-                        print("File:", i)
-                    else:
-                        continue
                     start.calc_ozon()
                     # t - datetime utc
                     # sh - sunheight
@@ -1108,7 +1105,7 @@ if __name__ == '__main__':
 
         # Admin Menu
         chk_var_with_sens = IntVar()
-        chk_var_with_sens.set(1)
+        chk_var_with_sens.set(0)
         chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
         var_recalculate_source_files = IntVar()
         var_recalculate_source_files.set(0)

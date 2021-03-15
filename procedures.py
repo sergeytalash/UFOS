@@ -11,6 +11,7 @@ import socket
 import threading
 import time
 from math import *
+from time import sleep
 # from tkinter import NORMAL, Menu
 from tkinter import *
 from tkinter import ttk
@@ -805,15 +806,12 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
         correct_mu_eff_end = 30
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
-        # print("jj - prom: {}, jj + prom + 1: {}".format(jj - prom, jj + prom + 1))
         s = sumarize(spectrum[jj - prom:jj + prom + 1])
-        # print("p1: {}, p2: {}".format(jj - prom, jj + prom + 1))
         if s:
             p_mas.append(s)
         else:
             p_mas.append(1)
         j += 1
-    print("p_mas:", p_mas)
     r12m = p_mas[0] / p_mas[1]
     r23m = p_mas[2] / p_mas[3]
     mueff = (1 + mu) / 2
@@ -822,7 +820,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     else:
         r23clean = get_polynomial_result(var_settings['calibration2']['kzLarger' + o3_num], mueff)
     kz_obl_f = get_polynomial_result(var_settings['calibration2']['kz_obl' + o3_num], (r23clean / r23m))
-    r12clear = kz_obl_f * r12m  #
+    r12clear = kz_obl_f * r12m
     try:
         o3 = int(get_ozone_by_nomographs(home, r12clear, mueff, var_settings['device']['id'], o3_num))
     except Exception as err:
@@ -1186,10 +1184,10 @@ def write_analyse_file(pars, home, chan, date_utc, sunheight, calc_result, add_t
                  'OzoneP2[D.u.]', 'R12_P2', 'R23_P2', 'kz_obl_P2', 'R23clean/R23_P2', 'CorrectP2'])
             text_out = ';'.join([str(i) for i in
                                  [date_utc, date_local, sunheight,
-                                  calc_result['o3_1'], *calc_result['additional_data_1'], calc_result['correct_1'],
+                                  calc_result['o3_1'], *calc_result['additional_data_1'],
+                                  calc_result['correct_1'],
                                   calc_result['o3_2'], *calc_result['additional_data_2'],
-                                  calc_result['correct_2']]]).replace(
-                ".", ",")
+                                  calc_result['correct_2']]]).replace(".", ",")
             dirs = ['Ufos_{}'.format(pars['device']['id']),
                     type_of_measurement,
                     datetime.datetime.strftime(date, '%Y'),
@@ -1772,7 +1770,7 @@ class CheckSunAndMesure:
                 if self.sunheight >= self.pars["station"]["sun_height_min"]:
                     self.end_calculation = True
                     # Высота Солнца выше заданного параметра
-                    # main.nms2pixs()
+                    main.nms2pixs()
                     print('=== Запуск измерения ===                      ', end='\r')
                     main.mesure()
 

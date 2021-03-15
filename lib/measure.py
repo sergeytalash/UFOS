@@ -629,4 +629,5 @@ class CheckSunAndMesure:
                 print(err, sys.exc_info()[-1].tb_lineno)
                 sleep(10)
 
-MeasureClass().sock_send("192.168.0.117", 80, "123")
+if __name__ == "__main__":
+    MeasureClass().sock_send("192.168.0.117", 80, "123")

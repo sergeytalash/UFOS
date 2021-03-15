@@ -1,17 +1,17 @@
 # Version: 1.0
 # Modified: 04.02.2018
 # Author: Sergey Talash
-import matplotlib
 
-from sys import platform as sys_pf
 from sys import path as sys_path
+from sys import platform as sys_pf
+
 if sys_pf == 'darwin':
     import matplotlib
+
     matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-import gc
 import datetime
 import os
 from os.path import split as p_split
@@ -23,47 +23,11 @@ import matplotlib.pyplot as plt
 
 settings_home = p_split(p_split(os.getcwd())[0])[0]
 sys_path.insert(0, settings_home)
-import procedures
 from procedures import Settings
 
-import collections
-
-
-def sumarize(a):
-    return round(sum([float(i) for i in a if i != '']), 3)
-
-def nm2pix(nm, abc, add):
-    nm = float(nm)
-    if 270 < nm < 350:
-        pix = 0
-        ans_nm = pix2nm(abc, pix, 1, add)
-        while ans_nm < nm:
-            pix += 1
-            ans_nm = pix2nm(abc, pix, 1, add)
-    elif 350 <= nm < 430:
-        pix = 1500
-        ans_nm = pix2nm(abc, pix, 1, add)
-        while ans_nm < nm:
-            pix += 1
-            ans_nm = pix2nm(abc, pix, 1, add)
-    else:
-        print(nm, 'nm2pix: error')
-    return pix
-
-
-def pix2nm(abc, pix, digs, add):
-    """
-    Обработка одного пикселя
-    abc - массив коэффициентов полинома
-    pix - номер пиксела
-    dig - количество знаков после запятой
-    add - сдвиг для зенитных измерений
-    """
-    try:
-        return round(eval(abc[0]) * pix ** 2 + eval(abc[1]) * pix + eval(abc[2]) + add, digs)
-    except Exception as err:
-        print("Check settings file nm(pix) section")
-        return 0
+from collections.abc import Mapping
+from lib import calculations
+from lib import core
 
 
 class Calc:
@@ -74,19 +38,20 @@ class Calc:
         self.pixels = {}
         self.type = 'Morning'
         self.start_mu = True
-        self.home = 'Calibration_files'
+        self.calibration_files_path = os.path.join(
+            core.HOME, 'tools', 'calibr', 'calibration_files')
         self.dict_polynoms = {}
         self.dict_polynom_tmp = {}
         self.Ls = {'sko': [], 'mean': [], 'mu': []}
         self.data2file = []
         self.confZ = pars['calibration']['nm(pix)']['Z']
         self.prom = int(pars['calibration2']['pix+-'] / eval(self.confZ[1]))
-        self.p_zero1 = nm2pix(290, self.confZ, 0)
-        self.p_zero2 = nm2pix(295, self.confZ, 0)
-        self.p_lamst = nm2pix(290, self.confZ, 0)
+        self.p_zero1 = calculations.nm2pix(290, self.confZ)
+        self.p_zero2 = calculations.nm2pix(295, self.confZ)
+        self.p_lamst = calculations.nm2pix(290, self.confZ)
 
     def get_dates(self):
-        with open(os.path.join(self.home, 'Calibration_dates.txt')) as f:
+        with open(os.path.join(self.calibration_files_path, 'Calibration_dates.txt')) as f:
             data = f.readlines()
         for i in data:
             d = i.split()
@@ -113,20 +78,6 @@ class Calc:
             deg -= 1
         return round(out, num)
 
-    def pix2nm(self, pix, chan=''):
-        nm = 0
-        deg = len(pars["calibration"]["nm(pix)"]["Z"]) - 1
-        for i in pars["calibration"]["nm(pix)"]["Z"]:
-            nm += eval(i) * pix ** deg
-            deg -= 1
-        return (nm)
-
-    def nm2pix(self, nm, chan=''):
-        pix = 0
-        while self.pix2nm(pix) < nm:
-            pix += 1
-        return pix
-
     def get_pixels(self, chan):
         for pair in pars['calibration']['points'].keys():
             self.pixels[pair] = []
@@ -134,7 +85,8 @@ class Calc:
             if pair != 'Fraunhofer_pair':
                 self.Ls[pair] = []
             for nm in pars['calibration']['points'][pair]:
-                self.pixels[pair].append(nm2pix(nm, self.confZ, 0))
+                self.pixels[pair].append(calculations.nm2pix(
+                    nm, pars['calibration']['nm(pix)'][chan]))
 
     def open_file(self, path):
         with open(path) as f:
@@ -164,7 +116,17 @@ class Calc:
                 new_y[2].append(yi)
         return new_x, new_y
 
-    def get_Ls(self, date, chan):
+    def get_Ls(self, date, chan, chk_mu_var):
+        """
+        Collects data from files
+        Args:
+            date (str): A date from the calibration dates file
+            chan (str): UFOS channel
+            chk_mu_var (int): The value of the radio button for mu recalculation
+
+        Returns:
+            None: data is saved to self.Ls dictionary
+        """
         self.Ls = {'sko': [], 'mean': [], 'mu': []}
         for pair in self.pixels.keys():
             if pair != 'Fraunhofer_pair':
@@ -176,13 +138,21 @@ class Calc:
                         file_data = self.open_file(file)
                         spectr = file_data['spectr']
                         spectrum = [0] * len(spectr)
-                        mv = sum(spectr[self.p_zero1:self.p_zero2]) / len(spectr[self.p_zero1:self.p_zero2])
+                        zero_slice = slice(self.p_zero1, self.p_zero2)
+                        mv = sum(spectr[zero_slice]) // len(spectr[zero_slice])
                         for i in range(self.p_lamst, len(spectr) - 1):
-                            spectrum[i] = round(spectr[i] - mv)
+                            spectrum[i] = spectr[i] - mv
                         spectr = spectrum
                         sko = file_data['calculated']['sko']
                         mean = file_data['calculated']['mean']
-                        mu = file_data['calculated']['mu']
+                        if chk_mu_var:
+                            mu, amas, sh = calculations.sunheight(
+                                file_data['mesurement']["latitude"],
+                                file_data['mesurement']["longitude"],
+                                datetime.datetime.strptime(file_data['mesurement']["datetime"], "%Y%m%d %H:%M:%S"),
+                                file_data['mesurement']["timezone"])
+                        else:
+                            mu = file_data['calculated']['mu']
                         p_mas = []
                         for pair in self.pixels.keys():
                             if pair != 'Fraunhofer_pair':
@@ -194,10 +164,10 @@ class Calc:
                                 p2_2 = p2 + self.prom + 1
 
                                 I1 = spectr[p1_1:p1_2]
-                                I1_sr = sumarize(I1)
+                                I1_sr = calculations.sumarize(I1)
                                 p_mas.append(I1_sr)
                                 I2 = spectr[p2_1:p2_2]
-                                I2_sr = sumarize(I2)
+                                I2_sr = calculations.sumarize(I2)
                                 p_mas.append(I2_sr)
                                 I12 = round(I1_sr / I2_sr, 6)
                                 self.Ls[pair].append(I12)
@@ -213,7 +183,7 @@ class Calc:
 
     def update(self, d, u):
         for k, v in u.items():
-            if isinstance(v, collections.Mapping):
+            if isinstance(v, Mapping):
                 d[k] = self.update(d.get(k, {}), v)
             else:
                 d[k] = v
@@ -230,11 +200,13 @@ class Calc:
 
 
 class GUI():
-    def __init__(self, root, dates):
+    def __init__(self, root, dates, plot_size=(12, 3)):
         self.plt = {}
         self.fig = {}
-        self.file_meta = 'dev{}_{}_'.format(pars["device"]["id"],
-                                            datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d-%H%M'))
+        self.device_name = 'dev{}'.format(pars["device"]["id"])
+        self.file_meta = '{}_{}_'.format(
+            self.device_name,
+            datetime.datetime.strftime(datetime.datetime.now(), '%Y%m%d-%H%M'))
         self.file_format = '.csv'
         self.mus = np.arange(pars["calibration"]["polynom"]["mu_start"],
                              pars["calibration"]["polynom"]["mu_end"],
@@ -249,36 +221,52 @@ class GUI():
         self.dates = dates
         self.date = list(dates.keys())
         self.date.sort()
+        self.plot_size = plot_size
         self.root = root
         self.chk_btns = []
         self.root.title('УФОС Калибровка {}'.format(calc.type))
         self.root.geometry('+100+0')
         self.root.resizable(False, False)
         self.gui_elements = []
+        self.top_frame = ttk.Frame(self.root)
         self.left_frame = ttk.Frame(self.root)
         self.right_frame = ttk.Frame(self.root)
-        self.gui_elements.append(ttk.Label(self.left_frame, text='Номер прибора:'))
-        self.gui_elements.append(ttk.Label(self.left_frame, text=pars['device']['id']))
-        self.gui_elements.append(ttk.Label(self.left_frame, text='Номер станции:'))
-        self.gui_elements.append(ttk.Label(self.left_frame, text=pars['station']['id']))
-        self.gui_elements.append(ttk.Label(self.left_frame))
-        self.gui_elements.append(ttk.Label(self.left_frame))
-        self.gui_elements.append(ttk.Label(self.left_frame, text='Дата'))
-        self.gui_elements.append(ttk.Label(self.left_frame, text='Озон'))
+        for kw in [dict(text='Номер прибора:'),
+                   dict(text=pars['device']['id']),
+                   dict(text='Номер станции:'),
+                   dict(text=pars['station']['id']),
+                   {},
+                   {},
+                   dict(text='Дата'),
+                   dict(text='Озон')]:
+            self.gui_elements.append(ttk.Label(self.left_frame, **kw))
         for i in self.date:
             self.gui_elements.append(ttk.Label(self.left_frame, text=i))
             self.gui_elements.append(ttk.Label(self.left_frame, text=dates[i]))
 
-        self.btn_save_table = ttk.Button(self.right_frame, text='Сохранить табличные данные', command=self.save_to_table)
-        self.btn_save_koeff = ttk.Button(self.right_frame, text='Сохранить коэффициенты', command=self.save_to_file)
-        self.btn_save_poly = ttk.Button(self.right_frame, text='Запомнить эти полиномы', command=lambda: calc.polynom_add(self.date, self.dates_count))
-        self.btn_next = ttk.Button(self.right_frame, text='Далее >', command=self.next_graphs)
-        self.btn_refresh = ttk.Button(self.right_frame, text='Обновить', command=self.refresh_graphs)
-        self.btn_prev = ttk.Button(self.right_frame, text='< Назад', command=self.prev_graphs)
+        self.chk_mu_var = Variable()
+        self.chk_mu_var.set(1)
+        self.chk_mu = ttk.Checkbutton(self.top_frame, variable=self.chk_mu_var, text='Пересчет mu')
+        self.btn_save_table = ttk.Button(self.top_frame, text='Сохранить табличные данные',
+                                         command=self.save_to_table)
+        self.btn_save_koeff = ttk.Button(self.top_frame, text='Сохранить коэффициенты',
+                                         command=self.save_to_file)
+        self.btn_save_all = ttk.Button(self.top_frame, text='Сохранить в файл',
+                                       command=self.save_all)
+
+        self.btn_save_poly = ttk.Button(self.top_frame, text='Запомнить эти полиномы',
+                                        command=lambda: calc.polynom_add(self.date, self.dates_count))
+        self.btn_next = ttk.Button(self.top_frame, text='Далее >', command=self.next_graphs)
+        self.btn_refresh = ttk.Button(self.top_frame, text='Обновить', command=self.refresh_graphs)
+        self.btn_prev = ttk.Button(self.top_frame, text='< Назад', command=self.prev_graphs)
+        self.entry_plot_size = ttk.Entry(self.top_frame)
+        self.entry_plot_size.insert(0, 'x'.join([str(i) for i in self.plot_size]))
+        self.entry_plot_size.bind("<Return>", self.update_plot_size)
 
     def draw_elements(self):
-        self.left_frame.grid(row=0, column=0, sticky='wesn')
-        self.right_frame.grid(row=0, column=1, sticky='wesn')
+        self.top_frame.grid(row=0, column=0, sticky='wesn', columnspan=2)
+        self.left_frame.grid(row=1, column=0, sticky='wesn')
+        self.right_frame.grid(row=1, column=1, sticky='wesn')
         r = 0
         c = 0
         for i in self.gui_elements:
@@ -293,7 +281,7 @@ class GUI():
         try:
             self.plt[plt_name].close()
             del self.plt[plt_name]
-        except:
+        except Exception as err:
             pass
         for i in range(6):
             intvar = IntVar()
@@ -307,13 +295,18 @@ class GUI():
         self.canvas[plt_name].get_tk_widget().grid(row=pos[0], column=pos[1], sticky='wesn', columnspan=6)
         self.canvas[plt_name].draw()
 
-    def buttons(self, r):
-        self.btn_save_table.grid(row=r, column=5, sticky='w')
-        self.btn_save_koeff.grid(row=r, column=4, sticky='w')
-        self.btn_save_poly.grid(row=r, column=3, sticky='w')
-        self.btn_next.grid(row=r, column=2, sticky='w')
-        self.btn_refresh.grid(row=r, column=1, sticky='w')
-        self.btn_prev.grid(row=r, column=0, sticky='w')
+    def top_panel(self):
+        r = 0
+        self.chk_mu.grid(row=r, column=0, sticky='w')
+        # self.entry_plot_size.grid(row=r, column=1, sticky='w', columnspan=2)
+        r += 1
+        self.btn_prev.grid(row=r, column=1, sticky='w')
+        self.btn_refresh.grid(row=r, column=2, sticky='w')
+        self.btn_next.grid(row=r, column=3, sticky='w')
+        self.btn_save_poly.grid(row=r, column=4, sticky='w')
+        self.btn_save_all.grid(row=r, column=5, sticky='w')
+        # self.btn_save_koeff.grid(row=r, column=6, sticky='w')
+        # self.btn_save_table.grid(row=r, column=7, sticky='w')
         self.btn_prev.configure(state=DISABLED)
 
     def subplot(self, plt_name, x, y, title, pos, legend, plot_pos):
@@ -339,8 +332,17 @@ class GUI():
                 calc.dict_polynom_tmp[self.date[self.dates_count]][title][lab] = [[], None]
 
         ax.legend(loc='best', fancybox=True).get_frame().set_alpha(0.2)
+        return lines
 
     def next_graphs(self, *event):
+        """
+        Selects the next date and updates all charts on the screen
+        Args:
+            *event (list): List of button events
+
+        Returns:
+            None
+        """
         self.dates_count += 1
         self.refresh_graphs()
         if 0 < self.dates_count <= self.dates_len:
@@ -349,6 +351,14 @@ class GUI():
             self.btn_next.configure(state=DISABLED)
 
     def prev_graphs(self, *event):
+        """
+        Selects the previous date and updates all charts on the screen
+        Args:
+            *event (list): List of button events
+
+        Returns:
+            None
+        """
         self.dates_count -= 1
         self.refresh_graphs()
         if 0 <= self.dates_count < self.dates_len:
@@ -357,24 +367,39 @@ class GUI():
             self.btn_prev.configure(state=DISABLED)
 
     def refresh_graphs(self, *event):
-        curr_date = self.date[self.dates_count]
+        """
+        Updates all charts on the screen
+        Args:
+            *event (list): List of button events
+
+        Returns:
+            None
+        """
+        try:
+            curr_date = self.date[self.dates_count]
+        except IndexError:
+            return
         for i in self.gui_elements:
             if i.cget("text") == curr_date:
                 i.configure(font='Arial 10 bold')
             else:
                 i.configure(font='Arial 10')
-        calc.get_Ls(curr_date, self.channel)
+        calc.get_Ls(curr_date, self.channel, int(self.chk_mu_var.get()))
         calc.dict_polynom_tmp = {curr_date: {}}
         self.chk_btns = []
         out = False
         for name, row in zip(self.graph_names,
                              [i * 2 for i in range(len(self.graph_names))]):  # graph_names = ['1','2']
-            self.graph(name, (12, 3), (row, 0), calc)
+            self.graph(plt_name=name,
+                       size=self.plot_size,
+                       pos=(row, 0),
+                       calc=calc)
             for pair, column, left, plot_pos in zip(['o3_pair_', 'cloud_pair_'], [0, 1], [0.050, 0.545], [121, 122]):
                 if calc.Ls[pair + name]:
                     self.subplot(name, calc.Ls['mu'], calc.Ls[pair + name], pair + name, (0, column),
                                  [left, 0.1, 0.12, 0.17], plot_pos)
                     self.canvas[name].draw()
+
                 else:
                     if not out:
                         out = True
@@ -384,14 +409,15 @@ class GUI():
 
     def save_to_file(self, *event):
         if not calc.dict_polynoms:
-            print("No data to save")
+            print("No polynoms have been selected. Nothing to save.")
         else:
+            path = os.path.join(calc.calibration_files_path, self.device_name)
             for name in self.graph_names:
-                with open(os.path.join(calc.home,
-                                       '{}{}_polynoms_{}{}'.format(self.file_meta,
-                                                                   calc.type, name,
-                                                                   self.file_format)),
-                          'w') as f:
+                if not os.path.exists(path):
+                    os.mkdir(path)
+                with open(
+                    os.path.join(path, '{}{}_polynoms_{}{}'.format(
+                        self.file_meta, calc.type, name, self.file_format)), 'w') as f:
                     # Headers Date;Ozone;
                     f.write('Date;Ozone')
                     for pair in ['o3_pair_', 'cloud_pair_']:
@@ -407,24 +433,28 @@ class GUI():
                             for mu in ['mu<3', '3<mu<5', '5<mu']:
                                 if calc.dict_polynoms[date][pair + name][mu][1]:
                                     f.write(';{};{};{}'.format(
-                                            str(calc.dict_polynoms[date][pair + name][mu][0]).replace('[', '').replace(']',
-                                                                                                                       '').replace(
-                                                    ', ', ';'), calc.dict_polynoms[date][pair + name][mu][1], 1))
+                                        str(calc.dict_polynoms[date][pair + name][mu][0]).replace('[', '').replace(']',
+                                                                                                                   '').replace(
+                                            ', ', ';'), calc.dict_polynoms[date][pair + name][mu][1], 1))
                                 else:
                                     f.write(';{};{};{}'.format(
-                                        str([0] * (pars["calibration"]["polynom"]["degree"] + 1)).replace('[', '').replace(
+                                        str([0] * (pars["calibration"]["polynom"]["degree"] + 1)).replace('[',
+                                                                                                          '').replace(
                                             ']', '').replace(', ', ';'), 'NaN', 0))
                         f.write('\n')
                 print('Saved: {}{}_polynoms_{}{}'.format(self.file_meta, calc.type, name, self.file_format))
 
     def save_to_table(self, *event):
         if not calc.dict_polynoms:
-            print("No data to save")
+            print("No polynoms have been selected. Nothing to save.")
         else:
+            path = os.path.join(calc.calibration_files_path, self.device_name)
             for name in self.graph_names:
-                with open(os.path.join(calc.home,
-                                       '{}{}_table_{}{}'.format(self.file_meta, calc.type, name, self.file_format)),
-                          'w') as f:
+                if not os.path.exists(path):
+                    os.mkdir(path)
+                with open(
+                    os.path.join(path, '{}{}_table_{}{}'.format(
+                        self.file_meta, calc.type, name, self.file_format)), 'w') as f:
                     # Headers Date;Ozone;
                     f.write('Date;Ozone;Mu')
                     for pair in ['o3_pair_', 'cloud_pair_']:
@@ -442,7 +472,7 @@ class GUI():
                             if mu < pars["calibration"]["polynom"]["mu_intervals"][0]:  # mu<3
                                 text += calc.table_create(name, date, mu, 'mu<3')
                             elif pars["calibration"]["polynom"]["mu_intervals"][0] <= mu < \
-                                    pars["calibration"]["polynom"]["mu_intervals"][1]:  # 3<=mu<5
+                                pars["calibration"]["polynom"]["mu_intervals"][1]:  # 3<=mu<5
                                 text += calc.table_create(name, date, mu, '3<mu<5')
                             elif mu >= pars["calibration"]["polynom"]["mu_intervals"][1]:  # mu>=5
                                 text += calc.table_create(name, date, mu, '5<mu')
@@ -457,6 +487,14 @@ class GUI():
                             i += 1
                 print('Saved: {}{}_table_{}{}'.format(self.file_meta, calc.type, name, self.file_format))
 
+    def update_plot_size(self, *event):
+        self.plot_size = tuple([float(i) for i in self.entry_plot_size.get().split('x')])
+        self.refresh_graphs()
+
+    def save_all(self, *event):
+        self.save_to_file(*event)
+        self.save_to_table(*event)
+
 
 if __name__ == "__main__":
     pars = Settings.get_device(settings_home, Settings.get_common(settings_home).get('device').get('id'))
@@ -466,9 +504,9 @@ if __name__ == "__main__":
     calc.get_pixels('Z')
 
     root = Tk()
-    main = GUI(root, dates)
+    main = GUI(root, dates, plot_size=(10, 2.5))
     main.draw_elements()
     main.refresh_graphs()
-    main.buttons(4)
+    main.top_panel()
 
     root.mainloop()

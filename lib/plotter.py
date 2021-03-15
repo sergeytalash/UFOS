@@ -295,7 +295,7 @@ class PlotClass:
                     new_spectr.append(
                         value * self.sensitivity[index] * var_settings['device']['graduation_expo'] / self.data['expo'])
                 self.spectrum = new_spectr
-            self.ax.plot([pix2nm(conf, index, 3, 0) for index, value in enumerate(self.spectrum)],
+            self.ax.plot([pix2nm(index, conf) for index, value in enumerate(self.spectrum)],
                          self.spectrum,
                          self.point,
                          color='k')
@@ -310,11 +310,11 @@ class PlotClass:
 
             for key in ps.keys():
                 for point in ps[key]:
-                    point_nm = pix2nm(conf, point, 1, 0)
+                    point_nm = pix2nm(point, conf, 1)
                     self.ax.plot([point_nm] * 2, [0, self.max_y], '--', color='red')
                     self.ax.text(point_nm, self.max_y - 50, str(point_nm), horizontalalignment='center')
 
-            self.ax.set(xlim=[pix2nm(conf, 0, 1, 0), pix2nm(conf, 3692, 1, 0)], ylim=[0, self.max_y])
+            self.ax.set(xlim=[pix2nm(0, conf, 1, 0), pix2nm(3692, conf, 1, 0)], ylim=[0, self.max_y])
             self.ax.grid(True)
 
             self.fig.canvas.draw()

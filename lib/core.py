@@ -1,11 +1,11 @@
+import inspect
 import json
 import logging
 import logging.handlers as handlers
 import os
-from datetime import datetime
 import string
-import inspect
 import sys
+from datetime import datetime
 
 
 def print_error(err):
@@ -244,10 +244,14 @@ def make_list():
 
 def get_home():
     current = os.getcwd()
+    path_list = current.split(SEP)
+    if "UFOS" in path_list:
+        i = path_list.index("UFOS")
+        current = SEP.join(path_list[:i + 1])
     for d in [".", "UFOS", ".."]:
         path = os.path.join(current, d)
         if DEVICE_ID_FILE in os.listdir(path):
-            return path
+            return os.path.normpath(path)
     else:
         raise OSError("Can't find UFOS root directory.")
 
@@ -301,5 +305,3 @@ handler = handlers.RotatingFileHandler(
 LOGGER.addHandler(handler)
 
 PIX_WORK_INTERVAL = slice(*PARS["device"]["pix_work_interval"])
-
-

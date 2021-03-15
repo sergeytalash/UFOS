@@ -597,28 +597,47 @@ def erithema(x, c):
 
 
 def nm2pix(nm, abc, add=0):
-    nm = float(nm)
+    """
+    Convert nanometers to pixels
+    Args:
+        nm (float): Nanometers
+        abc (list): List of coefficients
+        add (int): Add fixed value to nanometers
+
+    Returns:
+        int: Calculated pixel index
+    """
+    # nm = float(nm)
     pix = 0
     if not 270 < nm < 430:
         print(nm, 'nm2pix: error')
         return 0
     if 350 < nm < 430:
         pix = 1500
-    while pix2nm(abc, pix, 1, add) < nm:
+    while pix2nm(pix, abc, 1, add) < nm:
         pix += 1
     return pix
 
 
-def pix2nm(abc, pix, digs, add):
+def pix2nm(pix, abc, digs=3, add=0):
     """
-    Обработка одного пикселя
-    abc - массив коэффициентов полинома
-    pix - номер пиксела
-    dig - количество знаков после запятой
-    add - сдвиг для зенитных измерений
+    Convert pixel to nanometers
+    Args:
+        pix (int): Pixel index
+        abc (list): List of coefficients
+        digs (int): Amount of digits after comma
+        add (int): Add fixed value to nanometers
+
+    Returns:
+        float: Nanometer value
     """
     try:
-        return round(eval(abc[0]) * pix ** 2 + eval(abc[1]) * pix + eval(abc[2]) + add, digs)
+        nm = 0
+        deg = len(abc) - 1
+        for i in abc:
+            nm += eval(i) * pix ** deg
+            deg -= 1
+        return round(nm + add, digs)
     except:
         print("Check settings file nm(pix) section")
         return 0
@@ -738,7 +757,7 @@ def sunheight(latitude, longitude, date_time, timezone):
         timezone (str | int): Timezone
 
     Returns:
-        Ints: mu, atmospheric mass (amas) and sun height
+        [float]: mu, atmospheric mass (amas) and sun height
     """
     lat, lon, timezone = float(latitude), float(longitude), int(timezone)
     # Расчёт высоты солнца всегда по UTC, поэтому "timezone=0"
