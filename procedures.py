@@ -8,7 +8,6 @@ import os
 # import asyncio
 import queue as queue_th
 import socket
-import sys
 import threading
 import time
 from math import *
@@ -970,8 +969,7 @@ class UfosDataToCom:
                          self.mesure_type + \
                          self.start_mesure + \
                          b'0'
-        # hex_data = [b for b in self.data_send]
-        print(f"\nOUT: {self.data_send} {len(self.data_send)}")
+        # print(f"\nOUT: {self.data_send} {len(self.data_send)}")
 
     def device_ask(self, tries_allowed):
         self.tries_done = 0
@@ -982,16 +980,16 @@ class UfosDataToCom:
             self.com_obj.open()
             self.com_obj.write(self.data_send)
             self.logger.debug('Sleep {} seconds...'.format(to))
-            time.sleep(to)
+            # time.sleep(to)
             byte = self.com_obj.read(1)
             while byte:
                 data += byte
-                byte = self.com_obj.read(1)
+                byte = self.com_obj.read(100)
             self.com_obj.close()
             # Если получили данные с УФОС за timeout
 
             if data:
-                print(f"\nIN: {data[:15]} {len(data)}")
+                # print(f"\nIN: {data[:15]} {len(data)}")
                 t1 = 0
                 t2 = 0
                 if len(data) > 10:
@@ -999,7 +997,7 @@ class UfosDataToCom:
                     t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
                     t11 = (tt[2] * 255 + tt[3]) / 10  # amb
                     t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
-                    print([t1, t11, t2])
+                    print("Temperature:", [t1, t11, t2])
                 if len(data) > 13:
                     i = len(data) - 1
                     spectr = []
@@ -1011,8 +1009,9 @@ class UfosDataToCom:
                 else:
                     spectr = [0]
                     text = ''
-                print(f"Spectr[10]: {spectr[:10]}\nLen: {len(spectr)}")
-                return spectr[:3691], t1, t2, text, 0
+                # print(f"Spectr[5]: {spectr[:5]} Len: {len(spectr[:3600] + [0] * 91)}")
+                # return spectr[:3691], t1, t2, text, 0
+                return spectr[:3600] + [0] * 91, t1, t2, text, 0
             # Если не получили данные с УФОС за timeout
             else:
                 if self.tries_done > 0:
@@ -1623,14 +1622,12 @@ class Main:
                                 self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                                 self.expo)
                             print(text, end='')
-                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                                     self.pars[
-                                                                                                         'device'][
-                                                                                                         'accummulate'],
-                                                                                                     chan,
-                                                                                                     'S',
-                                                                                                     self.logger).device_ask(
-                                self.tries_allowed)
+                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                                self.expo,
+                                self.pars['device']['accummulate'],
+                                chan,
+                                'S',
+                                self.logger).device_ask(self.tries_allowed)
                             text += ' ' + text2
                             print('\r{}'.format(text))
                             self.logger.info(text)
@@ -1652,13 +1649,12 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                                 self.pars['device'][
-                                                                                                     'accummulate'],
-                                                                                                 chan,
-                                                                                                 'S',
-                                                                                                 self.logger).device_ask(
-                            self.tries_allowed)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                            self.expo,
+                            self.pars['device']['accummulate'],
+                            chan,
+                            'S',
+                            self.logger).device_ask(self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1673,12 +1669,12 @@ class Main:
                         self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                         self.expo)
                     print(text)
-                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                           self.pars['device'][
-                                                                                               'accummulate'],
-                                                                                           'D', 'S',
-                                                                                           self.logger).device_ask(
-                        self.tries_allowed)
+                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                        self.expo,
+                        self.pars['device']['accummulate'],
+                        'D',
+                        'S',
+                        self.logger).device_ask(self.tries_allowed)
                     text += ' ' + text2
                     print('\r{}'.format(text), end=' ')
                     self.logger.info(text)
@@ -1706,12 +1702,12 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                                 self.pars['device'][
-                                                                                                     'accummulate'],
-                                                                                                 chan, 'S',
-                                                                                                 self.logger).device_ask(
-                            self.tries_allowed)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                            self.expo,
+                            self.pars['device']['accummulate'],
+                            chan,
+                            'S',
+                            self.logger).device_ask(self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1726,12 +1722,12 @@ class Main:
                             self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                               self.pars['device'][
-                                                                                                   'accummulate'], 'D',
-                                                                                               'S',
-                                                                                               self.logger).device_ask(
-                            self.tries_allowed)
+                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                            self.expo,
+                            self.pars['device']['accummulate'],
+                            'D',
+                            'S',
+                            self.logger).device_ask(self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
