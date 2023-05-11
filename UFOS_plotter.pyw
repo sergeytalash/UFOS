@@ -5,6 +5,7 @@ from shutil import copy
 import gc
 
 from sys import platform as sys_pf
+from tkinter import font
 
 if sys_pf == 'darwin':
     import matplotlib
@@ -110,15 +111,18 @@ class PlotClass:
         """Расчет озона"""
         self.o3 = {}
         correct = {}
+        addational_data = {}
         for pair, values in lambda_consts.items():
-            self.o3[pair], correct[pair] = pre_calc_o3(lambda_consts[pair], lambda_consts_pix[pair], self.spectrum,
+            self.o3[pair], correct[pair], addational_data[pair] = pre_calc_o3(lambda_consts[pair], lambda_consts_pix[pair], self.spectrum,
                                                        self.prom,
                                                        self.data['mu'],
                                                        self.var_settings, home, pair)
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"],
                                 'o3_2': self.o3["2"],
                                 'correct_1': correct["1"],
-                                'correct_2': correct["2"]}
+                                'correct_2': correct["2"],
+                                'additional_data_1': addational_data["1"],
+                                'additional_data_2': addational_data["2"]}
         if self.o3_mode != 'spectr':
             if self.show_all or correct["1"] == 1:
                 self.x1.append(self.data['datetime'])
@@ -140,6 +144,8 @@ class PlotClass:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]) * np.array(self.sensitivity[p1:p2]))
                 else:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]))
+                ultraviolet *= float(eval(self.confS[1])) * self.var_settings['device']['graduation_expo'] / \
+                                   self.data['expo']
             elif uv_mode == 'uve':
                 if self.use_sensitivity:
                     ultraviolet = sum([float(self.spectrum[i]) *
@@ -168,7 +174,7 @@ class PlotClass:
                 data = json.load(f)
                 if flag:
                     new_data = {'spectr': data['spectr'],
-                                'datetime': datetime.datetime.strptime(data['mesurement']['datetime'],
+                                'datetime': datetime.datetime.strptime(data['mesurement']['datetime_local'],
                                                                        '%Y%m%d %H:%M:%S'),
                                 'hs': data['calculated']['sunheight'],
                                 'amas': data['calculated']['amas'],
@@ -935,6 +941,7 @@ def make_o3file():
                     # cr - o3
                     t, sh, cr = saving.prepare(start.data['datetime'],
                                                start.uvs_or_o3['ZD'])
+
                     ts.append(t)
                     shs.append(sh)
                     calc_results.append(cr)
@@ -1083,7 +1090,7 @@ if __name__ == '__main__':
         root.wm_state('zoomed')
         # root.geometry('908x530+200+100') #'908x530+200+100'
         root.resizable(True, True)
-        appHighlightFont = font2.Font(family='Helvetica', size=14)  # , weight='bold')
+        appHighlightFont = font.Font(family='Helvetica', size=14)  # , weight='bold')
         top_panel = ttk.Frame(root, padding=(1, 1), relief='solid')  # ,width=800
         menu_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
         admin_panel = ttk.Frame(top_panel, padding=(1, 1), relief='solid')
@@ -1095,7 +1102,7 @@ if __name__ == '__main__':
 
         # Admin Menu
         chk_var_with_sens = IntVar()
-        chk_var_with_sens.set(1)
+        chk_var_with_sens.set(0)
         chk_with_sens = ttk.Checkbutton(admin_panel, text='Использовать чувствительность', variable=chk_var_with_sens)
         var_recalculate_source_files = IntVar()
         var_recalculate_source_files.set(0)
