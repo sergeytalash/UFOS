@@ -860,7 +860,7 @@ class UfosConnection:
                 registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
                 for i in range(255):
                     name, value, typ = winreg.EnumValue(registry_key, i)
-                    if name.count('USBSE') > 0:
+                    if 'USBSE' in name or 'VSerial9_0' in name:
                         self.opened_serial = serial.Serial(port='//./' + value,
                                                            baudrate=self.br,
                                                            bytesize=self.bs,
@@ -970,8 +970,8 @@ class UfosDataToCom:
                          self.mesure_type + \
                          self.start_mesure + \
                          b'0'
-        hex_data = [b.hex() for b in self.data_send]
-        print(f"\nOUT: {hex_data} {len(self.data_send)}")
+        # hex_data = [b for b in self.data_send]
+        print(f"\nOUT: {self.data_send} {len(self.data_send)}")
 
     def device_ask(self, tries_allowed):
         self.tries_done = 0
@@ -989,21 +989,13 @@ class UfosDataToCom:
                 byte = self.com_obj.read(1)
             self.com_obj.close()
             # Если получили данные с УФОС за timeout
-            ##            print(f"\nData [15]:\n\n{data[:15]}\nLen: {len(data)}\n")
-            ##            if len(data)==7382:
-            ##                with open("out.txt", "a") as fw:
-            ##                    print(data, file=fw)
-            ##                input("Exiting...")
-            ##                exit(0)
+
             if data:
-                hex_data = [b.hex() for b in data][:15]
-                print(f"\nIN: {hex_data} {len(data)}")
+                print(f"\nIN: {data[:15]} {len(data)}")
                 t1 = 0
                 t2 = 0
                 if len(data) > 10:
-                    ##                    print(data[:4], end = ' ')
                     tt = data[4:10]
-                    ##                    print(tt)
                     t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
                     t11 = (tt[2] * 255 + tt[3]) / 10  # amb
                     t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
@@ -1019,7 +1011,7 @@ class UfosDataToCom:
                 else:
                     spectr = [0]
                     text = ''
-                print(f"Spectr[40]:\n{spectr[:40]}\nLen: {len(spectr)}")
+                print(f"Spectr[10]: {spectr[:10]}\nLen: {len(spectr)}")
                 return spectr[:3691], t1, t2, text, 0
             # Если не получили данные с УФОС за timeout
             else:

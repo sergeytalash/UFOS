@@ -180,7 +180,7 @@
     "interval": 5,
     "latitude": 59.57,
     "longitude": -30.42,
-    "sun_height_min": 5,
+    "sun_height_min": -50,
     "timezone": "+3"
   },
   "version": "2.0"
