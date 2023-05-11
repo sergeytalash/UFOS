@@ -980,8 +980,8 @@ class UfosDataToCom:
             self.com_obj.open()
             self.com_obj.write(self.data_send)
             self.logger.debug('Sleep {} seconds...'.format(to))
-            # time.sleep(to)
-            byte = self.com_obj.read(1)
+            time.sleep(to)
+            byte = self.com_obj.read(100)
             while byte:
                 data += byte
                 byte = self.com_obj.read(100)
@@ -989,19 +989,23 @@ class UfosDataToCom:
             # Если получили данные с УФОС за timeout
 
             if data:
-                # print(f"\nIN: {data[:15]} {len(data)}")
+                # print(f"\n=====\nIN: {data[:15]} {len(data)}\n=====\n")
                 t1 = 0
                 t2 = 0
-                if len(data) > 10:
+                if len(data) in [13, 7395]:
                     tt = data[4:10]
                     t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
                     t11 = (tt[2] * 255 + tt[3]) / 10  # amb
                     t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
-                    print("Temperature:", [t1, t11, t2])
-                if len(data) > 13:
+                    print("\nTemperature:", [t1, t11, t2])
+                if len(data) > 7381:
+                    if len(data) == 7382:
+                        start = 0
+                    elif len(data) == 7395:
+                        start = 13
                     i = len(data) - 1
                     spectr = []
-                    while i > 13:
+                    while i > start:
                         i -= 1
                         spectr.append(int(data[i + 1]) * 255 + int(data[i]))
                         i -= 1
@@ -1009,7 +1013,7 @@ class UfosDataToCom:
                 else:
                     spectr = [0]
                     text = ''
-                # print(f"Spectr[5]: {spectr[:5]} Len: {len(spectr[:3600] + [0] * 91)}")
+                # print(f"Spectr[5]: {spectr[:5]} Len: {len(spectr)}")
                 # return spectr[:3691], t1, t2, text, 0
                 return spectr[:3600] + [0] * 91, t1, t2, text, 0
             # Если не получили данные с УФОС за timeout
