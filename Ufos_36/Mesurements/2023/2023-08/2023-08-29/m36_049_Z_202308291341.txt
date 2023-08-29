@@ -1,0 +1,30 @@
+{
+"calculated": {
+"amas": 1.592,
+"dispersia": NaN,
+"mean": NaN,
+"mu": 1.584,
+"sko": NaN,
+"sunheight": 38.922
+},
+"id": {
+"device": 36,
+"station": "27612"
+},
+"mesurement": {
+"accummulate": 1,
+"channel": "Z",
+"datetime": "20230829 10:41:44",
+"datetime_local": "20230829 13:41:44",
+"exposition": 50,
+"latitude": 59.57,
+"longitude": -30.42,
+"status": 0,
+"temperature_ccd": "",
+"temperature_poly": "",
+"timezone": "+3"
+},
+"spectr": [
+0
+]
+}
