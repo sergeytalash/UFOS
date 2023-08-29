@@ -8,6 +8,7 @@ import os
 # import asyncio
 import queue as queue_th
 import socket
+import sys
 import threading
 import time
 from math import *
@@ -136,7 +137,6 @@ class FinalFile:
 
     def save(self, pars, home, chan, ts, shs, calc_results):
         create_new_file = True
-        analyse_file_name = ''
         for date_utc, sh, calc_result in zip(ts, shs, calc_results):
             self.path_file = write_final_file(pars,
                                               home,
@@ -147,17 +147,17 @@ class FinalFile:
                                               'New_',
                                               create_new_file)
             if chan == 'ZD':
-                analyse_file_name = write_analyse_file(pars,
-                                                       home,
-                                                       chan,
-                                                       date_utc,
-                                                       round(sh, 1),
-                                                       calc_result,
-                                                       'Analyse_',
-                                                       create_new_file)
+                write_analyse_file(pars,
+                                   home,
+                                   chan,
+                                   date_utc,
+                                   round(sh, 1),
+                                   calc_result,
+                                   'Analyse_',
+                                   create_new_file)
             create_new_file = False
         if not self.annual_file:
-            print('1) Files saved:\n{}\n{}'.format(self.path_file, analyse_file_name))
+            print('Manual save.\n1) File Saved: {}'.format(self.path_file))
             self.but_make_mean_file.configure(
                 command=lambda: calculate_final_files(pars, self.path_file, chan, True, "file"))
             self.but_make_mean_file.configure(state=NORMAL)
@@ -592,7 +592,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                                 part2 = line[-2:-1]
                                 print(';'.join(part1 + [str(correct1)] + part2 + [str(correct2)]), file=f)
                             print(o3s_k2['1']['all']['text'] + o3s_k2['2']['all']['text'], file=f)
-                            print('2) Mean File Saved:\n{}'.format(
+                            print('2) Mean File Saved: {}'.format(
                                 os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
                 for pair in ['1', '2']:
                     for part_of_day in ["all", "morning", "evening"]:
@@ -721,7 +721,7 @@ def read_sensitivity(path, ufos_id, mode):
 
     :param path: Home dir
     :param ufos_id: UFOS Id from common_settings
-    :param mode: "sensitivityS", "senseritem", "sensitivityZ"
+    :param mode: "sensitivity", "senseritem", "sensitivityZen"
     :return: list of float values
     """
     with open(os.path.join(path, 'Ufos_{}'.format(ufos_id), 'Settings', '{}{}.txt'.format(mode, ufos_id))) as f:
@@ -734,16 +734,23 @@ def read_sensitivity(path, ufos_id, mode):
             return [1] * 3691
 
 
-def nm2pix(nm, abc, add):
+def nm2pix(nm, configure2, add):
     nm = float(nm)
-    pix = 0
-    if not 270 < nm < 430:
+    abc = configure2
+    if 270 < nm < 350:
+        pix = 0
+        ans_nm = pix2nm(abc, pix, 2, add)
+        while ans_nm < nm:
+            pix += 1
+            ans_nm = pix2nm(abc, pix, 2, add)
+    elif 350 <= nm < 430:
+        pix = 1000
+        ans_nm = pix2nm(abc, pix, 2, add)
+        while ans_nm < nm:
+            pix += 1
+            ans_nm = pix2nm(abc, pix, 2, add)
+    else:
         print(nm, 'nm2pix: error')
-        return 0
-    if 350 < nm < 430:
-        pix = 1500
-    while pix2nm(abc, pix, 1, add) < nm:
-        pix += 1
     return pix
 
 
@@ -813,7 +820,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
     else:
         r23clean = get_polynomial_result(var_settings['calibration2']['kzLarger' + o3_num], mueff)
     kz_obl_f = get_polynomial_result(var_settings['calibration2']['kz_obl' + o3_num], (r23clean / r23m))
-    r12clear = kz_obl_f * r12m
+    r12clear = kz_obl_f * r12m  #
     try:
         o3 = int(get_ozone_by_nomographs(home, r12clear, mueff, var_settings['device']['id'], o3_num))
     except Exception as err:
@@ -853,7 +860,7 @@ class UfosConnection:
                 registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
                 for i in range(255):
                     name, value, typ = winreg.EnumValue(registry_key, i)
-                    if name.count('Silab') > 0:
+                    if 'USBSE' in name or 'VSerial9_0' in name:
                         self.opened_serial = serial.Serial(port='//./' + value,
                                                            baudrate=self.br,
                                                            bytesize=self.bs,
@@ -862,12 +869,11 @@ class UfosConnection:
                                                            timeout=self.to)
                         self.opened_serial.close()
                         return {'com_number': value, 'com_obj': self.opened_serial}
+                pass
             except WindowsError:
                 text = "Кабель не подключен к ПК!                   "
                 print(text, end='\r')
                 self.logger.error(text)
-        else:
-            raise ValueError("Linux/Mac COM port support hasn't configured yet.")
 
 
 class CalculateOnly:
@@ -910,15 +916,14 @@ class CalculateOnly:
         correct = {}
         additional_data = {}
         for pair, values in self.lambda_consts.items():
-            o3[pair], correct[pair], additional_data[pair] = pre_calc_o3(
-                self.lambda_consts[pair],
-                self.lambda_consts_pix[pair],
-                spectrum,
-                self.prom,
-                mu,
-                self.settings,
-                self.home,
-                pair)
+            o3[pair], correct[pair], additional_data[pair] = pre_calc_o3(self.lambda_consts[pair],
+                                                                         self.lambda_consts_pix[pair],
+                                                                         spectrum,
+                                                                         self.prom,
+                                                                         mu,
+                                                                         self.settings,
+                                                                         self.home,
+                                                                         pair)
         return o3, correct, additional_data
 
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
@@ -941,7 +946,7 @@ class CalculateOnly:
 class UfosDataToCom:
     """UFOS mesure class"""
 
-    def __init__(self, expo, accummulate, mesure_type, start_mesure, logger, pars):
+    def __init__(self, expo, accummulate, mesure_type, start_mesure, logger):
         """Преобразование данных запроса в необходимый тип для отправки в прибор
         dev_id - номер прибора (всегда = 1)
         expo - время измерения в мс
@@ -955,7 +960,6 @@ class UfosDataToCom:
         self.logger = logger
         self.data_send = b''
         self.accum = accummulate
-        self.pars = pars
         self.mesure_type = mesure_type.encode('utf-8')  # Z, S, D
         self.start_mesure = start_mesure.encode('utf-8')  # S
         self.data_send = b'#\x00\x01' + \
@@ -964,7 +968,9 @@ class UfosDataToCom:
                          bytes((int(accummulate),)) + \
                          b'0' + \
                          self.mesure_type + \
-                         self.start_mesure
+                         self.start_mesure + \
+                         b'0'
+        # print(f"\nOUT: {self.data_send} {len(self.data_send)}")
 
     def device_ask(self, tries_allowed):
         self.tries_done = 0
@@ -976,28 +982,54 @@ class UfosDataToCom:
             self.com_obj.write(self.data_send)
             self.logger.debug('Sleep {} seconds...'.format(to))
             time.sleep(to)
-            byte = self.com_obj.read(1)
+            byte = self.com_obj.read(100)
             while byte:
                 data += byte
-                byte = self.com_obj.read(1)
+                byte = self.com_obj.read(100)
             self.com_obj.close()
             # Если получили данные с УФОС за timeout
+
             if data:
-                i = data[6:10]
-                t1 = (i[0] * 255 + i[1]) / 10  # Линейка
-                t2 = (i[2] * 255 + i[3]) / 10  # Полихроматор
-                if len(data) > 13:
+                # print(f"\n=====\nIN: {data[:15]} {len(data)}\n=====\n")
+                t1 = 0
+                t2 = 0
+##                print(f"Data[0:10]: {data[:10]} Len: {len(data)}\n")
+                if len(data) in [13, 7395]:
+                    tt = data[4:10]
+                    t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
+                    t11 = (tt[2] * 255 + tt[3]) / 10  # amb
+                    t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
+                    print("\nTemperature:", [t1, t11, t2])
+                if len(data) > 7381:
+                    start = 0
                     i = len(data) - 1
                     spectr = []
-                    while i > 13:
+                    while i > start:
                         i -= 1
-                        spectr.append(int(data[i + 1]) * 255 + int(data[i]))
+                        try:
+                            d = int(data[i + 1]) * 255 + int(data[i])
+                            if d < 65000:
+                                spectr.append(d)
+                            else:
+                                spectr.append(0)
+                        except:
+                            spectr.append(0)
                         i -= 1
-                    text = 'Амп = {}'.format(max(spectr[slice(*self.pars['device']['pix_work_interval'])]))
+                    valuable_max = max(spectr[100:3500])
+                    other = []
+                    for i in spectr[3500:3691]:
+                        if i > valuable_max:
+                            other.append(valuable_max)
+                        else:
+                            other.append(i)
+                    spectr = spectr[:3500] + other
+                    text = 'Амп = {}'.format(max(spectr[100:3500]))
                 else:
-                    spectr = [0]
+                    spectr = [0] * 101
                     text = ''
-                return spectr[:3691], t1, t2, text, 0
+##                print(f"Spectr[0:10]: {spectr[:10]} Len: {len(spectr)}\n")
+                return spectr, t1, t2, text, 0
+##                return spectr[:3600] + [0] * 91, t1, t2, text, 0
             # Если не получили данные с УФОС за timeout
             else:
                 if self.tries_done > 0:
@@ -1005,7 +1037,7 @@ class UfosDataToCom:
                     print(text)
                     self.logger.error(text)
                 self.tries_done += 1
-        return [0], 0, 0, '', self.tries_done
+        return [0] * 101, 0, 0, '', self.tries_done
 
 
 class Settings:
@@ -1096,20 +1128,14 @@ def get_time_next_start(latitude, longitude, timezone, sun_height_min):
     return str(time_now).split('.')[0]
 
 
-def make_dirs(dirs, home, reset_counter=False):
+def make_dirs(dirs, home):
     path = home
-    out = False
     # dirs = ['1','2','2'] > home\1\2\3
     for i in dirs:
         path = os.path.join(path, str(i))
         if not os.path.exists(path):
             os.mkdir(path)
-            if reset_counter:
-                out = True
-    if out:
-        return path, 1
-    else:
-        return path
+    return path
 
 
 def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_name, create_new_file):
@@ -1146,11 +1172,11 @@ def write_final_file(pars, home, chan, date_utc, sunheight, calc_result, add_to_
                     type_of_measurement,
                     datetime.datetime.strftime(date, '%Y'),
                     datetime.datetime.strftime(date, '%Y-%m')]
-            path = make_dirs(dirs, home)
             name = '{}m{}_{}_{}.txt'.format(add_to_name,
                                             pars['device']['id'],
                                             type_of_measurement,
                                             datetime.datetime.strftime(date, '%Y%m%d'))
+            path = make_dirs(dirs, home)
             if not os.path.exists(os.path.join(path, name)) or create_new_file:
                 with open(os.path.join(path, name), 'w') as f:
                     print(header, file=f)
@@ -1222,14 +1248,13 @@ class Main:
         self.last_file_uv = ''
         self.mesure_data = {'ZD': {}, 'SD': {}}
         self.calc_result = {'ZD': {}, 'SD': {}}
-        self.pix_work_interval = slice(*pars["device"]["pix_work_interval"])
         self.file2send = {}
         self.t1 = ''
         self.t2 = ''
         self.pars = pars
         self.home = home
         self.connect_pars = read_connect(self.home)
-        self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'], "sensitivityS")
+        self.sensitivity = read_sensitivity(self.home, self.pars['device']['id'], "sensitivity")
         self.sensitivity_eritem = read_sensitivity(self.home, self.pars['device']['id'], "senseritem")
         self.time_now = datetime.datetime.now()
         self.time_now_local = self.time_now + datetime.timedelta(
@@ -1255,95 +1280,94 @@ class Main:
             self.time_now_local = self.time_now + datetime.timedelta(
                 hours=int(self.pars["station"]["timezone"]))  # Local Datetime
             """Расчёт высоты солнца"""
-            self.mu, self.amas, self.sh = sunheight(self.pars["station"]["latitude"],
-                                                    self.pars["station"]["longitude"],
-                                                    self.time_now,
-                                                    self.pars["station"]["timezone"])
+            self.mu, self.amas, self.sunheight = sunheight(self.pars["station"]["latitude"],
+                                                           self.pars["station"]["longitude"],
+                                                           self.time_now,
+                                                           self.pars["station"]["timezone"])
             """Запись шапки файла"""
-            self.all_measured_data = {
-                "id": {
-                    "device": self.pars["device"]["id"],
-                    "station": self.pars["station"]["id"]
-                    },
-                "mesurement": {
-                    "datetime": datetime.datetime.strftime(self.time_now, '%Y%m%d %H:%M:%S'),
-                    "datetime_local": datetime.datetime.strftime(self.time_now_local, '%Y%m%d %H:%M:%S'),
-                    "timezone": self.pars["station"]["timezone"],
-                    "latitude": self.pars["station"]["latitude"],
-                    "longitude": self.pars["station"]["longitude"],
-                    "exposition": self.expo,
-                    "accummulate": self.pars["device"]["accummulate"],
-                    "channel": self.chan,
-                    "temperature_ccd": self.t1,
-                    "temperature_poly": self.t2
-                    },
-                "calculated": {
-                    "mu": round(self.mu, 4),
-                    "amas": round(self.amas, 4),
-                    "sunheight": round(self.sunheight, 4),
-                    "sko": round(float(np.std(spectr[self.pix_work_interval])), 4),
-                    "mean": round(float(np.mean(spectr[self.pix_work_interval])), 4),
-                    "dispersia": round(float(np.var(spectr[self.pix_work_interval])), 4)
-                    }
-                }
-            if self.chan in ['Z', 'S']:
-                """Расчёт СКО для Спектра (-) altD (темновой до 500 пикс)"""
-                self.spectrZaD = np.array(spectr) - np.mean(spectr[100:500])
-                self.skoZaD = np.std(self.spectrZaD[self.pix_work_interval])
-                self.all_measured_data["spectr"] = np.array(spectr).tolist()
-            elif self.chan[0] == 'D':
-                # Если 'СКО D измеренное' < 100 И 'СКО Z-aD' > 100"""
-                if self.all_measured_data["calculated"]["sko"] < self.pars["calibration"]["sko_D"] and self.skoZaD > \
-                    self.pars["calibration"]["sko_ZaD"]:
-                    self.altD_flag = 0
-                # Если 'СКО D измеренное' > 100 И 'СКО Z-aD' > 100"""
-                elif self.all_measured_data["calculated"]["sko"] > self.pars["calibration"]["sko_D"] and self.skoZaD > \
-                    self.pars["calibration"]["sko_ZaD"]:
-                    self.altD_flag = 1
-                else:
-                    self.altD_flag = 2
-                self.all_measured_data["spectr"] = np.array(spectr).tolist()
-            elif self.chan in ['ZD', 'SD']:
-                if self.altD_flag == 0:
-                    # Если всё ок
-                    self.all_measured_data["spectr"] = np.array(spectr).tolist()
-                    self.all_measured_data["mesurement"]["status"] = 0
-                elif self.altD_flag == 1:
-                    # Если плохой темновой спектр, использовать альтернативный темновой (spectr[100:500])
-                    self.all_measured_data["spectr"] = np.array(self.spectrZaD).tolist()
-                    self.all_measured_data["mesurement"]["status"] = 1
-                else:
-                    self.all_measured_data["spectr"] = np.array(spectr).tolist()
-                    self.all_measured_data["mesurement"]["status"] = 2
+            self.all_measured_data = {"id": {
+                "device": self.pars["device"]["id"],
+                "station": self.pars["station"]["id"]
+            }, "mesurement": {
+                "datetime": datetime.datetime.strftime(self.time_now, '%Y%m%d %H:%M:%S'),
+                "datetime_local": datetime.datetime.strftime(self.time_now_local, '%Y%m%d %H:%M:%S'),
+                "timezone": self.pars["station"]["timezone"],
+                "latitude": self.pars["station"]["latitude"],
+                "longitude": self.pars["station"]["longitude"],
+                "exposition": self.expo,
+                "accummulate": self.pars["device"]["accummulate"],
+                "channel": self.chan,
+                "temperature_ccd": self.t1,
+                "temperature_poly": self.t2
+            }, "calculated": {
+                "mu": round(self.mu, 4),
+                "amas": round(self.amas, 4),
+                "sunheight": round(self.sunheight, 4),
+                "sko": round(float(np.std(spectr[300:3600])), 4),
+                "mean": round(float(np.mean(spectr[300:3600])), 4),
+                "dispersia": round(float(np.var(spectr[300:3600])), 4)
+            }, "spectr": np.array(spectr).tolist()}
+
+            self.all_measured_data["mesurement"]["status"] = 0
+
+            # if self.chan in ['Z', 'S']:
+            #     """Расчёт СКО для Спектра (-) altD (темновой до 500 пикс)"""
+            #     self.spectrZaD = np.array(spectr) - np.mean(spectr[100:500])
+            #     self.skoZaD = np.std(self.spectrZaD[100:3600])
+            #     self.all_measured_data["spectr"] = np.array(spectr).tolist()
+            # elif self.chan[0] == 'D':
+            #     # Если 'СКО D измеренное' < 100 И 'СКО Z-aD' > 100"""
+            #     if self.all_measured_data["calculated"]["sko"] < self.pars["calibration"]["sko_D"] and self.skoZaD > \
+            #             self.pars["calibration"]["sko_ZaD"]:
+            #         self.altD_flag = 0
+            #     # Если 'СКО D измеренное' > 100 И 'СКО Z-aD' > 100"""
+            #     elif self.all_measured_data["calculated"]["sko"] > self.pars["calibration"]["sko_D"] and self.skoZaD > \
+            #             self.pars["calibration"]["sko_ZaD"]:
+            #         self.altD_flag = 1
+            #     else:
+            #         self.altD_flag = 2
+            #     self.all_measured_data["spectr"] = np.array(spectr).tolist()
+            # elif self.chan in ['ZD', 'SD']:
+            #     if self.altD_flag == 0:
+            #         # Если всё ок
+            #         self.all_measured_data["spectr"] = np.array(spectr).tolist()
+            #         self.all_measured_data["mesurement"]["status"] = 0
+            #     elif self.altD_flag == 1:
+            #         # Если плохой темновой спектр, использовать альтернативный темновой (spectr[100:500])
+            #         self.all_measured_data["spectr"] = np.array(self.spectrZaD).tolist()
+            #         self.all_measured_data["mesurement"]["status"] = 1
+            #     else:
+            #         self.all_measured_data["spectr"] = np.array(spectr).tolist()
+            #         self.all_measured_data["mesurement"]["status"] = 2
         except Exception as err:
             print('analyze_spectr:', end='')
             print(err, sys.exc_info()[-1].tb_lineno)
             if self.logger:
                 self.logger.error(str(err))
 
-    def pix2nm(self, pix):
-        nm = 0
-        deg = len(self.pars["calibration"]["nm(pix)"]["Z"]) - 1
-        for i in self.pars["calibration"]["nm(pix)"]["Z"]:
-            nm += eval(i) * pix ** deg
-            deg -= 1
-        return (nm)
+##    def pix2nm(self, pix):
+##        nm = 0
+##        deg = len(self.pars["calibration"]["nm(pix)"]["Z"]) - 1
+##        for i in self.pars["calibration"]["nm(pix)"]["Z"]:
+##            nm += eval(i) * pix ** deg
+##            deg -= 1
+##        return (nm)
+##
+##    def nm2pix(self, nm):
+##        pix = 0
+##        while self.pix2nm(pix) < nm:
+##            pix += 1
+##        return pix
+##
+##    def nms2pixs(self):
+##        self.pixs = {}
+##        for pair in self.pars["calibration"]["points"].keys():
+##            self.pixs[pair + '_pix'] = []
+##            for nm in self.pars["calibration"]["points"][pair]:
+##                self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
-    def nm2pix(self, nm):
-        pix = 0
-        while self.pix2nm(pix) < nm:
-            pix += 1
-        return pix
-
-    def nms2pixs(self):
-        self.pixs = {}
-        for pair in self.pars["calibration"]["points"].keys():
-            self.pixs[pair + '_pix'] = []
-            for nm in self.pars["calibration"]["points"][pair]:
-                self.pixs[pair + '_pix'].append(self.nm2pix(nm))
-
-    def add_calculated_line_to_final_file(self, pars, home, spectr, mu, expo, sensitivity,
-                                          sensitivity_eritem, print_o3_to_console):
+    def add_calculated_line_to_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem,
+                                          print_o3_to_console):
         calco = CalculateOnly(pars, home)
         o3_dict = {}
         if self.chan == 'ZD':
@@ -1374,7 +1398,7 @@ class Main:
                     datetime.datetime.strftime(self.time_now_local, '%Y-%m-%d')]
             dirs_sending = ['Ufos_{}'.format(self.pars['device']['id']),
                             'Sending']
-            self.path, self.mesure_count = make_dirs(dirs, self.home, reset_counter=True)
+            self.path = make_dirs(dirs, self.home)
             self.path_sending = make_dirs(dirs_sending, self.home)
 
             self.name = 'm{}_{}_{}_{}.txt'.format(self.pars['device']['id'],
@@ -1405,7 +1429,6 @@ class Main:
                                              self.calc_result[self.chan],
                                              '',
                                              False)
-
                 if self.chan == 'ZD':
                     write_analyse_file(self.pars,
                                        self.home,
@@ -1547,6 +1570,7 @@ class Main:
         for ip in host.split(','):
             try:
                 sock.connect((ip, port))
+                print(data2send)
                 sock.send(data2send.encode(encoding='utf-8'))
                 sock.close()
                 t.append('OK')
@@ -1606,33 +1630,27 @@ class Main:
                 """ Z or S mesurement """
                 for chan in self.pars['device']['channel']:
                     self.expo = self.pars['device']['auto_expo_min']
-                    self.ZS_spectr = [0] * 3691
+                    self.ZS_spectr = [0] * 101
                     self.change_channel(chan)
                     while self.expo < self.pars['device']['auto_expo_max'] \
-                        and max(self.ZS_spectr[slice(*self.pars['device']['pix_work_interval'])]) < self.pars['device'][
-                        'amplitude_max']:
+                            and max(self.ZS_spectr[100:3500]) < self.pars['device']['amplitude_max']:
                         try:
                             text = 'Канал {}. Эксп = {}'.format(
                                 self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                                 self.expo)
                             print(text, end='')
-                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                                     self.pars[
-                                                                                                         'device'][
-                                                                                                         'accummulate'],
-                                                                                                     chan,
-                                                                                                     'S',
-                                                                                                     self.logger,
-                                                                                                     self.pars).device_ask(
-                                self.tries_allowed)
+                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                                self.expo,
+                                self.pars['device']['accummulate'],
+                                chan,
+                                'S',
+                                self.logger).device_ask(self.tries_allowed)
                             text += ' ' + text2
                             print('\r{}'.format(text))
                             self.logger.info(text)
-                            if max(self.ZS_spectr[slice(*self.pars['device']['pix_work_interval'])]) > \
-                                self.pars['device']['amplitude_min']:
+                            if max(self.ZS_spectr[100:3500]) > self.pars['device']['amplitude_min']:
                                 break
-                            k[chan] = max(self.ZS_spectr[slice(*self.pars['device']['pix_work_interval'])]) / \
-                                      self.pars['device']['amplitude_max']
+                            k[chan] = max(self.ZS_spectr[100:3500]) / self.pars['device']['amplitude_max']
                             if k[chan] != 0:
                                 self.expo = int(self.expo / k[chan])
 
@@ -1648,14 +1666,12 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                                 self.pars['device'][
-                                                                                                     'accummulate'],
-                                                                                                 chan,
-                                                                                                 'S',
-                                                                                                 self.logger,
-                                                                                                 self.pars).device_ask(
-                            self.tries_allowed)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                            self.expo,
+                            self.pars['device']['accummulate'],
+                            chan,
+                            'S',
+                            self.logger).device_ask(self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1670,13 +1686,12 @@ class Main:
                         self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                         self.expo)
                     print(text)
-                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                           self.pars['device'][
-                                                                                               'accummulate'],
-                                                                                           'D', 'S',
-                                                                                           self.logger,
-                                                                                           self.pars).device_ask(
-                        self.tries_allowed)
+                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                        self.expo,
+                        self.pars['device']['accummulate'],
+                        'D',
+                        'S',
+                        self.logger).device_ask(self.tries_allowed)
                     text += ' ' + text2
                     print('\r{}'.format(text), end=' ')
                     self.logger.info(text)
@@ -1704,13 +1719,12 @@ class Main:
                             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                                 self.pars['device'][
-                                                                                                     'accummulate'],
-                                                                                                 chan, 'S',
-                                                                                                 self.logger,
-                                                                                                 self.pars).device_ask(
-                            self.tries_allowed)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                            self.expo,
+                            self.pars['device']['accummulate'],
+                            chan,
+                            'S',
+                            self.logger).device_ask(self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1725,13 +1739,12 @@ class Main:
                             self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
                             self.expo)
                         print(text)
-                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(self.expo,
-                                                                                               self.pars['device'][
-                                                                                                   'accummulate'], 'D',
-                                                                                               'S',
-                                                                                               self.logger,
-                                                                                               self.pars).device_ask(
-                            self.tries_allowed)
+                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                            self.expo,
+                            self.pars['device']['accummulate'],
+                            'D',
+                            'S',
+                            self.logger).device_ask(self.tries_allowed)
                         text += ' ' + text2
                         print('\r{}'.format(text), end=' ')
                         self.logger.info(text)
@@ -1760,12 +1773,10 @@ class CheckSunAndMesure:
         self.home = os.getcwd()
         self.logger = logger
         self.end_calculation = True
-        self.common_pars = Settings.get_common(self.home)
-        self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
-        self.time_now_utc = datetime.datetime.now()
-        self.time_now_local = datetime.datetime.now()
+        self.common_pars = []
+        self.pars = []
+        self.time_now_1 = datetime.datetime.now()
         self.mu, self.amas, self.sunheight = 0, 0, 0
-        self.timezone = datetime.timedelta(hours=int(self.pars["station"]['timezone']))
 
     def start(self):
         while 1:
@@ -1773,17 +1784,17 @@ class CheckSunAndMesure:
                 ufos_com = UfosConnection(self.logger).get_com()['com_obj']
                 self.common_pars = Settings.get_common(self.home)
                 self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
-                self.time_now_utc = datetime.datetime.now()
-                self.time_now_local = self.time_now_utc + self.timezone
+
+                self.time_now_1 = datetime.datetime.now()
                 self.mu, self.amas, self.sunheight = sunheight(self.pars["station"]["latitude"],
                                                                self.pars["station"]["longitude"],
-                                                               self.time_now_utc,
+                                                               self.time_now_1,
                                                                self.pars["station"]["timezone"])
                 main = Main(self.home, self.pars, self.logger)
                 if self.sunheight >= self.pars["station"]["sun_height_min"]:
                     self.end_calculation = True
                     # Высота Солнца выше заданного параметра
-                    main.nms2pixs()
+##                    main.nms2pixs()
                     print('=== Запуск измерения ===                      ', end='\r')
                     main.mesure()
 
@@ -1794,7 +1805,7 @@ class CheckSunAndMesure:
                         calculate_final_files(self.pars, main.last_file_o3, 'ZD', True, "file")
                         main.make_line()
                         print('========================')
-                        next_time = self.time_now_local + datetime.timedelta(minutes=self.pars["station"]["interval"])
+                        next_time = self.time_now_1 + datetime.timedelta(minutes=self.pars["station"]["interval"])
                         self.mu, self.amas, self.sunheight = sunheight(self.pars["station"]["latitude"],
                                                                        self.pars["station"]["longitude"],
                                                                        next_time,
@@ -1805,7 +1816,7 @@ class CheckSunAndMesure:
                         # Send files
                         send_ok = True
                         for file2send in os.listdir(main.path_sending):
-                            if datetime.datetime.now() + self.timezone < next_time and send_ok:
+                            if datetime.datetime.now() < next_time and send_ok:
                                 sending_file = os.path.join(main.path_sending, file2send)
                                 tex = main.send_file(sending_file)
                                 self.logger.debug(str(tex))
@@ -1816,27 +1827,27 @@ class CheckSunAndMesure:
                                         send_ok = False
                             else:
                                 break
-                        while datetime.datetime.now() + self.timezone < next_time:
+
+                        while datetime.datetime.now() < next_time:
                             time.sleep(1)
                 else:
                     # Высота Солнца менее заданного параметра
                     if self.end_calculation:
                         calculate_final_files(self.pars, main.last_file_o3, 'ZD', True, "file")
                         self.end_calculation = False
-                    print('\rСледующее измерение: {}'.format(
-                        get_time_next_start(self.pars["station"]["latitude"],
-                                            self.pars["station"]["longitude"],
-                                            self.pars["station"]["timezone"],
-                                            self.pars["station"]["sun_height_min"])), end='')
+
+                    print('\rСледующее измерение: {}'.format(get_time_next_start(self.pars["station"]["latitude"],
+                                                                                 self.pars["station"]["longitude"],
+                                                                                 self.pars["station"]["timezone"],
+                                                                                 self.pars["station"][
+                                                                                     "sun_height_min"])),
+                          end='')
                     time.sleep(5)
             except serial.serialutil.SerialException as err:
                 print(err)
             except TypeError as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
                 time.sleep(10)
-            except ValueError as err:
-                if "COM" in str(err):
-                    raise err
             except Exception as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
                 time.sleep(10)
