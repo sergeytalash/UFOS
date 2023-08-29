@@ -124,9 +124,9 @@
       6.2871,
       -2.2256
     ],
-    "pix+-": 2,
     "mu_effect_1": 2,
     "mu_effect_2": 2,
+    "pix+-": 2,
     "visible_sunheight_max": 5,
     "visible_sunheight_min": 5
   },
@@ -166,6 +166,10 @@
       50,
       100,
       150
+    ],
+    "pix_work_interval": [
+      32,
+      3679
     ]
   },
   "station": {

@@ -855,10 +855,11 @@ class UfosConnection:
         self.to = to  # Time out (s)
 
     def get_com(self):
+        com = {'com_number': None, 'com_obj': None}
         if os.name != 'posix':
-            try:
-                registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
-                for i in range(255):
+            registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
+            for i in range(255):
+                try:
                     name, value, typ = winreg.EnumValue(registry_key, i)
                     if 'USBSE' in name or 'VSerial9_0' in name:
                         self.opened_serial = serial.Serial(port='//./' + value,
@@ -869,11 +870,9 @@ class UfosConnection:
                                                            timeout=self.to)
                         self.opened_serial.close()
                         return {'com_number': value, 'com_obj': self.opened_serial}
-                pass
-            except WindowsError:
-                text = "Кабель не подключен к ПК!                   "
-                print(text, end='\r')
-                self.logger.error(text)
+                except WindowsError as err:
+                    pass
+        return com
 
 
 class CalculateOnly:
@@ -1782,6 +1781,8 @@ class CheckSunAndMesure:
         while 1:
             try:
                 ufos_com = UfosConnection(self.logger).get_com()['com_obj']
+                if not ufos_com:
+                    raise WindowsError(f"{now()} Кабель не подключен к ПК!")
                 self.common_pars = Settings.get_common(self.home)
                 self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
 
@@ -1794,7 +1795,6 @@ class CheckSunAndMesure:
                 if self.sunheight >= self.pars["station"]["sun_height_min"]:
                     self.end_calculation = True
                     # Высота Солнца выше заданного параметра
-##                    main.nms2pixs()
                     print('=== Запуск измерения ===                      ', end='\r')
                     main.mesure()
 
@@ -1847,6 +1847,9 @@ class CheckSunAndMesure:
                 print(err)
             except TypeError as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
+                time.sleep(10)
+            except WindowsError as err:
+                print(err)
                 time.sleep(10)
             except Exception as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
