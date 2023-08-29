@@ -320,14 +320,14 @@ class PlotClass:
                 for point in ps[key]:
                     points_set.add(point)
 
-            steps = [0, 400] * 10
+            steps = [self.max_y * 0.01, self.max_y * 0.03] * 10
             for point_up in sorted(points_set):
                 point_nm = pix2nm(conf, point_up, 2, 0)
 ##                print(f"ps >> {point}: {pix2nm(conf, point, 1, 0)}")
                 self.ax.plot([point_nm] * 2, [0, self.max_y], '--', color='red')
-                self.ax.text(point_nm, self.max_y + 50 + steps.pop(0), str(point_nm), horizontalalignment='center')
+                self.ax.text(point_nm, self.max_y + steps.pop(0), str(point_nm), horizontalalignment='center')
 
-            self.ax.set(xlim=[pix2nm(conf, 0, 1, 0), pix2nm(conf, 3692, 1, 0)], ylim=[0, self.max_y])
+            self.ax.set(xlim=[pix2nm(conf, 0, 2, 0), pix2nm(conf, 3692, 2, 0)], ylim=[0, self.max_y])
             self.ax.grid(True)
 
             self.fig.canvas.draw()
