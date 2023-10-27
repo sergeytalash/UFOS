@@ -11,6 +11,7 @@ import socket
 import sys
 import threading
 import time
+import io
 from math import *
 # from tkinter import NORMAL, Menu
 from tkinter import *
@@ -783,6 +784,7 @@ def last_used_path(home, path, mode):
 
 
 def spectr2zero(p_zero, p_lamst, spectr):
+    return spectr
     spectrum = [0] * len(spectr)
     try:
         mv = sum(spectr[p_zero["1"]:p_zero["2"]]) / len(spectr[p_zero["1"]:p_zero["2"]])
@@ -845,34 +847,38 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
 class UfosConnection:
     """UFOS mesure class"""
 
-    def __init__(self, logger, to=1):
-        self.logger = logger
+    def __init__(self, to=None):
         self.opened_serial = None
         self.br = 115200  # Baudrate
-        self.bs = 8  # Byte size
-        self.par = 'N'  # Parity
-        self.sb = 1  # Stop bits
         self.to = to  # Time out (s)
 
+    def _call_serial(self, port):
+        self.opened_serial = serial.Serial(
+            port=port,
+            baudrate=self.br,
+            timeout=self.to)
+        self.opened_serial.close()
+        return {'com_number': os.path.split(port)[-1], 'com_obj': self.opened_serial}
+
     def get_com(self):
-        com = {'com_number': None, 'com_obj': None}
         if os.name != 'posix':
+            import winreg
             registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
             for i in range(255):
                 try:
                     name, value, typ = winreg.EnumValue(registry_key, i)
                     if 'USBSE' in name or 'VSerial9_0' in name:
-                        self.opened_serial = serial.Serial(port='//./' + value,
-                                                           baudrate=self.br,
-                                                           bytesize=self.bs,
-                                                           parity=self.par,
-                                                           stopbits=self.sb,
-                                                           timeout=self.to)
-                        self.opened_serial.close()
-                        return {'com_number': value, 'com_obj': self.opened_serial}
-                except WindowsError as err:
+                        return self._call_serial(port=f'//./{value}')
+                except:
                     pass
-        return com
+        else:
+            for device in os.listdir('/dev'):
+                if f'tty.usbmodem' in device:
+                    try:
+                        return self._call_serial(port=f'/dev/tty.{device}')
+                    except:
+                        pass
+        return {'com_number': None, 'com_obj': None}
 
 
 class CalculateOnly:
@@ -975,16 +981,25 @@ class UfosDataToCom:
         self.tries_done = 0
         while self.tries_done < tries_allowed:
             data = b''
-            to = int(self.expo * self.accum / 1000) + 3
-            self.com_obj = UfosConnection(self.logger, to).get_com()['com_obj']
+            # sleep_to = int(self.expo * self.accum / 1000) + 1
+            sleep_to = self.expo // 1000 + 1
+            self.com_obj = UfosConnection().get_com()['com_obj']
             self.com_obj.open()
             self.com_obj.write(self.data_send)
-            self.logger.debug('Sleep {} seconds...'.format(to))
-            time.sleep(to)
-            byte = self.com_obj.read(100)
-            while byte:
-                data += byte
-                byte = self.com_obj.read(100)
+            self.logger.debug(f'Sleep {sleep_to} seconds...')
+            print(f'Sleep {sleep_to} seconds...')
+            time.sleep(sleep_to)
+            # byte = self.com_obj.read(1000)
+            # while byte:
+            #     data += byte
+            #     if len(byte) < 1000:
+            #         break
+            #     else:
+            #         byte = self.com_obj.read(1000)
+
+            while self.com_obj.in_waiting() > 0:
+                data += self.com_obj.read(self.com_obj.in_waiting())
+
             self.com_obj.close()
             # Если получили данные с УФОС за timeout
 
@@ -999,7 +1014,7 @@ class UfosDataToCom:
                     t11 = (tt[2] * 255 + tt[3]) / 10  # amb
                     t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
                     print("\nTemperature:", [t1, t11, t2])
-                if len(data) > 7381:
+                if len(data) > 13:  # 7381:
                     start = 0
                     i = len(data) - 1
                     spectr = []
@@ -1007,24 +1022,39 @@ class UfosDataToCom:
                         i -= 1
                         try:
                             d = int(data[i + 1]) * 255 + int(data[i])
-                            if d < 65000:
-                                spectr.append(d)
-                            else:
-                                spectr.append(0)
+                            if d > 55000:
+                                d = -10
+                            spectr.append(d)
                         except:
-                            spectr.append(0)
+                            spectr.append(-30)
                         i -= 1
-                    valuable_max = max(spectr[100:3500])
-                    other = []
-                    for i in spectr[3500:3691]:
-                        if i > valuable_max:
-                            other.append(valuable_max)
-                        else:
-                            other.append(i)
-                    spectr = spectr[:3500] + other
+                    spectr = spectr[:3620]
+                # if len(data) > 7381:
+                #     start = 0
+                #     i = len(data) - 1
+                #     spectr = []
+                #     while i > start:
+                #         i -= 1
+                #         try:
+                #             d = int(data[i + 1]) * 255 + int(data[i])
+                #             if d < 65000:
+                #                 spectr.append(d)
+                #             else:
+                #                 spectr.append(100)
+                #         except:
+                #             spectr.append(200)
+                #         i -= 1
+                #     valuable_max = max(spectr[100:3500])
+                #     other = []
+                #     for i in spectr[3500:3691]:
+                #         if i > valuable_max:
+                #             other.append(valuable_max)
+                #         else:
+                #             other.append(i)
+                #     spectr = spectr[:3500] + other
                     text = 'Амп = {}'.format(max(spectr[100:3500]))
                 else:
-                    spectr = [0] * 101
+                    spectr = [-10] * 101
                     text = ''
 ##                print(f"Spectr[0:10]: {spectr[:10]} Len: {len(spectr)}\n")
                 return spectr, t1, t2, text, 0
@@ -1036,7 +1066,7 @@ class UfosDataToCom:
                     print(text)
                     self.logger.error(text)
                 self.tries_done += 1
-        return [0] * 101, 0, 0, '', self.tries_done
+        return [-20] * 101, 0, 0, '', self.tries_done
 
 
 class Settings:
@@ -1343,27 +1373,6 @@ class Main:
             print(err, sys.exc_info()[-1].tb_lineno)
             if self.logger:
                 self.logger.error(str(err))
-
-##    def pix2nm(self, pix):
-##        nm = 0
-##        deg = len(self.pars["calibration"]["nm(pix)"]["Z"]) - 1
-##        for i in self.pars["calibration"]["nm(pix)"]["Z"]:
-##            nm += eval(i) * pix ** deg
-##            deg -= 1
-##        return (nm)
-##
-##    def nm2pix(self, nm):
-##        pix = 0
-##        while self.pix2nm(pix) < nm:
-##            pix += 1
-##        return pix
-##
-##    def nms2pixs(self):
-##        self.pixs = {}
-##        for pair in self.pars["calibration"]["points"].keys():
-##            self.pixs[pair + '_pix'] = []
-##            for nm in self.pars["calibration"]["points"][pair]:
-##                self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
     def add_calculated_line_to_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem,
                                           print_o3_to_console):
@@ -1780,9 +1789,9 @@ class CheckSunAndMesure:
     def start(self):
         while 1:
             try:
-                ufos_com = UfosConnection(self.logger).get_com()['com_obj']
+                ufos_com = UfosConnection().get_com()['com_obj']
                 if not ufos_com:
-                    raise WindowsError(f"{now()} Кабель не подключен к ПК!")
+                    raise Exception(f"{now()} Кабель не подключен к ПК!")
                 self.common_pars = Settings.get_common(self.home)
                 self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
 
@@ -1848,9 +1857,9 @@ class CheckSunAndMesure:
             except TypeError as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
                 time.sleep(10)
-            except WindowsError as err:
-                print(err)
-                time.sleep(10)
+            # except WindowsError as err:
+            #     print(err)
+            #     time.sleep(10)
             except Exception as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
                 time.sleep(10)

@@ -280,7 +280,7 @@ class PlotClass:
             pass
         self.fig, self.ax = plt.subplots(1)
         # print(self.fig.get_size_inches())
-        self.fig.set_size_inches(self.plotx / 80, self.ploty / 80)
+        self.fig.set_size_inches(abs(self.plotx) / 80, abs(self.ploty) / 80)
         self.fig.set_dpi(80)
         plt.subplots_adjust(left=0.07, right=0.97, bottom=0.07, top=0.95)
         if self.o3_mode == 'first':
