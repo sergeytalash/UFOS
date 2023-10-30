@@ -3,3 +3,4 @@ numpy
 matplotlib
 dash
 pandas
+dash_bootstrap_components

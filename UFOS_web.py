@@ -2,12 +2,14 @@ import json
 import os
 import re
 
+import dash_bootstrap_components as dbc
 import plotly.graph_objs as go
 from dash import Dash, dcc, html, Input, Output, callback
 
 
 def get_ufos_folders(path="."):
-    return [i for i in sorted(os.listdir(path), reverse=True) if "Ufos_" in i]
+    digital_list = sorted([int(i.split('_')[-1]) for i in os.listdir(path) if re.match(r"Ufos_\d*", i)], reverse=True)
+    return [f"Ufos_{i}" for i in digital_list]
 
 
 def get_ufos_default(path="common_settings.json"):
@@ -30,6 +32,7 @@ def save_data(data, ufos, year, month, day):
     ufos = ufos or str(data.get('ufos'))
     data['ufos'] = ufos
     path = [ufos, 'Mesurements']
+
     year = year or str(data.get('year'))
     path.append(year)
     data['year'] = year if os.path.exists(os.path.join(*path)) else None
@@ -79,12 +82,13 @@ def get_day_folders(data):
 @callback(
     [Output('file-list', 'options'),
      Output('file-list-storage', 'data')],
-    Input('local-storage', 'data'))
+    Input('local-storage', 'data'),
+    prevent_initial_call=True)
 def get_files_list(data):
     path = [os.path.abspath(data['ufos']), 'Mesurements', data['year'], data['month'], data['day']]
     if all(path):
         day_folder = os.path.join(*path)
-        files = {i: os.path.join(day_folder, i) for i in sorted(os.listdir(day_folder))}
+        files = {i: os.path.join(day_folder, i) for i in sorted(os.listdir(day_folder), reverse=True)}
         return list(files), files
     else:
         return [], {}
@@ -93,25 +97,31 @@ def get_files_list(data):
 @callback(
     Output('file-graph', 'figure'),
     [Input('file-list', 'value'),
-     Input('file-list-storage', 'data')])
+     Input('file-list-storage', 'data')],
+    prevent_initial_call=True)
 def draw_files(selected_names, files_dict):
     all_graphs = []
-    if selected_names is None:
-        selected_names = []
+    if not selected_names:
+        return graph_default
     for name in selected_names:
         path = files_dict.get(name)
         with open(path) as fr:
             spectr = json.load(fr)["spectr"]
             graph = go.Scatter(x=list(range(len(spectr))), y=spectr, name=name)
             all_graphs.append(graph)
-    return go.Figure(data=all_graphs, layout={'margin': {i: 0 for i in 'blrt'}})
+    return go.Figure(data=all_graphs, layout={'margin': {i: 0 for i in 'blrt'}, 'legend': {'y': 0.9}})
 
 
 app = Dash(__name__, external_stylesheets=['style.css'])
+# app = Dash(__name__, external_stylesheets=[dbc.themes.COSMO])
+
+graph_default = go.Figure(data=[go.Scatter(x=[], y=[])],
+                          layout={'margin': {i: 0 for i in 'blrt'}})
+
 app.layout = html.Div(children=[
     dcc.Store(id='local-storage', storage_type='local'),
     dcc.Store(id='file-list-storage', storage_type='session'),
-    html.Table(style={"width": "98%"}, children=[
+    html.Table(style={"width": "99%", "align": "center", "border": 1}, children=[
         html.Tr([
             html.Td(colSpan=5, children=[
                 html.H1(style={"text-align": "center"}, children="Ultraviolet Ozone Spectrometer (UFOS)")
@@ -126,22 +136,7 @@ app.layout = html.Div(children=[
                 dcc.Dropdown(get_ufos_folders(), None, id='ufos-dropdown'),
             ]),
             html.Td(rowSpan=5, children=[
-                dcc.Graph(
-                    id='file-graph',
-                    figure={
-                        "data": [
-                            {
-                                "x": [1, 2, 3],
-                                "y": [1, 3, 2],
-                                "type": "lines",
-                            },
-                        ],
-                        "layout": {
-                            "title": "",
-                            'margin': {i: 0 for i in 'blrt'}
-                        },
-                    },
-                ),
+                dcc.Graph(id='file-graph')
             ]),
         ]),
         # ===== Row 2 =====

@@ -62,10 +62,7 @@ class UfosDataToCom:
         t = datetime.now()
         com_obj = SetUpCOM(to=1).get_com()['com_obj']
         print(f"SetUpCOM {2}", datetime.now() - t)
-        t = datetime.now()
-
         com_obj.open()
-
         com_obj.write(self.data_send)
 
         t = datetime.now()
