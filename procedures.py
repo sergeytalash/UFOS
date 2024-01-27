@@ -596,7 +596,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                 pass
         except Exception as err:
             print(err, sys.exc_info()[-1].tb_lineno)
-            raise err
+            # raise err
 
 
 def get_polynomial_result(coefficients, x):
@@ -1446,7 +1446,7 @@ class Main:
                               self.logger).device_ask(self.tries_allowed)
         except Exception as err:
             print(err)
-            raise err
+            # raise err
 
     def write_file4send(self, chan, data4send):
         with open(os.path.join(self.path_sending, self.file2send[chan]), 'w') as f:
@@ -1529,7 +1529,7 @@ class Main:
 
         except Exception as err:
             print(err, sys.exc_info()[-1].tb_lineno)
-            raise err
+            # raise err
 
     @staticmethod
     def ftp_send(host, port, remote_dir, user, password, file2send):
@@ -1564,7 +1564,6 @@ class Main:
         for ip in host.split(','):
             try:
                 sock.connect((ip, port))
-                print(data2send)
                 sock.send(data2send.encode(encoding='utf-8'))
                 sock.close()
                 t.append('OK')
@@ -1732,7 +1731,7 @@ class Main:
         except Exception as err:
             print("procedures.Main.mesure:", end='')
             print(err, sys.exc_info()[-1].tb_lineno)
-            raise err
+            # raise err
 
 
 class CheckSunAndMesure:
@@ -1813,16 +1812,16 @@ class CheckSunAndMesure:
                     time.sleep(5)
             except serial.serialutil.SerialException as err:
                 print(err)
-                raise err
+                # raise err
             except TypeError as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
-                raise err
+                # raise err
                 time.sleep(10)
             except WindowsError as err:
                 print(err)
-                raise err
+                # raise err
                 time.sleep(10)
             except Exception as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
-                raise err
+                # raise err
                 time.sleep(10)
