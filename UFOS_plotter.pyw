@@ -19,6 +19,11 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from procedures import *
 
+if os.name == 'posix':
+    p_sep = '/'
+else:
+    p_sep = '\\'
+
 
 def canvs_destroy(canvs):
     # global timer
@@ -114,10 +119,11 @@ class PlotClass:
         correct = {}
         addational_data = {}
         for pair, values in lambda_consts.items():
-            self.o3[pair], correct[pair], addational_data[pair] = pre_calc_o3(lambda_consts[pair], lambda_consts_pix[pair], self.spectrum,
-                                                       self.prom,
-                                                       self.data['mu'],
-                                                       self.var_settings, home, pair)
+            self.o3[pair], correct[pair], addational_data[pair] = pre_calc_o3(lambda_consts[pair],
+                                                                              lambda_consts_pix[pair], self.spectrum,
+                                                                              self.prom,
+                                                                              self.data['mu'],
+                                                                              self.var_settings, home, pair)
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"],
                                 'o3_2': self.o3["2"],
                                 'correct_1': correct["1"],
@@ -146,7 +152,7 @@ class PlotClass:
                 else:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]))
                 ultraviolet *= float(eval(self.confS[1])) * self.var_settings['device']['graduation_expo'] / \
-                                   self.data['expo']
+                               self.data['expo']
             elif uv_mode == 'uve':
                 if self.use_sensitivity:
                     ultraviolet = sum([float(self.spectrum[i]) *
@@ -209,8 +215,8 @@ class PlotClass:
                     tmp = line.split(' = ')
                     new_data['channel'] = tmp[1].split(',')[0]
                     new_data['datetime'] = datetime.datetime.strptime(
-                            '{} {}'.format(tmp[2].split(',')[0], tmp[3].strip()),
-                            '%d.%m.%Y %H:%M:%S')
+                        '{} {}'.format(tmp[2].split(',')[0], tmp[3].strip()),
+                        '%d.%m.%Y %H:%M:%S')
                 elif line.count('Exposure') > 0:
                     new_data['expo'] = int(line.split('=')[1])
                 elif line.count('Temperature') > 0:
@@ -235,7 +241,7 @@ class PlotClass:
 
     def get_spectr(self, file_path, flag=True):
         """Get data from OLD file"""
-        if os.path.basename(file_path).split('_')[2] in ['ZD', 'Dz', 'Z', 'SD', 'Ds', 'S']:
+        if os.path.basename(file_path).split('_')[2] in ['ZD2', 'ZD', 'Dz', 'Z2', 'ZDZ', 'Z', 'SD', 'Ds', 'S']:
             self.data = self.get_spectr_new(file_path, flag)
         else:
             self.data = self.get_spectr_old(file_path)
@@ -298,10 +304,10 @@ class PlotClass:
                 new_spectr = []
                 for i in range(len(self.spectrum)):
                     new_spectr.append(
-                            self.spectrum[i] *
-                            self.sensitivity[i] *
-                            var_settings['device']['graduation_expo'] /
-                            self.data['expo'])
+                        self.spectrum[i] *
+                        self.sensitivity[i] *
+                        var_settings['device']['graduation_expo'] /
+                        self.data['expo'])
                 self.spectrum = new_spectr
             self.ax.plot([pix2nm(conf, i, 3, 0) for i in range(len(self.spectrum))], self.spectrum, self.point,
                          color='k')
@@ -314,7 +320,7 @@ class PlotClass:
             else:
                 ps = psS
 
-##            print(f"Coefficients: {conf}")
+            ##            print(f"Coefficients: {conf}")
             points_set = set()
             for key in ps.keys():
                 for point in ps[key]:
@@ -323,7 +329,7 @@ class PlotClass:
             steps = [self.max_y * 0.01, self.max_y * 0.03] * 10
             for point_up in sorted(points_set):
                 point_nm = pix2nm(conf, point_up, 2, 0)
-##                print(f"ps >> {point}: {pix2nm(conf, point, 1, 0)}")
+                ##                print(f"ps >> {point}: {pix2nm(conf, point, 1, 0)}")
                 self.ax.plot([point_nm] * 2, [0, self.max_y], '--', color='red')
                 self.ax.text(point_nm, self.max_y + steps.pop(0), str(point_nm), horizontalalignment='center')
 
@@ -502,18 +508,6 @@ def b_remake():
     refresh_txtlist(path)
 
 
-def analyze(text1, file):
-    tmp = 0
-    len_t = len(text1)
-    while tmp < 100:
-        text = file.readline()
-        if text[:len_t] == text1:
-            txt = text.split('=')[1].split('\n')[0]
-            return (txt)
-        tmp += 1
-    return 0
-
-
 def first_clear_plot(plotx, ploty, some_root):
     refresh_txtlist(path)
     dir_list.opened = False
@@ -536,7 +530,7 @@ def make_txt_list(directory):
                                                                    or (files[5] == '.' and files[6] in 'ZDS'))
                                                                   or files[1] in 'ZDS')):
                     txtfiles.append(files)
-                if files[0] == 'm' and files.split('_')[2] in ['ZD', 'Z', 'Dz', 'SD', 'S', 'Ds']:
+                if files[0] == 'm' and files.split('_')[2] in ['ZD2', 'ZD', 'Z2', 'ZDZ', 'Z', 'Dz', 'SD', 'S', 'Ds']:
                     txtfiles.append(files)
             except:
                 pass
@@ -572,7 +566,7 @@ def plot_spectr(*event):
         try:
             start.calc_ozon()
             lab_ozon.configure(text='\n'.join(
-                    ['Значение озона'] + ['(P{}): {} е.Д.'.format(pair, start.o3[pair]) for pair in show_ozone_pairs]))
+                ['Значение озона'] + ['(P{}): {} е.Д.'.format(pair, start.o3[pair]) for pair in show_ozone_pairs]))
         except TclError:
             pass
     if start.data['channel'].count("S-D") > 0 or start.data['channel'].count("SD") > 0:
@@ -580,28 +574,27 @@ def plot_spectr(*event):
             start.calc_uv(mode, False)
             var.configure(text='Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(), int(start.uv)))
     data = (
-            """Канал: {}
+        """Канал: {}
 Дата Время: {}
 Высота Солнца: {} (mu={})
 Темп. CCD: {}
 Темп. Полихроматора: {}
 Экспозиция: {}
 Число суммирований: {}""".format(
-                    start.data['channel'],
-                    start.data['datetime'],
-                    start.data['hs'],
-                    start.data['mu'],
-                    start.data['temperature_ccd'],
-                    start.data['temperature_poly'],
-                    start.data['expo'],
-                    start.data['accumulate']))
+            start.data['channel'],
+            start.data['datetime'],
+            start.data['hs'],
+            start.data['mu'],
+            start.data['temperature_ccd'],
+            start.data['temperature_poly'],
+            start.data['expo'],
+            start.data['accumulate']))
     currnt_data.configure(text=data)
     start.x2 = range(len(start.spectrum))
     start.y2 = start.spectrum
     start.plot(path)
     for i in buttons:
         i.configure(state=NORMAL)
-
 
 
 def change_dir(event):
@@ -883,17 +876,17 @@ def make_o3file():
                                 if "1" in show_ozone_pairs:
                                     if int(line_arr[-1]) or show_all_value:
                                         start.x1.append(
-                                                datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                         start.y1.append(int(line_arr[column[o3_mode][0]]))
                                 if "2" in show_ozone_pairs:
                                     if int(line_arr[-1]) or show_all_value:
                                         start.x2.append(
-                                                datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                         start.y2.append(int(line_arr[column[o3_mode][1]]))
                             if column['ozone'] == -2:
                                 if int(line_arr[-1]) or show_all_value:
                                     start.x2.append(
-                                            datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
+                                        datetime.datetime.strptime(line_arr[datetime_index], '%Y%m%d %H:%M:%S'))
                                     start.y2.append(int(line_arr[column[o3_mode]]))
                     sr = {"1": 0, "2": 0}
                     if start.y1:
@@ -915,7 +908,7 @@ def make_o3file():
         if file_opened:
             if len(start.x1) == 0 and len(start.x2) == 0:
                 tex = "Корректных значений озона в файле не найдено!\nПопробуйте отключить корректировку\n({})".format(
-                        os.path.basename(file))
+                    os.path.basename(file))
         else:
             tex = """Конечного файла измерений не найдено!
 (Вы точно находитесь в папке:
@@ -972,7 +965,7 @@ def make_o3file():
                     calc_results.append(cr)
         if start.x1:
             but_save_to_final_file.configure(
-                    command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
+                command=lambda: saving.save(start.var_settings, home, chan, ts, shs, calc_results))
         else:
             tex = 'Файлов измерений\nне найдено'
     try:
@@ -1216,7 +1209,7 @@ if __name__ == '__main__':
             psZ[key] = []
             psS[key] = []
             for point in points[key]:
-##                print(f"ps << {point}: {nm2pix(point, confZ, 0)}")
+                ##                print(f"ps << {point}: {nm2pix(point, confZ, 0)}")
                 psZ[key].append(nm2pix(point, confZ, 0))
                 psS[key].append(nm2pix(point, confS, 0))
 

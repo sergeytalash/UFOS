@@ -283,4 +283,4 @@ handler = handlers.RotatingFileHandler(
     backupCount=10)
 LOGGER.addHandler(handler)
 
-PIX_WORK_INTERVAL = slice(*PARS["device"]["pix_work_interval"])
+PIX_WORK_INTERVAL = slice(*PARS["device"].get("pix_work_interval", [200, 3500]))

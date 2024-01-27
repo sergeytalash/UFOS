@@ -157,7 +157,8 @@
       "channel": "Names and order of channels to perform measurements",
       "graduation_expo": "Graduation exposition to get atmospheric values of spectr",
       "id": "Device identificator",
-      "manual_expo": "auto_exposition=0. List of expositions to perform set of measurements"
+      "manual_expo": "auto_exposition=0. List of expositions to perform set of measurements",
+      "pix_work_interval": "Work interval"
     },
     "graduation_expo": 4000,
     "id": 38,
@@ -165,6 +166,10 @@
       4000,
       4000,
       4000
+    ],
+    "pix_work_interval": [
+      200,
+      3500
     ]
   },
   "station": {
