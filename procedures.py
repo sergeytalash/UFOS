@@ -1564,7 +1564,6 @@ class Main:
         for ip in host.split(','):
             try:
                 sock.connect((ip, port))
-                print(data2send)
                 sock.send(data2send.encode(encoding='utf-8'))
                 sock.close()
                 t.append('OK')
