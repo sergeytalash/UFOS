@@ -1,0 +1,187 @@
+{
+  "calibration": {
+    "description": {
+      "nm(pix)": {
+        "S": "List of coefficients to perform Semisphere pix to nm calculations",
+        "Z": "List of coefficients to perform Zenith pix to nm calculations"
+      },
+      "pix_interval": "Quantity of pixels to perform spectr interval around one pixel",
+      "points": {
+        "Fraunhofer_pair": "Fraunhofer pair of nanometers",
+        "cloud_pair_1": "First cloud pair of nanometers",
+        "cloud_pair_2": "Second cloud pair of nanometers",
+        "o3_pair_1": "First ozone pair of nanometers",
+        "o3_pair_2": "Second ozone pair of nanometers"
+      },
+      "polynom": {
+        "degree": "Polynom degree for calculations",
+        "mu_end": "Mu value to end calculations. Default 12",
+        "mu_intervals": "Mu interval conditions to use different polynoms mu=[3, 5]",
+        "mu_start": "First mu in ozone table. Default 1",
+        "mu_step": "Mu step to make table of ozone by polynom"
+      },
+      "sigma_count": "Standard Square Deviation Sigma quantity for correct ozone calculations",
+      "sko_D": "Standard Square Deviation of Dark spectr",
+      "sko_ZaD": "Standard Square Deviation of ZD or SD spectr",
+      "uva_koef": "Hard coefficient for uva value print",
+      "uvb_koef": "Hard coefficient for uvb value print",
+      "uve_koef": "Hard coefficient for uve value print"
+    },
+    "nm(pix)": {
+      "S": [
+        "-0.000002334349712",
+        "0.057483574875632",
+        "244.4134"
+      ],
+      "Z": [
+        "-0.000002334349712",
+        "0.057483574875632",
+        "244.4134"
+      ]
+    },
+    "pix_interval": 51,
+    "points": {
+      "Fraunhofer_pair": [
+        393.37,
+        396.78
+      ],
+      "cloud_pair_1": [
+        332,
+        352
+      ],
+      "cloud_pair_2": [
+        340,
+        360
+      ],
+      "o3_pair_1": [
+        312,
+        332
+      ],
+      "o3_pair_2": [
+        317,
+        340
+      ]
+    },
+    "polynom": {
+      "degree": 3,
+      "mu_end": 12,
+      "mu_intervals": [
+        3,
+        5
+      ],
+      "mu_start": 1,
+      "mu_step": 0.05
+    },
+    "sigma_count": 2,
+    "sko_D": 100,
+    "sko_ZaD": 100,
+    "uva_koef": 1,
+    "uvb_koef": 1,
+    "uve_koef": 1
+  },
+  "calibration2": {
+    "description": {
+      "kzLarger1": "List of coefficients. Can be unlimited",
+      "kzLarger2": "List of coefficients. Can be unlimited",
+      "kzLess1": "List of coefficients. Can be unlimited",
+      "kzLess2": "List of coefficients. Can be unlimited",
+      "kz_obl1": "List of coefficients. Can be unlimited",
+      "kz_obl2": "List of coefficients. Can be unlimited",
+      "mu_effect_1": "...",
+      "mu_effect_2": "...",
+      "pix+-": "Quantity of pixels to perform spectr interval around one pixel (left and right)",
+      "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation",
+      "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation"
+    },
+    "kzLarger1": [
+      1.22252,
+      -0.10069,
+      0.0087
+    ],
+    "kzLarger2": [
+      1.30802,
+      -0.13524,
+      0.01315
+    ],
+    "kzLess1": [
+      1.1057,
+      0.0631,
+      -0.0439
+    ],
+    "kzLess2": [
+      0.9856,
+      0.245,
+      -0.09598
+    ],
+    "kz_obl1": [
+      -2.9911,
+      6.3662,
+      -2.3918
+    ],
+    "kz_obl2": [
+      -3.1193,
+      6.2871,
+      -2.2256
+    ],
+    "mu_effect_1": 2,
+    "mu_effect_2": 2,
+    "pix+-": 2,
+    "visible_sunheight_max": 30,
+    "visible_sunheight_min": 5
+  },
+  "channel_names": {
+    "D": "D",
+    "S": "S",
+    "Z": "Z",
+    "description": {
+      "D": "Name of Dark channel to print in console",
+      "S": "Name of Semisphere channel to print in console",
+      "Z": "Name of Zenith channel to print in console"
+    }
+  },
+  "device": {
+    "accummulate": 1,
+    "amplitude_max": 32000,
+    "amplitude_min": 20000,
+    "auto_expo_max": 4000,
+    "auto_expo_min": 50,
+    "auto_exposition": 1,
+    "channel": "Z",
+    "description": {
+      "accummulate": "Quantity of measurements on UFOS to get mean spectr",
+      "amplitude_max": "Maximum amplitude value of spectr which can accepted",
+      "amplitude_min": "Minimum amplitude value of spectr which can accepted",
+      "auto_expo_max": "Maximum exposition if auto measurements do",
+      "auto_expo_min": "Minimum exposition if auto measurements do (first measurement in set)",
+      "auto_exposition": "Turn on/off auto exposition calculations",
+      "channel": "Names and order of channels to perform measurements",
+      "graduation_expo": "Graduation exposition to get atmospheric values of spectr",
+      "id": "Device identificator",
+      "manual_expo": "auto_exposition=0. List of expositions to perform set of measurements"
+    },
+    "graduation_expo": 4000,
+    "id": 38,
+    "manual_expo": [
+      4000,
+      4000,
+      4000
+    ]
+  },
+  "station": {
+    "description": {
+      "id": "WMO station identificator",
+      "interval": "Time interval in minutes between measurements",
+      "latitude": "Station latitude",
+      "longitude": "Station longitude",
+      "sun_height_min": "Sun height of the first and the last measurement",
+      "timezone": "Station timezone"
+    },
+    "id": "27612",
+    "interval": 3,
+    "latitude": 59.57,
+    "longitude": -30.42,
+    "sun_height_min": 3,
+    "timezone": "+3"
+  },
+  "version": "2.0"
+}

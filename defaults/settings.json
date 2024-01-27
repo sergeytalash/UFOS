@@ -92,6 +92,7 @@
       "mu_effect_2": "...",
       "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation",
       "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation"
+
     },
     "kzLarger1": [
       1.22252,
@@ -123,9 +124,9 @@
       6.2871,
       -2.2256
     ],
-    "pix+-": 2,
     "mu_effect_1": 2,
     "mu_effect_2": 2,
+    "pix+-": 2,
     "visible_sunheight_max": 5,
     "visible_sunheight_min": 5
   },
@@ -161,14 +162,14 @@
     "channel": "ZS",
     "graduation_expo": 4000,
     "id": 99,
-    "pix_work_interval": [
-      32,
-      3679
-    ],
     "manual_expo": [
       50,
       100,
       150
+    ],
+    "pix_work_interval": [
+      32,
+      3679
     ]
   },
   "station": {
