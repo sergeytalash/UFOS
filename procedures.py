@@ -1663,10 +1663,11 @@ class Main:
                                 self.expo = int(self.expo / k[chan])
 
                         except Exception as err:
-                            print('mesure:', end='')
-                            print(err, sys.exc_info()[-1].tb_lineno)
+                            # print('mesure:', end='')
+                            # print(err, sys.exc_info()[-1].tb_lineno)
                             self.logger.error(str(err))
-                            break
+                            print("Прибор не подключен к ПК!")
+                            time.sleep(10)
 
                     else:
                         self.expo = self.pars['device']['auto_expo_max']  # 4000

@@ -19,10 +19,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from procedures import *
 
-if os.name == 'posix':
-    p_sep = '/'
-else:
-    p_sep = '\\'
+p_sep = os.path.sep
 
 
 def canvs_destroy(canvs):
