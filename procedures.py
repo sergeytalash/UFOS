@@ -1260,7 +1260,7 @@ class Main:
         self.path = os.path.join(self.home, *dirs)
         self.Dspectr = []
         self.ZDspectr = []
-        self.ZS_spectr = [0] * 201
+        self.ZS_spectr = [0] * (core.PARS["device"]["pix_work_interval"][0] + 1)
         self.spectrZaD = []
         self.skoZaD = 0
         dirs = ['Ufos_{}'.format(self.pars['device']['id']),
@@ -1438,12 +1438,16 @@ class Main:
             print(err, sys.exc_info()[-1].tb_lineno)
             self.logger.error(str(err))
 
-    def change_channel(self, chan, alt_expo=0):
+    def change_channel(self, chan, expo=50):
         self.logger.debug('Переключение на канал {}.'.format(
             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8')))
         try:
-            com.UfosDataToCom(alt_expo if alt_expo else 50, 1, chan, 'S',
-                              self.logger).device_ask(self.tries_allowed)
+            ZS_spectr, t1, t2, text, tries_done = com.UfosDataToCom(expo, 1, chan, 'S',
+                                                                    self.logger).device_ask(self.tries_allowed)
+            ZS_spectr, t1, t2, text, tries_done = com.UfosDataToCom(expo, 1, chan, 'S',
+                                                                    self.logger).device_ask(self.tries_allowed)
+            # max_value = max(ZS_spectr[core.PIX_WORK_INTERVAL])
+            # print(f"[ N ] expo: {alt_expo}, max value: {max_value}, index (max): {ZS_spectr.index(max_value)}")
         except Exception as err:
             print(err)
             # raise err
@@ -1639,12 +1643,18 @@ class Main:
                 """ Z or S mesurement """
                 for chan in self.pars['device']['channel']:
                     self.expo = self.pars['device']['auto_expo_min']
-
+                    max_value = 0
+                    start = datetime.datetime.now()
                     while self.expo < self.pars['device']['auto_expo_max'] \
-                            and max(self.ZS_spectr[core.PIX_WORK_INTERVAL]) < self.pars['device']['amplitude_max']:
+                            and max_value < self.pars['device']['amplitude_max']:
                         try:
-                            self.change_channel(chan, alt_expo=self.expo)
+                            self.change_channel(chan, expo=self.expo)
                             self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = self.measure_channel(chan)
+                            max_value = max(self.ZS_spectr[core.PIX_WORK_INTERVAL])
+
+                            # print(f"[ W ] expo: {self.expo}, max value: {max_value}, index (max): {self.ZS_spectr.index(max_value)}")
+                            # with open(f"test_{self.expo}.txt", "w") as fw:
+                            #     print("\n".join([str(i) for i in self.ZS_spectr]), file=fw)
 
                             if max(self.ZS_spectr[core.PIX_WORK_INTERVAL]) > self.pars['device']['amplitude_min']:
                                 break
@@ -1660,7 +1670,7 @@ class Main:
 
                     else:
                         self.expo = self.pars['device']['auto_expo_max']  # 4000
-                        self.change_channel(chan, alt_expo=4000)
+                        self.change_channel(chan, expo=4000)
                         self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = self.measure_channel(chan)
 
                     self.chan = chan
@@ -1670,19 +1680,25 @@ class Main:
                     # input("Finger...")
                     """ D mesurement """
                     self.chan = 'D' + chan.lower()
-                    self.change_channel('D', alt_expo=self.expo)
+                    self.change_channel('D', expo=self.expo)
                     self.Dspectr, self.t1, self.t2, text2, self.tries_done = self.measure_channel('D')
 
                     self.analyze_spectr(self.Dspectr)
                     self.write_file()
 
+                    print(f"Затрачено: {datetime.datetime.now() - start}")
                     """ Z-D or S-D calculation """
                     self.chan = chan + 'D'
                     text = 'Расчёт спектра {}.'.format(self.chan)
                     print(text, end=' ')
                     self.logger.info(text)
 
+                    # s = 200
+                    # e = 220
                     self.ZDspectr = np.array(self.ZS_spectr) - np.array(self.Dspectr)
+                    # print("Z", self.ZS_spectr[s:e])
+                    # print("D", self.Dspectr[s:e])
+                    # print("Z-D", self.ZDspectr[s:e])
                     self.analyze_spectr(self.ZDspectr)
                     self.write_file()
 
@@ -1693,7 +1709,7 @@ class Main:
                     self.mesure_count += 1
                     for chan in self.pars['device']['channel']:
                         """ Z or S mesurement """
-                        self.change_channel(chan, alt_expo=self.expo)
+                        self.change_channel(chan, expo=self.expo)
                         self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = com.UfosDataToCom(
                             self.expo,
                             self.pars['device']['accummulate'],
@@ -1706,7 +1722,7 @@ class Main:
 
                         """ D mesurement """
                         self.chan = 'D' + chan.lower()
-                        self.change_channel('D', alt_expo=self.expo)
+                        self.change_channel('D', expo=self.expo)
                         self.Dspectr, self.t1, self.t2, text2, self.tries_done = com.UfosDataToCom(
                             self.expo,
                             self.pars['device']['accummulate'],

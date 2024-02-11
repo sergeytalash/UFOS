@@ -90,79 +90,92 @@ class UfosDataToCom:
         self.com_obj = UfosConnection(logger).get_com_obj()
         self.expo = expo
         self.accumulate = accumulate
-        self.start_flag = start_flag
+        self.start_flag = start_flag.encode('utf-8') if start_flag == 'S' else b'N'
         self.data_send = (b'#\x00\x01' +
                           bytes((int(expo) % 256, int(expo) // 256)) +
                           b'0' +
                           bytes((int(accumulate),)) +
                           b'0' +
                           mesure_type.encode('utf-8') +  # Z, S, D
-                          start_flag.encode('utf-8') +  # S
+                          self.start_flag +  # S
                           b'0')
+
+    @staticmethod
+    def get_temperature(data):
+        tt = data[4:10]
+        t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
+        t11 = (tt[2] * 255 + tt[3]) / 10  # amb
+        t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
+        return t1, t2
 
     @staticmethod
     def bytes_to_values(data):
         """
-
         Args:
             data (bytes):
 
         Returns:
             tuple
         """
-        if data[0] == b'#':
-            tt = data[4:10]
-            t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
-            t11 = (tt[2] * 255 + tt[3]) / 10  # amb
-            t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
-            print("\nTemperature:", [t1, t11, t2])
-        else:
-            t1, t2 = 0, 0
-        data = data.split(b'\xff\xff')[0]
+
         index = len(data) - 1
         spectr = []
-        while index > 0:
-            index -= 1
+        while index > 78:
+            index -= 2
             spectr.append(data[index + 1] * 255 + data[index])
-            index -= 1
 
-        # i = 0
-        # while i < len(spectr) - 10:
-        #     std = np.std(spectr[i:i + 10])
-        #     if std > 1000:
-        #         part = spectr[i:i + 10]
-        #         value = max(part)
-        #         local_index = part.index(value)
-        #         global_index = i + local_index
-        #         clear_part = part.pop(value)
-        #         spectr[global_index] = np.mean(clear_part)
-        #     i += 10
-
-        spectr = spectr[:3600]
+        # spectr = spectr[:3600]
         text = 'Амп = {}'.format(max(spectr[core.PIX_WORK_INTERVAL]))
-        return spectr, t1, t2, text, 0
+        return spectr, text, 0
 
     def device_ask(self, tries_allowed=3, test=False):
         tries_done = 0
         while tries_done < tries_allowed:
             to = int(self.expo * self.accumulate / 1000) + 1
+            t1, t2 = 0, 0
             self.com_obj = UfosConnection(to).get_com_obj(test)
             self.com_obj.open()
-            # print(f"Sending: {self.data_send} ...", end=' ')
+            # print(f"\nSending: {self.data_send} ...", end=' ')
             self.com_obj.write(self.data_send)
             # print("OK")
-            sleep(to)
-            if self.start_flag == 'S':
+            if self.start_flag == b'S':
                 count = 0
-                while not self.com_obj.in_waiting > 13 and count < 6:
+                # print("Waiting data", end='')
+                while self.com_obj.in_waiting < 13 and count < 5:
                     sleep(1)
-                    # print(f"Bytes waiting: {self.com_obj.in_waiting}")
+                    # print("Waiting header...")
+                    # print(",", end='')
                     count += 1
-                data = b''
-                while self.com_obj.in_waiting:
-                    byte = self.com_obj.read(1000)
-                    data += byte
+                # print()
+                header = self.com_obj.read(13)
+                # print(f"Header: {header}")
+                t1, t2 = self.get_temperature(header)
+                # print("Temperature:", [t1, t2])
+                b = header[-2:]
+                next_bytes_len = 255 * int(b[0]) + int(b[1])
+                count = 0
+                while self.com_obj.in_waiting < next_bytes_len and count < to + 5:
+                    sleep(1)
+                    # print(f"Waiting data... ({self.com_obj.in_waiting})")
+                    # print('.', end='')
+                    count += 1
+                # print()
+                # print("Reading data... ", end='')
+                data = self.com_obj.read(next_bytes_len)
+                # print(f'({len(data)}) OK')
+                # self.com_obj.reset_input_buffer()
+                # self.com_obj.close()
                 # print(f"Got {len(data)} bytes: {data[:14]}...{data[-8:]}")
+                sleep(1)
+                rest_count = self.com_obj.in_waiting
+                # print(rest_count)
+                if rest_count:
+                    rest_bytes = self.com_obj.read(rest_count)
+                #     print(f"Was {rest_count} in a queue: {rest_bytes}")
+                #     data += rest_bytes
+                if not data:  # and not rest_count:
+                    # self.com_obj.close()
+                    continue
             else:
                 sleep(1)
                 data = b''
@@ -170,9 +183,11 @@ class UfosDataToCom:
                     data = self.com_obj.read(self.com_obj.in_waiting)
                 # print(f"Got(2) {len(data)} bytes: {data}")
             self.com_obj.close()
+            # print("COM closed")
             # Если получили данные с УФОС за timeout
             if len(data) > 20:  # request with measurement
-                return self.bytes_to_values(data)
+                spectr, text, tries_done = self.bytes_to_values(data)
+                return spectr, t1, t2, text, tries_done
             elif len(data) in [0, 13]:  # change channel request
                 return [0], 0, 0, '', tries_done
             else:

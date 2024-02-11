@@ -293,7 +293,7 @@ class PlotClass:
             pass
         # ====================== Spectr ======================
         elif self.o3_mode == 'spectr':
-            print('new spectr')
+            # print('new spectr')
             self.ax.set_xlabel('nm')
             self.ax.set_ylabel('mV')
             conf = self.confZ

@@ -141,8 +141,8 @@
   },
   "device": {
     "accummulate": 1,
-    "amplitude_max": 32000,
-    "amplitude_min": 20000,
+    "amplitude_max": 50000,
+    "amplitude_min": 25000,
     "auto_expo_max": 4000,
     "auto_expo_min": 50,
     "auto_exposition": 1,
@@ -168,8 +168,8 @@
       4000
     ],
     "pix_work_interval": [
-      200,
-      3500
+      500,
+      3000
     ]
   },
   "station": {
@@ -182,7 +182,7 @@
       "timezone": "Station timezone"
     },
     "id": "27612",
-    "interval": 3,
+    "interval": 10,
     "latitude": 59.57,
     "longitude": -30.42,
     "sun_height_min": -50,
