@@ -5,10 +5,7 @@ import json
 import sys
 sys.path.append('../')
 import UFOS_plotter
-if os.name == 'posix':
-    p_sep = '/'
-else:
-    p_sep = '\\'
+p_sep = os.path.sep
 
 
 from procedures import *

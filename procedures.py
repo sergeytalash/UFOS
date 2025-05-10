@@ -16,16 +16,10 @@ from math import *
 from tkinter import *
 from tkinter import ttk
 
+from lib import core
+from lib import com
 import numpy as np
 import serial
-
-if os.name != 'posix':
-    import winreg
-
-    p_sep = '\\'
-else:
-    p_sep = '/'
-    pass
 
 
 # Увеличить степени полиномов (DONE: unlimited)
@@ -526,10 +520,10 @@ class Correction:
                         if k == 1:
                             o3_corrected.append(o3)
                     o3s_k2[pair][part_of_day]['k'], \
-                    o3s_k2[pair][part_of_day]["sigma"], \
-                    o3s_k2[pair][part_of_day]["mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
-                                                                                 o3_corrected,
-                                                                                 self.pars)
+                        o3s_k2[pair][part_of_day]["sigma"], \
+                        o3s_k2[pair][part_of_day]["mean"] = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"],
+                                                                                     o3_corrected,
+                                                                                     self.pars)
                     # Если в первой корректировке 0, то во второй будет тоже 0, иначе будет значение второй корректировки
                     # TODO: Repair mean/sigma correct condition
                     # o3s_k2[pair][part_of_day]["k"] = [str(int(i1) and int(i2)) for i1, i2 in
@@ -602,7 +596,7 @@ def calculate_final_files(pars, source, mode, write_daily_file, data_source_flag
                 pass
         except Exception as err:
             print(err, sys.exc_info()[-1].tb_lineno)
-            raise err
+            # raise err
 
 
 def get_polynomial_result(coefficients, x):
@@ -842,37 +836,37 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, var_settin
 #         logger.debug("Timer stopped. Elapsed time: {:.3f} seconds".format(time.time() - self._startTime))
 
 
-class UfosConnection:
-    """UFOS mesure class"""
-
-    def __init__(self, logger, to=1):
-        self.logger = logger
-        self.opened_serial = None
-        self.br = 115200  # Baudrate
-        self.bs = 8  # Byte size
-        self.par = 'N'  # Parity
-        self.sb = 1  # Stop bits
-        self.to = to  # Time out (s)
-
-    def get_com(self):
-        com = {'com_number': None, 'com_obj': None}
-        if os.name != 'posix':
-            registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
-            for i in range(255):
-                try:
-                    name, value, typ = winreg.EnumValue(registry_key, i)
-                    if 'USBSE' in name or 'VSerial9_0' in name:
-                        self.opened_serial = serial.Serial(port='//./' + value,
-                                                           baudrate=self.br,
-                                                           bytesize=self.bs,
-                                                           parity=self.par,
-                                                           stopbits=self.sb,
-                                                           timeout=self.to)
-                        self.opened_serial.close()
-                        return {'com_number': value, 'com_obj': self.opened_serial}
-                except WindowsError as err:
-                    pass
-        return com
+# class UfosConnection:
+#     """UFOS mesure class"""
+#
+#     def __init__(self, logger, to=1):
+#         self.logger = logger
+#         self.opened_serial = None
+#         self.br = 115200  # Baudrate
+#         self.bs = 8  # Byte size
+#         self.par = 'N'  # Parity
+#         self.sb = 1  # Stop bits
+#         self.to = to  # Time out (s)
+#
+#     def get_com(self):
+#         com = {'com_number': None, 'com_obj': None}
+#         if os.name != 'posix':
+#             registry_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM")
+#             for i in range(255):
+#                 try:
+#                     name, value, typ = winreg.EnumValue(registry_key, i)
+#                     if 'USBSE' in name or 'VSerial9_0' in name:
+#                         self.opened_serial = serial.Serial(port='//./' + value,
+#                                                            baudrate=self.br,
+#                                                            bytesize=self.bs,
+#                                                            parity=self.par,
+#                                                            stopbits=self.sb,
+#                                                            timeout=self.to)
+#                         self.opened_serial.close()
+#                         return {'com_number': value, 'com_obj': self.opened_serial}
+#                 except WindowsError as err:
+#                     pass
+#         return com
 
 
 class CalculateOnly:
@@ -942,101 +936,101 @@ class CalculateOnly:
         return int(round(uv, 1))
 
 
-class UfosDataToCom:
-    """UFOS mesure class"""
-
-    def __init__(self, expo, accummulate, mesure_type, start_mesure, logger):
-        """Преобразование данных запроса в необходимый тип для отправки в прибор
-        dev_id - номер прибора (всегда = 1)
-        expo - время измерения в мс
-        accum - количество суммирований измерений (время измерения = expo * accum)
-        mesure_type - тип измерений (Z=зенит, S=полусфера, D=темновой)
-        start_mesure - S=запустить измерение, любой другой символ только переключит канал измерения."""
-        self.com_obj = ''
-        self.expo = expo
-        self.tries_done = 0
-        self.start_mesure = start_mesure
-        self.logger = logger
-        self.data_send = b''
-        self.accum = accummulate
-        self.mesure_type = mesure_type.encode('utf-8')  # Z, S, D
-        self.start_mesure = start_mesure.encode('utf-8')  # S
-        self.data_send = b'#\x00\x01' + \
-                         bytes((int(expo) % 256, int(expo) // 256)) + \
-                         b'0' + \
-                         bytes((int(accummulate),)) + \
-                         b'0' + \
-                         self.mesure_type + \
-                         self.start_mesure + \
-                         b'0'
-        # print(f"\nOUT: {self.data_send} {len(self.data_send)}")
-
-    def device_ask(self, tries_allowed):
-        self.tries_done = 0
-        while self.tries_done < tries_allowed:
-            data = b''
-            to = int(self.expo * self.accum / 1000) + 3
-            self.com_obj = UfosConnection(self.logger, to).get_com()['com_obj']
-            self.com_obj.open()
-            self.com_obj.write(self.data_send)
-            self.logger.debug('Sleep {} seconds...'.format(to))
-            time.sleep(to)
-            byte = self.com_obj.read(100)
-            while byte:
-                data += byte
-                byte = self.com_obj.read(100)
-            self.com_obj.close()
-            # Если получили данные с УФОС за timeout
-
-            if data:
-                # print(f"\n=====\nIN: {data[:15]} {len(data)}\n=====\n")
-                t1 = 0
-                t2 = 0
-##                print(f"Data[0:10]: {data[:10]} Len: {len(data)}\n")
-                if len(data) in [13, 7395]:
-                    tt = data[4:10]
-                    t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
-                    t11 = (tt[2] * 255 + tt[3]) / 10  # amb
-                    t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
-                    print("\nTemperature:", [t1, t11, t2])
-                if len(data) > 7381:
-                    start = 0
-                    i = len(data) - 1
-                    spectr = []
-                    while i > start:
-                        i -= 1
-                        try:
-                            d = int(data[i + 1]) * 255 + int(data[i])
-                            if d < 65000:
-                                spectr.append(d)
-                            else:
-                                spectr.append(0)
-                        except:
-                            spectr.append(0)
-                        i -= 1
-                    valuable_max = max(spectr[100:3500])
-                    other = []
-                    for i in spectr[3500:3691]:
-                        if i > valuable_max:
-                            other.append(valuable_max)
-                        else:
-                            other.append(i)
-                    spectr = spectr[:3500] + other
-                    text = 'Амп = {}'.format(max(spectr[100:3500]))
-                else:
-                    spectr = [0] * 101
-                    text = ''
-##                print(f"Spectr[0:10]: {spectr[:10]} Len: {len(spectr)}\n")
-                return spectr, t1, t2, text, 0
-##                return spectr[:3600] + [0] * 91, t1, t2, text, 0
-            # Если не получили данные с УФОС за timeout
-            else:
-                if self.tries_done > 0:
-                    text = 'Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
-                    print(text)
-                    self.logger.error(text)
-                self.tries_done += 1
-        return [0] * 101, 0, 0, '', self.tries_done
+# class UfosDataToCom:
+#     """UFOS mesure class"""
+#
+#     def __init__(self, expo, accummulate, mesure_type, start_mesure, logger):
+#         """Преобразование данных запроса в необходимый тип для отправки в прибор
+#         dev_id - номер прибора (всегда = 1)
+#         expo - время измерения в мс
+#         accum - количество суммирований измерений (время измерения = expo * accum)
+#         mesure_type - тип измерений (Z=зенит, S=полусфера, D=темновой)
+#         start_mesure - S=запустить измерение, любой другой символ только переключит канал измерения."""
+#         self.com_obj = ''
+#         self.expo = expo
+#         self.tries_done = 0
+#         self.start_mesure = start_mesure
+#         self.logger = logger
+#         self.data_send = b''
+#         self.accum = accummulate
+#         self.mesure_type = mesure_type.encode('utf-8')  # Z, S, D
+#         self.start_mesure = start_mesure.encode('utf-8')  # S
+#         self.data_send = b'#\x00\x01' + \
+#                          bytes((int(expo) % 256, int(expo) // 256)) + \
+#                          b'0' + \
+#                          bytes((int(accummulate),)) + \
+#                          b'0' + \
+#                          self.mesure_type + \
+#                          self.start_mesure + \
+#                          b'0'
+#         # print(f"\nOUT: {self.data_send} {len(self.data_send)}")
+#
+#     def device_ask(self, tries_allowed):
+#         self.tries_done = 0
+#         while self.tries_done < tries_allowed:
+#             data = b''
+#             to = int(self.expo * self.accum / 1000) + 3
+#             self.com_obj = UfosConnection(self.logger, to).get_com()['com_obj']
+#             self.com_obj.open()
+#             self.com_obj.write(self.data_send)
+#             self.logger.debug('Sleep {} seconds...'.format(to))
+#             time.sleep(to)
+#             byte = self.com_obj.read(100)
+#             while byte:
+#                 data += byte
+#                 byte = self.com_obj.read(100)
+#             self.com_obj.close()
+#             # Если получили данные с УФОС за timeout
+#
+#             if data:
+#                 # print(f"\n=====\nIN: {data[:15]} {len(data)}\n=====\n")
+#                 t1 = 0
+#                 t2 = 0
+# ##                print(f"Data[0:10]: {data[:10]} Len: {len(data)}\n")
+#                 if len(data) in [13, 7395]:
+#                     tt = data[4:10]
+#                     t1 = (tt[0] * 255 + tt[1]) / 10  # Линейка ccd
+#                     t11 = (tt[2] * 255 + tt[3]) / 10  # amb
+#                     t2 = (tt[4] * 255 + tt[5]) / 10  # Полихроматор poly
+#                     print("\nTemperature:", [t1, t11, t2])
+#                 if len(data) > 7381:
+#                     start = 0
+#                     i = len(data) - 1
+#                     spectr = []
+#                     while i > start:
+#                         i -= 1
+#                         try:
+#                             d = int(data[i + 1]) * 255 + int(data[i])
+#                             if d < 65000:
+#                                 spectr.append(d)
+#                             else:
+#                                 spectr.append(0)
+#                         except:
+#                             spectr.append(0)
+#                         i -= 1
+#                     valuable_max = max(spectr[100:3500])
+#                     other = []
+#                     for i in spectr[3500:3691]:
+#                         if i > valuable_max:
+#                             other.append(valuable_max)
+#                         else:
+#                             other.append(i)
+#                     spectr = spectr[:3500] + other
+#                     text = 'Амп = {}'.format(max(spectr[100:3500]))
+#                 else:
+#                     spectr = [0] * 101
+#                     text = ''
+# ##                print(f"Spectr[0:10]: {spectr[:10]} Len: {len(spectr)}\n")
+#                 return spectr, t1, t2, text, 0
+# ##                return spectr[:3600] + [0] * 91, t1, t2, text, 0
+#             # Если не получили данные с УФОС за timeout
+#             else:
+#                 if self.tries_done > 0:
+#                     text = 'Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
+#                     print(text)
+#                     self.logger.error(text)
+#                 self.tries_done += 1
+#         return [0] * 101, 0, 0, '', self.tries_done
 
 
 class Settings:
@@ -1245,8 +1239,8 @@ class Main:
         self.mesure_count = 0
         self.last_file_o3 = ''
         self.last_file_uv = ''
-        self.mesure_data = {'ZD': {}, 'SD': {}}
-        self.calc_result = {'ZD': {}, 'SD': {}}
+        self.mesure_data = {'ZD': {}}
+        self.calc_result = {'ZD': {}}
         self.file2send = {}
         self.t1 = ''
         self.t2 = ''
@@ -1266,10 +1260,18 @@ class Main:
         self.path = os.path.join(self.home, *dirs)
         self.Dspectr = []
         self.ZDspectr = []
-        self.ZS_spectr = []
+        self.ZS_spectr = [0] * (core.PARS["device"]["pix_work_interval"][0] + 1)
         self.spectrZaD = []
         self.skoZaD = 0
-        self.path_sending = ''
+        dirs = ['Ufos_{}'.format(self.pars['device']['id']),
+                'Mesurements',
+                datetime.datetime.strftime(self.time_now_local, '%Y'),
+                datetime.datetime.strftime(self.time_now_local, '%Y-%m'),
+                datetime.datetime.strftime(self.time_now_local, '%Y-%m-%d')]
+        dirs_sending = ['Ufos_{}'.format(self.pars['device']['id']),
+                        'Sending']
+        self.path = make_dirs(dirs, self.home)
+        self.path_sending = make_dirs(dirs_sending, self.home)
         self.name = ''
 
     def analyze_spectr(self, spectr):
@@ -1302,9 +1304,9 @@ class Main:
                 "mu": round(self.mu, 4),
                 "amas": round(self.amas, 4),
                 "sunheight": round(self.sunheight, 4),
-                "sko": round(float(np.std(spectr[300:3600])), 4),
-                "mean": round(float(np.mean(spectr[300:3600])), 4),
-                "dispersia": round(float(np.var(spectr[300:3600])), 4)
+                "sko": round(float(np.std(spectr[core.PIX_WORK_INTERVAL])), 4),
+                "mean": round(float(np.mean(spectr[core.PIX_WORK_INTERVAL])), 4),
+                "dispersia": round(float(np.var(spectr[core.PIX_WORK_INTERVAL])), 4)
             }, "spectr": np.array(spectr).tolist()}
 
             self.all_measured_data["mesurement"]["status"] = 0
@@ -1344,26 +1346,26 @@ class Main:
             if self.logger:
                 self.logger.error(str(err))
 
-##    def pix2nm(self, pix):
-##        nm = 0
-##        deg = len(self.pars["calibration"]["nm(pix)"]["Z"]) - 1
-##        for i in self.pars["calibration"]["nm(pix)"]["Z"]:
-##            nm += eval(i) * pix ** deg
-##            deg -= 1
-##        return (nm)
-##
-##    def nm2pix(self, nm):
-##        pix = 0
-##        while self.pix2nm(pix) < nm:
-##            pix += 1
-##        return pix
-##
-##    def nms2pixs(self):
-##        self.pixs = {}
-##        for pair in self.pars["calibration"]["points"].keys():
-##            self.pixs[pair + '_pix'] = []
-##            for nm in self.pars["calibration"]["points"][pair]:
-##                self.pixs[pair + '_pix'].append(self.nm2pix(nm))
+    ##    def pix2nm(self, pix):
+    ##        nm = 0
+    ##        deg = len(self.pars["calibration"]["nm(pix)"]["Z"]) - 1
+    ##        for i in self.pars["calibration"]["nm(pix)"]["Z"]:
+    ##            nm += eval(i) * pix ** deg
+    ##            deg -= 1
+    ##        return (nm)
+    ##
+    ##    def nm2pix(self, nm):
+    ##        pix = 0
+    ##        while self.pix2nm(pix) < nm:
+    ##            pix += 1
+    ##        return pix
+    ##
+    ##    def nms2pixs(self):
+    ##        self.pixs = {}
+    ##        for pair in self.pars["calibration"]["points"].keys():
+    ##            self.pixs[pair + '_pix'] = []
+    ##            for nm in self.pars["calibration"]["points"][pair]:
+    ##                self.pixs[pair + '_pix'].append(self.nm2pix(nm))
 
     def add_calculated_line_to_final_file(self, pars, home, spectr, mu, expo, sensitivity, sensitivity_eritem,
                                           print_o3_to_console):
@@ -1388,22 +1390,13 @@ class Main:
         self.calc_result[self.chan] = o3_dict
         return self.calc_result, self.chan
 
-    def write_file(self):
+    def write_file(self, text=''):
         try:
-            dirs = ['Ufos_{}'.format(self.pars['device']['id']),
-                    'Mesurements',
-                    datetime.datetime.strftime(self.time_now_local, '%Y'),
-                    datetime.datetime.strftime(self.time_now_local, '%Y-%m'),
-                    datetime.datetime.strftime(self.time_now_local, '%Y-%m-%d')]
-            dirs_sending = ['Ufos_{}'.format(self.pars['device']['id']),
-                            'Sending']
-            self.path = make_dirs(dirs, self.home)
-            self.path_sending = make_dirs(dirs_sending, self.home)
-
-            self.name = 'm{}_{}_{}_{}.txt'.format(self.pars['device']['id'],
-                                                  str(self.mesure_count).zfill(3),
-                                                  self.chan,
-                                                  datetime.datetime.strftime(self.time_now_local, '%Y%m%d%H%M'))
+            self.name = 'm{}_{}_{}{}_{}.txt'.format(self.pars['device']['id'],
+                                                    str(self.mesure_count).zfill(3),
+                                                    self.chan,
+                                                    text,
+                                                    datetime.datetime.strftime(self.time_now_local, '%Y%m%d%H%M'))
 
             with open(os.path.join(self.path, self.name), 'w') as f:
                 json.dump(self.all_measured_data, f, ensure_ascii=False, indent='', sort_keys=True)
@@ -1445,13 +1438,19 @@ class Main:
             print(err, sys.exc_info()[-1].tb_lineno)
             self.logger.error(str(err))
 
-    def change_channel(self, chan):
-        # print("Changing channel to {}... ".format(chan))
+    def change_channel(self, chan, expo=50):
         self.logger.debug('Переключение на канал {}.'.format(
             self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8')))
-        data, t1, t2, text, self.tries_done = UfosDataToCom(50, self.pars['device']['accummulate'], chan, 'N',
-                                                            self.logger).device_ask(self.tries_allowed)
-        # print("Channel changed to {} (try: {})".format(chan, self.tries_done))
+        try:
+            ZS_spectr, t1, t2, text, tries_done = com.UfosDataToCom(expo, 1, chan, 'S',
+                                                                    self.logger).device_ask(self.tries_allowed)
+            ZS_spectr, t1, t2, text, tries_done = com.UfosDataToCom(expo, 1, chan, 'S',
+                                                                    self.logger).device_ask(self.tries_allowed)
+            # max_value = max(ZS_spectr[core.PIX_WORK_INTERVAL])
+            # print(f"[ N ] expo: {alt_expo}, max value: {max_value}, index (max): {ZS_spectr.index(max_value)}")
+        except Exception as err:
+            print(err)
+            # raise err
 
     def write_file4send(self, chan, data4send):
         with open(os.path.join(self.path_sending, self.file2send[chan]), 'w') as f:
@@ -1481,13 +1480,12 @@ class Main:
                 o3 = 0
                 correct = -1
                 if chan == 'ZD':
-                    correct = self.calc_result[chan]['correct_1']
-                    o3 = self.calc_result[chan]['o3_1']
+                    correct = self.calc_result[chan].get('correct_1')
+                    o3 = self.calc_result[chan].get('o3_1')
                 elif chan == 'SD':
-                    uva = self.calc_result[chan]['uva']
-                    uvb = self.calc_result[chan]['uvb']
-                    uve = self.calc_result[chan]['uve']
-
+                    uva = self.calc_result[chan].get('uva')
+                    uvb = self.calc_result[chan].get('uvb')
+                    uve = self.calc_result[chan].get('uve')
                 data4send = """#{0};{1};{2};{3};{4};{5};{6};{7};{8};{9};{10};\
 {11}@{12};{13};{14};{15};{16};{17};{18};{19};{20};\
 {21};{22};{23};{24};{25};{26};{27};{28};{29};{30};{31}#""".format(self.mesure_data[chan]['id']['device'],
@@ -1535,6 +1533,7 @@ class Main:
 
         except Exception as err:
             print(err, sys.exc_info()[-1].tb_lineno)
+            # raise err
 
     @staticmethod
     def ftp_send(host, port, remote_dir, user, password, file2send):
@@ -1569,7 +1568,6 @@ class Main:
         for ip in host.split(','):
             try:
                 sock.connect((ip, port))
-                print(data2send)
                 sock.send(data2send.encode(encoding='utf-8'))
                 sock.close()
                 t.append('OK')
@@ -1612,6 +1610,22 @@ class Main:
         finally:
             return tex
 
+    def measure_channel(self, chan):
+        text = 'Канал {}. Эксп = {}'.format(
+            self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
+            self.expo)
+        print(text, end=' ')
+        spectr, t1, t2, text2, tries = com.UfosDataToCom(
+            self.expo,
+            self.pars['device']['accummulate'],
+            chan,
+            'S',
+            self.logger).device_ask(self.tries_allowed)
+        text += ' ' + text2
+        print('\r{}'.format(text))
+        self.logger.info(text)
+        return spectr, t1, t2, text2, tries
+
     def mesure(self):
         """Определение номера последнего измерения"""
         try:
@@ -1619,7 +1633,7 @@ class Main:
             if files:
                 self.mesure_count = max(set([int(i.split('_')[1]) for i in files if i.count('_') == 3]))
             else:
-                self.mesure_count = 1
+                self.mesure_count = 0
         except:
             pass
         try:
@@ -1629,124 +1643,93 @@ class Main:
                 """ Z or S mesurement """
                 for chan in self.pars['device']['channel']:
                     self.expo = self.pars['device']['auto_expo_min']
-                    self.ZS_spectr = [0] * 101
-                    self.change_channel(chan)
+                    max_value = 0
+                    start = datetime.datetime.now()
                     while self.expo < self.pars['device']['auto_expo_max'] \
-                            and max(self.ZS_spectr[100:3500]) < self.pars['device']['amplitude_max']:
+                            and max_value < self.pars['device']['amplitude_max']:
                         try:
-                            text = 'Канал {}. Эксп = {}'.format(
-                                self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
-                                self.expo)
-                            print(text, end='')
-                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                                self.expo,
-                                self.pars['device']['accummulate'],
-                                chan,
-                                'S',
-                                self.logger).device_ask(self.tries_allowed)
-                            text += ' ' + text2
-                            print('\r{}'.format(text))
-                            self.logger.info(text)
-                            if max(self.ZS_spectr[100:3500]) > self.pars['device']['amplitude_min']:
+                            self.change_channel(chan, expo=self.expo)
+                            self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = self.measure_channel(chan)
+                            max_value = max(self.ZS_spectr[core.PIX_WORK_INTERVAL])
+
+                            # print(f"[ W ] expo: {self.expo}, max value: {max_value}, index (max): {self.ZS_spectr.index(max_value)}")
+                            # with open(f"test_{self.expo}.txt", "w") as fw:
+                            #     print("\n".join([str(i) for i in self.ZS_spectr]), file=fw)
+
+                            if max(self.ZS_spectr[core.PIX_WORK_INTERVAL]) > self.pars['device']['amplitude_min']:
                                 break
-                            k[chan] = max(self.ZS_spectr[100:3500]) / self.pars['device']['amplitude_max']
+                            k[chan] = max(self.ZS_spectr[core.PIX_WORK_INTERVAL]) / self.pars['device']['amplitude_max']
                             if k[chan] != 0:
                                 self.expo = int(self.expo / k[chan])
 
                         except Exception as err:
-                            print('mesure:', end='')
-                            print(err, sys.exc_info()[-1].tb_lineno)
+                            # print('mesure:', end='')
+                            # print(err, sys.exc_info()[-1].tb_lineno)
                             self.logger.error(str(err))
-                            break
+                            print("Прибор не подключен к ПК!")
+                            time.sleep(10)
 
                     else:
-                        self.expo = self.pars['device']['auto_expo_max']
-                        text = 'Канал {}. Эксп = {}'.format(
-                            self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
-                            self.expo)
-                        print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                            self.expo,
-                            self.pars['device']['accummulate'],
-                            chan,
-                            'S',
-                            self.logger).device_ask(self.tries_allowed)
-                        text += ' ' + text2
-                        print('\r{}'.format(text), end=' ')
-                        self.logger.info(text)
+                        self.expo = self.pars['device']['auto_expo_max']  # 4000
+                        self.change_channel(chan, expo=4000)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = self.measure_channel(chan)
+
                     self.chan = chan
                     self.analyze_spectr(self.ZS_spectr)
                     self.write_file()
 
+                    # input("Finger...")
                     """ D mesurement """
                     self.chan = 'D' + chan.lower()
-                    self.change_channel('D')
-                    text = 'Канал {}. Эксп = {}'.format(
-                        self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
-                        self.expo)
-                    print(text)
-                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
-                        self.expo,
-                        self.pars['device']['accummulate'],
-                        'D',
-                        'S',
-                        self.logger).device_ask(self.tries_allowed)
-                    text += ' ' + text2
-                    print('\r{}'.format(text), end=' ')
-                    self.logger.info(text)
+                    self.change_channel('D', expo=self.expo)
+                    self.Dspectr, self.t1, self.t2, text2, self.tries_done = self.measure_channel('D')
+
                     self.analyze_spectr(self.Dspectr)
                     self.write_file()
 
+                    print(f"Затрачено: {datetime.datetime.now() - start}")
                     """ Z-D or S-D calculation """
                     self.chan = chan + 'D'
                     text = 'Расчёт спектра {}.'.format(self.chan)
                     print(text, end=' ')
                     self.logger.info(text)
+
+                    # s = 200
+                    # e = 220
                     self.ZDspectr = np.array(self.ZS_spectr) - np.array(self.Dspectr)
+                    # print("Z", self.ZS_spectr[s:e])
+                    # print("D", self.Dspectr[s:e])
+                    # print("Z-D", self.ZDspectr[s:e])
                     self.analyze_spectr(self.ZDspectr)
                     self.write_file()
-                    self.mesure_data[self.chan] = self.all_measured_data
 
+                    self.mesure_data[self.chan] = self.all_measured_data
             else:
                 for expo in self.pars['device']['manual_expo']:
                     self.expo = expo
                     self.mesure_count += 1
                     for chan in self.pars['device']['channel']:
                         """ Z or S mesurement """
-                        self.change_channel(chan)
-                        text = 'Канал {}. Эксп = {}'.format(
-                            self.pars['channel_names'][chan].encode(encoding='cp1251').decode(encoding='utf-8'),
-                            self.expo)
-                        print(text)
-                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                        self.change_channel(chan, expo=self.expo)
+                        self.ZS_spectr, self.t1, self.t2, text2, self.tries_done = com.UfosDataToCom(
                             self.expo,
                             self.pars['device']['accummulate'],
                             chan,
                             'S',
                             self.logger).device_ask(self.tries_allowed)
-                        text += ' ' + text2
-                        print('\r{}'.format(text), end=' ')
-                        self.logger.info(text)
                         self.chan = chan
                         self.analyze_spectr(self.ZS_spectr)
                         self.write_file()
 
                         """ D mesurement """
                         self.chan = 'D' + chan.lower()
-                        self.change_channel('D')
-                        text = 'Канал {}. Эксп = {}'.format(
-                            self.pars['channel_names']['D'].encode(encoding='cp1251').decode(encoding='utf-8'),
-                            self.expo)
-                        print(text)
-                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = UfosDataToCom(
+                        self.change_channel('D', expo=self.expo)
+                        self.Dspectr, self.t1, self.t2, text2, self.tries_done = com.UfosDataToCom(
                             self.expo,
                             self.pars['device']['accummulate'],
                             'D',
                             'S',
                             self.logger).device_ask(self.tries_allowed)
-                        text += ' ' + text2
-                        print('\r{}'.format(text), end=' ')
-                        self.logger.info(text)
                         self.analyze_spectr(self.Dspectr)
                         self.write_file()
 
@@ -1765,6 +1748,7 @@ class Main:
         except Exception as err:
             print("procedures.Main.mesure:", end='')
             print(err, sys.exc_info()[-1].tb_lineno)
+            # raise err
 
 
 class CheckSunAndMesure:
@@ -1780,9 +1764,9 @@ class CheckSunAndMesure:
     def start(self):
         while 1:
             try:
-                ufos_com = UfosConnection(self.logger).get_com()['com_obj']
+                ufos_com = com.UfosConnection(self.logger).get_com_obj()
                 if not ufos_com:
-                    raise WindowsError(f"{now()} Кабель не подключен к ПК!")
+                    raise ConnectionError(f"{now()} Кабель не подключен к ПК!")
                 self.common_pars = Settings.get_common(self.home)
                 self.pars = Settings.get_device(self.home, self.common_pars['device']['id'])
 
@@ -1845,12 +1829,16 @@ class CheckSunAndMesure:
                     time.sleep(5)
             except serial.serialutil.SerialException as err:
                 print(err)
+                # raise err
             except TypeError as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
+                # raise err
                 time.sleep(10)
             except WindowsError as err:
                 print(err)
+                # raise err
                 time.sleep(10)
             except Exception as err:
                 print(err, sys.exc_info()[-1].tb_lineno)
+                # raise err
                 time.sleep(10)

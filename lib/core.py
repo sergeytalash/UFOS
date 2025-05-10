@@ -2,6 +2,7 @@ import json
 import logging
 import logging.handlers as handlers
 import os
+import string
 from datetime import datetime
 
 
@@ -222,8 +223,7 @@ def make_list():
     if os.name == 'posix':
         disks = '/'
     else:
-        alp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-               'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        alp = string.ascii_uppercase
         disks = []
         for i in alp:
             try:
@@ -243,13 +243,12 @@ def make_list():
 #         logger.debug("Timer stopped. Elapsed time: {:.3f} seconds".format(time.time() - self._startTime))
 if os.name == 'posix':
     WINDOWS_OS = False
-    SEP = '/'
 else:
     WINDOWS_OS = True
-    SEP = '\\'
+SEP = os.path.sep
 
 NOW = datetime.now
-HOME = os.getcwd()
+HOME = os.path.sep.join(os.getcwd().split(os.path.sep)[:2])
 PATH = HOME
 TMP_PATH = HOME
 LAST_DIR = []
@@ -283,4 +282,4 @@ handler = handlers.RotatingFileHandler(
     backupCount=10)
 LOGGER.addHandler(handler)
 
-PIX_WORK_INTERVAL = slice(*PARS["device"]["pix_work_interval"])
+PIX_WORK_INTERVAL = slice(*PARS["device"].get("pix_work_interval", [200, 3500]))
