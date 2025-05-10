@@ -248,7 +248,8 @@ else:
 SEP = os.path.sep
 
 NOW = datetime.now
-HOME = os.path.sep.join(os.getcwd().split(os.path.sep)[:2])
+# HOME = os.path.sep.join(os.getcwd().split(os.path.sep)[:2])
+HOME = os.getcwd()
 PATH = HOME
 TMP_PATH = HOME
 LAST_DIR = []
