@@ -1,10 +1,10 @@
-from lib.plotter import *
-import sys
+# Version: 2.0
+# Modified: 13.08.2021
+# Author: Sergey Talash
+try:
+    from lib import plotter, core
+except (ImportError, ModuleNotFoundError):
+    import plotter, core
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    if args:
-        show_ozone_pairs = [i for i in args if i in ["1", "2"]]
-    else:
-        show_ozone_pairs = ["2"]
-    Main(show_ozone_pairs).init_gui()
+    plotter.Main("1")

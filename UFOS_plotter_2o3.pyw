@@ -1,4 +1,10 @@
-import subprocess
+# Version: 2.0
+# Modified: 13.08.2021
+# Author: Sergey Talash
+try:
+    from lib import plotter, core
+except (ImportError, ModuleNotFoundError):
+    import plotter, core
 
-# Start program with 1st and 2nd wave length pairs
-subprocess.check_output(['python', 'UFOS_plotter.pyw', '1', '2'])
+if __name__ == "__main__":
+    plotter.Main("12")

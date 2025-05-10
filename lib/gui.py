@@ -1,8 +1,7 @@
 import gc
-from tkinter import TclError
-from lib.core import *
-from tkinter import *
-from tkinter import ttk, Menu
+import tkinter
+from tkinter import Menu
+from tkinter import ttk
 
 
 def canvs_destroy(canvas):
@@ -10,7 +9,7 @@ def canvs_destroy(canvas):
         try:
             canv, fig = canvas.pop()
             canv.get_tk_widget().destroy()
-        except TclError:
+        except tkinter.TclError:
             pass
     gc.collect()
 
@@ -28,7 +27,7 @@ def show_error_in_separate_window(reason="", human_text="", fixit=None):
                 continue
             out += line + '\n'
             line = ""
-        err_root = Tk()
+        err_root = tkinter.Tk()
         err_root.title('Ошибка')
         err_root.resizable(False, False)
         text = ttk.Label(err_root, text=out)
@@ -50,8 +49,8 @@ class HoverInfo(Menu):
         for t in toktext:
             self.add_command(label=t)
         self._displayed = False
-        self.master.bind("<Enter>", self.Display)
-        self.master.bind("<Leave>", self.Remove)
+        self.master.bind("<Enter>", self.display)
+        self.master.bind("<Leave>", self.remove)
 
     def __del__(self):
         try:
@@ -60,23 +59,29 @@ class HoverInfo(Menu):
         except:
             pass
 
-    def Display(self, event):
+    def display(self, event):
         if not self._displayed:
             self._displayed = True
             self.post(event.x_root + 20, event.y_root - 10)
         if self._command:
             self.master.unbind_all("<Return>")
-            self.master.bind_all("<Return>", self.Click)
+            self.master.bind_all("<Return>", self.click)
 
-    def Remove(self, event):
+    def remove(self, event):
         if self._displayed:
             self._displayed = False
             self.unpost()
         if self._command:
             self.unbind_all("<Return>")
 
-    def Click(self, event):
+    def click(self, event):
         self._command()
+
+
+def update_geometry(root):
+    plotx, ploty = root.winfo_screenwidth() / 1.5, root.winfo_screenheight() / 1.5
+    return plotx, ploty
+
 
 if __name__ == "__main__":
     pass

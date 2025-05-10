@@ -22,7 +22,7 @@ class Main:
     @staticmethod
     def set_settings_path_by_name(data, settings_path):
         with open(settings_path, 'w') as f:
-            json.dump(data, f, indent="  ", sort_keys=True)
+            json.dump(data, f, indent=2, sort_keys=True)
 
     def update_settings(self, ufos_num):
         text = ["", "Updated existing descriptions", "Created new descriptions", "Created new key and descriptions"]

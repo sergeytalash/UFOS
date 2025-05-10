@@ -1,19 +1,22 @@
 # Version: 2.0
-# Modified: 12.07.2019
+# Modified: 13.08.2021
 # Author: Sergey Talash
 
+try:
+    from lib import calculations as calc, measure, core
+except ModuleNotFoundError as err:
+    import calculations as calc, measure, core
 
-from lib.calculations import *
-from lib.measure import *
 from datetime import datetime
-from lib.core import *
 
 if __name__ == '__main__':
-    mu, amas, hs = sunheight(PARS['station']['latitude'],
-                             PARS['station']['longitude'],
-                             datetime.now(),
-                             int(PARS['station']['timezone']))
-    print('Station: {}, (lat: {}, long: {})\nmu: {}\namas: {}\nsunheight: {}\n================'.format(
-        PARS['station']['id'], PARS['station']['latitude'], PARS['station']['longitude'], mu, amas, hs))
-    version = '2.0'
-    CheckSunAndMesure().start()
+    mu, amas, hs = calc.sunheight(core.PARS['station']['latitude'],
+                                  core.PARS['station']['longitude'],
+                                  datetime.now(),
+                                  int(core.PARS['station']['timezone']))
+    print('UFOS: {}\nStation: {}, (lat: {}, long: {})\nmu: {}\namas: {}\nsunheight: {}\n================'.format(
+        core.DEVICE_ID,
+        core.PARS['station']['id'],
+        core.PARS['station']['latitude'],
+        core.PARS['station']['longitude'], mu, amas, hs))
+    measure.CheckSunAndMeasure().start()

@@ -25,18 +25,19 @@
       "sko_ZaD": "Standard Square Deviation of ZD or SD spectr",
       "uva_koef": "Hard coefficient for uva value print",
       "uvb_koef": "Hard coefficient for uvb value print",
-      "uve_koef": "Hard coefficient for uve value print"
+      "uve_koef": "Hard coefficient for uve value print",
+      "pix_work_interval": "Work interval of pixels"
     },
     "nm(pix)": {
       "S": [
-        "-5*10**-8",
-        "0.0403286",
-        "270.063388"
+        "3.365622018*10**-9",
+        "0.04001771776",
+        "267.527"
       ],
       "Z": [
-        "1*10**-8",
-        "0.03999413",
-        "269.3139"
+        "3.365622018*10**-9",
+        "0.04001771776",
+        "269.327"
       ]
     },
     "pix_interval": 51,
@@ -72,7 +73,7 @@
       "mu_start": 1,
       "mu_step": 0.05
     },
-    "sigma_count": 3,
+    "sigma_count": 2,
     "sko_D": 100,
     "sko_ZaD": 100,
     "uva_koef": 1,
@@ -80,8 +81,8 @@
     "uve_koef": 1
   },
   "calibration2": {
-    "coorect_mu_eff_end": 12,
-    "coorect_mu_eff_start": 1,
+    "coorect_mu_eff_end": 3,
+    "coorect_mu_eff_start": 2,
     "description": {
       "kzLarger1": "List of coefficients. Can be unlimited",
       "kzLarger2": "List of coefficients. Can be unlimited",
@@ -96,39 +97,41 @@
       "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation"
     },
     "kzLarger1": [
-      1.3834,
-      -0.1423,
-      0.0147
+      1.079206,
+      -0.167477,
+      0.016695
     ],
     "kzLarger2": [
-      1.3834,
-      -0.1423,
-      0.0147
+      1.519528,
+      -0.180829,
+      0.019353
     ],
     "kzLess1": [
-      1.3359,
-      -0.0783,
-      -0.005
+      0.372732,
+      1.077592,
+      -0.697074,
+      0.132352
     ],
     "kzLess2": [
-      1.3359,
-      -0.0783,
-      -0.005
+      -0.482405,
+      3.582385,
+      -2.347062,
+      0.498422
     ],
     "kz_obl1": [
-      1.4773,
-      -1.7878,
-      1.3051
+      -0.7898,
+      2.3814,
+      -0.6359
     ],
     "kz_obl2": [
-      1.4773,
-      -1.7878,
-      1.3051
+      2.2034,
+      -2.9308,
+      1.7311
     ],
-    "mu_effect_1": 2,
-    "mu_effect_2": 2,
+    "mu_effect_1": 1.5,
+    "mu_effect_2": 1.5,
     "pix+-": 2,
-    "visible_sunheight_max": 40,
+    "visible_sunheight_max": 55,
     "visible_sunheight_min": 15
   },
   "channel_names": {
@@ -149,6 +152,10 @@
     "auto_expo_min": 50,
     "auto_exposition": 1,
     "channel": "ZS",
+    "pix_work_interval": [
+      32,
+      3679
+    ],
     "description": {
       "accummulate": "Quantity of measurements on UFOS to get mean spectr",
       "amplitude_max": "Maximum amplitude value of spectr which can accepted",
@@ -177,7 +184,7 @@
       "timezone": "Station timezone"
     },
     "id": "26077",
-    "interval": 5,
+    "interval": 10,
     "latitude": 59.57,
     "longitude": -30.42,
     "sun_height_min": 5,

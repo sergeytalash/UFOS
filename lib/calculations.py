@@ -1,21 +1,32 @@
-from datetime import datetime, timedelta
+import json
+import os
+import queue as queue_th
+import sys
+import threading
+from datetime import datetime
+from datetime import timedelta
 from math import *
 from tkinter import NORMAL
-import threading
-import queue as queue_th
+from tkinter import ttk
 
-from lib.core import *
-from lib.gui import *
-from lib.measure import *
+import numpy as np
+
+# from icecream import ic
+
+try:
+    from lib import measure as msr, gui, core
+except (ImportError, ModuleNotFoundError):
+    import measure as msr, gui, core
 
 
 class FinalFile:
-    def __init__(self, annual_file, but_make_mean_file):
+    def __init__(self, but_make_mean_file, annual_file):
         """
 
         Args:
+            but_make_mean_file (ttk.Button | None):
             annual_file (bool):
-            but_make_mean_file ():
+
         """
         self.path_file = ''
         self.annual_file = annual_file
@@ -38,10 +49,10 @@ class FinalFile:
         else:
             date_utc_str = datetime.strftime(date_utc, '%Y%m%d %H:%M:%S')
             date_utc_date = date_utc
-        mu, amas, sh = sunheight(PARS["station"]["latitude"],
-                                 PARS["station"]["longitude"],
+        mu, amas, sh = sunheight(core.PARS["station"]["latitude"],
+                                 core.PARS["station"]["longitude"],
                                  date_utc_date,
-                                 PARS["station"]["timezone"])
+                                 core.PARS["station"]["timezone"])
         return date_utc_str, sh, calc_result
 
     def save(self, chan, ts, shs, calc_results):
@@ -74,10 +85,11 @@ class FinalFile:
                                                        create_new_file)
             create_new_file = False
         if not self.annual_file:
+            if self.but_make_mean_file:
+                self.but_make_mean_file.configure(
+                    command=lambda: calculate_final_files(self.path_file, chan, True, "file"))
+                self.but_make_mean_file.configure(state=NORMAL)
             print('1) Files saved:\n{}\n{}'.format(self.path_file, analyse_file_name))
-            self.but_make_mean_file.configure(
-                command=lambda: calculate_final_files(self.path_file, chan, True, "file"))
-            self.but_make_mean_file.configure(state=NORMAL)
         return self.path_file
 
 
@@ -92,13 +104,12 @@ class AnnualOzone:
         self.but_annual_ozone = but_annual_ozone
         self.debug = False
         self.num_worker_threads = 100
-        self.type_of_parallel = [None, 'asyncio', 'threading'][2]
+        self.type_of_parallel = [None, 'asyncio', 'threading'][0]
         # asyncio =     0:00:05.442841
         # threading =   0:00:05.311453
 
     def run(self):
         self.make_annual_ozone_file(self.year)
-        # self.write_annual_ozone()
         self.but_annual_ozone.configure(text="Сохранить озон за год")
         self.root.update()
         print("Done.")
@@ -106,17 +117,17 @@ class AnnualOzone:
     @staticmethod
     def open_annual_files_for_write(year):
         file_descriptors = {}
-        dir_path = make_dirs(DEVICE_DIR_L + ["Ozone"])
+        dir_path, _ = core.make_dirs(core.DEVICE_DIR_L + ["Ozone"])
         if os.path.exists(dir_path):
             for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(DEVICE_ID, year[:4], pair)
+                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(core.DEVICE_ID, year[:4], pair)
                 path = os.path.join(dir_path, annual_file_name)
                 if not os.path.exists(path):
                     with open(path, 'w') as f:
-                        print("Date\t" +
-                              "Mean_All\tSigma_All\tO3_Count\t" +
-                              "Mean_Morning\tSigma_Morning\tO3_Count\t" +
-                              "Mean_Evening\tSigma_Evening\tO3_Count", file=f)
+                        f.write("Date\t" +
+                                "Mean_All\tSigma_All\tO3_Count\t" +
+                                "Mean_Morning\tSigma_Morning\tO3_Count\t" +
+                                "Mean_Evening\tSigma_Evening\tO3_Count")
                 file_descriptors[pair] = open(path, 'a')
         return file_descriptors
 
@@ -137,7 +148,7 @@ class AnnualOzone:
                     line_data.append(str(line[part_of_day][item]))
                 else:
                     line_data.append('')
-        print("\t".join(line_data), file=fw)
+        fw.write("\t".join(line_data))
 
     @staticmethod
     def print_line(line: dict, debug: bool):
@@ -151,7 +162,8 @@ class AnnualOzone:
         calc_result, chan = main.add_calculated_line_to_final_file(data["spectr"],
                                                                    data["calculated"]["mu"],
                                                                    data["mesurement"]["exposition"],
-                                                                   self.data.sensitivity,
+                                                                   self.data.sensitivityZ,
+                                                                   self.data.sensitivityS,
                                                                    self.data.sensitivity_eritem, False)
         # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
         try:
@@ -193,7 +205,8 @@ class AnnualOzone:
                 calc_result, chan = main.add_calculated_line_to_final_file(data["spectr"],
                                                                            data["calculated"]["mu"],
                                                                            data["mesurement"]["exposition"],
-                                                                           self.data.sensitivity,
+                                                                           self.data.sensitivityZ,
+                                                                           self.data.sensitivityS,
                                                                            self.data.sensitivity_eritem, False)
                 # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
                 try:
@@ -226,17 +239,16 @@ class AnnualOzone:
     @staticmethod
     def get_zd_count(year):
         count = 0
-        for dir_path, dirs, files in os.walk(os.path.join(*MEASUREMENTS_DIR_L, year), topdown=True):
+        for dir_path, dirs, files in os.walk(os.path.join(*core.MEASUREMENTS_DIR_L, year), topdown=True):
             for file in files:
-                if file.count("ZD") > 0:
+                if "ZD" in file:
                     count += 1
         return count
 
     def make_annual_ozone_file(self, year):
         """data - PlotClass.init()"""
-        annual_file_descriptors = {}
-        measure = MeasureClass()
-        saving = FinalFile(annual_file=True, but_make_mean_file=None)
+        measure = msr.MeasureClass()
+        saving = FinalFile(but_make_mean_file=None, annual_file=True)
         measure.chan = "ZD"
         create_annual_files = True
         current = 0
@@ -245,7 +257,7 @@ class AnnualOzone:
         queue_th_output = queue_th.Queue()
         threads = []
 
-        for dir_path, dirs, files in os.walk(os.path.join(*MEASUREMENTS_DIR_L, year)):
+        for dir_path, dirs, files in os.walk(os.path.join(*core.MEASUREMENTS_DIR_L, year)):
             create_annual_files = True
             annual_file_descriptors = {}
             if self.type_of_parallel:
@@ -261,19 +273,18 @@ class AnnualOzone:
                         measure, saving, queue_th_input, queue_th_output, debug=self.debug))
                     t.start()
                     threads.append(t)
-            print("...", dir_path)
+            # ic(dir_path)
             daily_o3_to_file = {}
             create_daily_files = True
             num = 0
-            max_day_files = len([name for name in files if name.count("ZD") > 0])
+            max_day_files = len([name for name in files if "ZD" in name])
             day = None
             tasks = []
             all_data = {}
             timer = [datetime.now()]
             for file in files:
-                if file.count("ZD") > 0:
+                if "ZD" in file:
                     current += 1
-                    # print('{} of {}'.format(current, max_files))
                     day = os.path.basename(dir_path)
                     if create_daily_files:
                         daily_o3_to_file[day] = []
@@ -288,12 +299,11 @@ class AnnualOzone:
                     else:
                         line = self.process_one_file_none(file_path, measure, saving, day, num, debug=self.debug)
                         all_data.update(line)
-                        if self.debug:
-                            print('dict', all_data[list(line.keys())[0]])
+                        # if self.debug:
+                        #     ic(all_data[list(line.keys())[0]])
                     self.but_annual_ozone.configure(text=file[-16:-4])
                     self.root.update()
                     num += 1
-            # print([v[3]['ZD'] for v in all_data.values()])
             if day:
                 self.but_annual_ozone.configure(text=files[-1][-16:-4])
                 self.root.update()
@@ -313,13 +323,13 @@ class AnnualOzone:
                         queue_th_output.task_done()
                         line = json.loads(line)
                         all_data.update(line)
-                        if self.debug:
-                            print('dict', all_data[list(line.keys())[0]])
+                        # if self.debug:
+                        #     ic(all_data[list(line.keys())[0]])
                     # Block until all Output tasks are done
                     queue_th_output.join()
                 else:
                     pass
-                [print(datetime.now() - i) for i in timer]
+                # [ic(datetime.now() - i) for i in timer]
                 # loop.close()
                 ts = [all_data[str(j)][1] for j in range(max_day_files)]
                 shs = [all_data[str(j)][2] for j in range(max_day_files)]
@@ -343,7 +353,7 @@ class AnnualOzone:
             for pair, fw in annual_file_descriptors.items():
                 fw.close()
             if annual_file_descriptors:
-                print('4) Annual files were saved.')
+                print('4) Annual files have been saved.')
 
 
 class Correction:
@@ -357,7 +367,7 @@ class Correction:
         """Среднеквадратичное отклонение
         o3s - Весь озон
         o3s_first_corrected - Озон с первой корректировкой (100 - 600)"""
-        sigma_count = PARS['calibration']['sigma_count']
+        sigma_count = core.PARS['calibration']['sigma_count']
         if o3s_first_corrected:
             sigma = round(float(np.std(o3s_first_corrected)), 2)
             mean = int(np.mean(o3s_first_corrected))
@@ -398,7 +408,7 @@ class Correction:
             line_arr = line_raw.split(';')
             lines_arr_raw_to_file.append(line_arr)
             sh = float(line_arr[2])
-            sh_condition = PARS['calibration2']['visible_sunheight_min'] < sh < PARS['calibration2'][
+            sh_condition = core.PARS['calibration2']['visible_sunheight_min'] < sh < core.PARS['calibration2'][
                 'visible_sunheight_max']
             if sh_previous <= sh:
                 part_of_day = "morning"
@@ -426,13 +436,13 @@ class Correction:
         Returns:
             dict
         """
-        o3s_k2 = {"1": {"all": {"o3": [], "k": []},
-                        "morning": {"o3": [], "k": []},
-                        "evening": {"o3": [], "k": []}
+        o3s_k2 = {"1": {"all": {"o3": [], "k": [], "text": ""},
+                        "morning": {"o3": [], "k": [], "text": ""},
+                        "evening": {"o3": [], "k": [], "text": ""}
                         },
-                  "2": {"all": {"o3": [], "k": []},
-                        "morning": {"o3": [], "k": []},
-                        "evening": {"o3": [], "k": []}
+                  "2": {"all": {"o3": [], "k": [], "text": ""},
+                        "morning": {"o3": [], "k": [], "text": ""},
+                        "evening": {"o3": [], "k": [], "text": ""}
                         }
                   }
         no_data_for_part_of_day = {"all": False, "morning": False, "evening": False}
@@ -447,10 +457,10 @@ class Correction:
                     for o3, k in zip(o3s_k1[pair][part_of_day]['o3'], o3s_k1[pair][part_of_day]['k']):
                         if k == 1:
                             o3_corrected.append(o3)
-                    o3s_k2[pair][part_of_day]['k'], \
-                    o3s_k2[pair][part_of_day]["sigma"], \
-                    o3s_k2[pair][part_of_day]["mean"] = self.get_second_corrects(
-                        o3s_k1[pair][part_of_day]["o3"], o3_corrected)
+                    k_, s_, m_ = self.get_second_corrects(o3s_k1[pair][part_of_day]["o3"], o3_corrected)
+                    o3s_k2[pair][part_of_day]['k'] = k_
+                    o3s_k2[pair][part_of_day]["sigma"] = s_
+                    o3s_k2[pair][part_of_day]["mean"] = m_
                     # Если в первой корректировке 0, то во второй будет тоже 0,
                     # иначе будет значение второй корректировки
                     # TODO: Repair mean/sigma correct condition
@@ -464,7 +474,7 @@ class Correction:
                         text = 'Среднее значение ОСО (P{}): {}\nСтандартное отклонение: {}\n'.format(
                             pair, o3s_k2[pair][part_of_day]["mean"], o3s_k2[pair][part_of_day]["sigma"])
                     except KeyError as err:
-                        print("INFO: procedures.py: No data files for {} (line: {})".format(
+                        print("(calculations) No data files. Error {} Line: {}".format(
                             err, sys.exc_info()[-1].tb_lineno))
                         no_data_for_part_of_day[part_of_day] = True
                 o3s_k2[pair][part_of_day]['text'] = text
@@ -490,7 +500,7 @@ def calculate_final_files(source, mode, write_daily_file, data_source_flag):
     if source:
         try:
             if data_source_flag == "file":
-                with open(source) as f:
+                with open(source, errors='ignore') as f:
                     all_data = f.readlines()
                     data = sorted(all_data[1:])
             elif data_source_flag == "calculate":
@@ -503,13 +513,13 @@ def calculate_final_files(source, mode, write_daily_file, data_source_flag):
                     o3s_k2 = corr.second_correction(o3s_k1)
                     if write_daily_file is True and data_source_flag == "file":
                         with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
-                            print(';'.join(all_data[:1]), file=f, end='')
+                            f.write(';'.join(all_data[:1]))
                             for line, correct1, correct2 in zip(lines_arr_raw_to_file, o3s_k2["1"]["all"]['k'],
                                                                 o3s_k2["2"]["all"]['k']):
                                 part1 = line[:-3]
                                 part2 = line[-2:-1]
-                                print(';'.join(part1 + [str(correct1)] + part2 + [str(correct2)]), file=f)
-                            print(o3s_k2['1']['all']['text'] + o3s_k2['2']['all']['text'], file=f)
+                                f.write(';'.join(part1 + [str(correct1)] + part2 + [str(correct2)]) + '\n')
+                            f.write(o3s_k2['1']['all']['text'] + o3s_k2['2']['all']['text'] + '\n')
                             print('2) Mean File Saved:\n{}'.format(
                                 os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
                     for pair in ['1', '2']:
@@ -533,7 +543,7 @@ def sumarize(a):
 
 def find_index_value_greater_x(list, x):
     index_value_high = next((list.index(value) for value in list if value > x), len(list) - 1)
-    "Если ниже минимального значения - берём 2 ближайших значения"
+    # Если ниже минимального значения - берём 2 ближайших значения
     if index_value_high == 0:
         index_value_high = 1
     return index_value_high
@@ -550,7 +560,7 @@ def get_ozone_by_nomographs(r12clear, mueff, o3_num):
     Returns:
 
     """
-    mueff_list, r12_list, ozone_list = read_nomographs(o3_num)
+    mueff_list, r12_list, ozone_list = core.read_nomographs(o3_num)
     "Найти значения mueff, между которыми находится наше значение"
     index_mueff_high = find_index_value_greater_x(mueff_list, mueff)
     index_mueff_low = index_mueff_high - 1
@@ -589,42 +599,60 @@ def erithema(x, c):
     return a
 
 
-def nm2pix(nm, abc, add):
-    nm = float(nm)
+def nm2pix(nm, abc, add=0):
+    """
+    Convert nanometers to pixels
+    Args:
+        nm (float): Nanometers
+        abc (list): List of coefficients
+        add (int): Add fixed value to nanometers
+
+    Returns:
+        int: Calculated pixel index
+    """
     pix = 0
     if not 270 < nm < 430:
-        print(nm, 'nm2pix: error')
+        # ic(nm, 'nm2pix: error')
         return 0
     if 350 < nm < 430:
         pix = 1500
-    while pix2nm(abc, pix, 1, add) < nm:
+    while pix2nm(pix, abc, 1, add) < nm:
         pix += 1
     return pix
 
 
-def pix2nm(abc, pix, digs, add):
+def pix2nm(pix, abc, digs=3, add=0):
     """
-    Обработка одного пикселя
-    abc - массив коэффициентов полинома
-    pix - номер пиксела
-    dig - количество знаков после запятой
-    add - сдвиг для зенитных измерений
+    Convert pixel to nanometers
+    Args:
+        pix (int): Pixel index
+        abc (list): List of coefficients
+        digs (int): Amount of digits after comma
+        add (int): Add fixed value to nanometers
+
+    Returns:
+        float: Nanometer value
     """
     try:
-        return round(eval(abc[0]) * pix ** 2 + eval(abc[1]) * pix + eval(abc[2]) + add, digs)
+        nm = 0
+        deg = len(abc) - 1
+        for i in abc:
+            nm += eval(i) * pix ** deg
+            deg -= 1
+        return round(nm + add, digs)
     except:
-        print("Check settings file nm(pix) section")
+        # ic("Check settings file nm(pix) section")
         return 0
 
 
-def spectr2zero(p_zero, p_lamst, spectr):
+def spectr2zero(spectr):
     spectrum = [0] * len(spectr)
     try:
-        mv = sum(spectr[p_zero["1"]:p_zero["2"]]) / len(spectr[p_zero["1"]:p_zero["2"]])
-        for i in range(p_lamst, len(spectr) - 1):
+        mv = sum(spectr[P_ZERO["1"]:P_ZERO["2"]]) / len(spectr[P_ZERO["1"]:P_ZERO["2"]])
+        for i in range(P_LAMST, len(spectr) - 1):
             spectrum[i] = round(spectr[i] - mv)
     except IndexError as err:
-        show_error_in_separate_window(err, "В файле отсутствует спектр")
+        gui.show_error_in_separate_window(err, "В файле отсутствует спектр")
     finally:
         return spectrum
 
@@ -632,13 +660,13 @@ def spectr2zero(p_zero, p_lamst, spectr):
 def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
     p_mas = []
     j = 0
-    try:
-        # Mu effective correction
-        correct_mu_eff_start = PARS['calibration2']['coorect_mu_eff_start']
-        correct_mu_eff_end = PARS['calibration2']['coorect_mu_eff_end']
-    except KeyError:
-        correct_mu_eff_start = 0
-        correct_mu_eff_end = 30
+    # try:
+    #     # Mu effective correction
+    #     correct_mu_eff_start = core.PARS['calibration2']['coorect_mu_eff_start']
+    #     correct_mu_eff_end = core.PARS['calibration2']['coorect_mu_eff_end']
+    # except KeyError:
+    #     correct_mu_eff_start = 0
+    #     correct_mu_eff_end = 30
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
         s = sumarize(spectrum[jj - prom:jj + prom + 1])
@@ -650,11 +678,11 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
     r12m = p_mas[0] / p_mas[1]
     r23m = p_mas[2] / p_mas[3]
     mueff = (1 + mu) / 2
-    if mueff < PARS['calibration2']["mu_effect_" + o3_num]:
-        r23clean = get_polynomial_result(PARS['calibration2']['kzLess' + o3_num], mueff)
+    if mueff < core.PARS['calibration2']["mu_effect_" + o3_num]:
+        r23clean = get_polynomial_result(core.PARS['calibration2']['kzLess' + o3_num], mueff)
     else:
-        r23clean = get_polynomial_result(PARS['calibration2']['kzLarger' + o3_num], mueff)
-    kz_obl_f = get_polynomial_result(PARS['calibration2']['kz_obl' + o3_num], (r23clean / r23m))
+        r23clean = get_polynomial_result(core.PARS['calibration2']['kzLarger' + o3_num], mueff)
+    kz_obl_f = get_polynomial_result(core.PARS['calibration2']['kz_obl' + o3_num], (r23clean / r23m))
     r12clear = kz_obl_f * r12m
     try:
         o3 = int(get_ozone_by_nomographs(r12clear, mueff, o3_num))
@@ -674,10 +702,10 @@ class CalculateOnly:
 
         # Calc ozone
         # self.o3 = 0
-        self.prom = int(PARS['calibration2']['pix+-'] / eval(CONF_Z[1]))
-        self.lat = PARS['station']['latitude']
-        self.lon = PARS['station']['longitude']
-        self.pelt = int(PARS['station']['timezone'])
+        self.prom = int(core.PARS['calibration2']['pix+-'] / eval(CONF_Z[1]))
+        self.lat = core.PARS['station']['latitude']
+        self.lon = core.PARS['station']['longitude']
+        self.pelt = int(core.PARS['station']['timezone'])
         # Calc UV
         self.uv = 0
         self.curr_o3_dict = {'uva': [2, P1_UVA, P2_UVA],
@@ -689,7 +717,7 @@ class CalculateOnly:
         data['spectr'] => spectrum
         data['mu']
         """
-        spectrum = spectr2zero(P_ZERO, P_LAMST, spectr)
+        spectrum = spectr2zero(spectr)
         """Расчет озона"""
         o3 = {}
         correct = {}
@@ -708,15 +736,15 @@ class CalculateOnly:
         p1 = self.curr_o3_dict[uv_mode][1]
         p2 = self.curr_o3_dict[uv_mode][2]
         uv = 0
-        spectrum = spectr2zero(P_ZERO, P_LAMST, spectr)
+        spectrum = spectr2zero(spectr)
         try:
             if uv_mode in ['uva', 'uvb']:
                 uv = sum(np.array(spectrum[p1:p2]) * np.array(sensitivity[p1:p2]))
             elif uv_mode == 'uve':
                 uv = sum([float(spectrum[i]) * sens_eritem[i] * sensitivity[i] for i in range(p1, p2, 1)])
-            uv *= float(eval(CONF_S[1])) * PARS['device']['graduation_expo'] / expo
+            uv *= float(eval(CONF_S[1])) * core.PARS['device']['graduation_expo'] / expo
         except Exception as err:
-            print('procedures.calc_uv: ', err)
+            # ic(err)
             uv = 0
         return int(round(uv, 1))
 
@@ -731,7 +759,7 @@ def sunheight(latitude, longitude, date_time, timezone):
         timezone (str | int): Timezone
 
     Returns:
-        Ints: mu, atmospheric mass (amas) and sun height
+        [float]: mu, atmospheric mass (amas) and sun height
     """
     lat, lon, timezone = float(latitude), float(longitude), int(timezone)
     # Расчёт высоты солнца всегда по UTC, поэтому "timezone=0"
@@ -800,8 +828,6 @@ def get_time_next_start(latitude, longitude, timezone, sun_height_min):
 
 def write_final_file(chan, date_utc, sh, calc_result, add_to_name, create_new_file):
     """Ozone/UV calculation and write to final file
-    PARS - settings.json
-    home - home directory (Default: D:\\UFOS)
     chan - ZD or SD
     date_utc - UTC datetime from measurement
     sh - Sun height from measurement
@@ -810,7 +836,7 @@ def write_final_file(chan, date_utc, sh, calc_result, add_to_name, create_new_fi
     create_new_file - True"""
     try:
         date = datetime.strptime(date_utc, '%Y%m%d %H:%M:%S')
-        date_local = datetime.strftime(date + timedelta(hours=int(PARS["station"]["timezone"])),
+        date_local = datetime.strftime(date + timedelta(hours=int(core.PARS["station"]["timezone"])),
                                        '%Y%m%d %H:%M:%S')  # Local Datetime
         if chan == 'ZD':
             type_of_measurement = 'Ozone'
@@ -832,21 +858,22 @@ def write_final_file(chan, date_utc, sh, calc_result, add_to_name, create_new_fi
             header = ''
             text_out = ''
         if chan == 'ZD' or chan == 'SD':
-            path = make_dirs(measure_month_dir(date, type_of_measurement))
+            tmp = core.measure_month_dir(date, type_of_measurement)
+            path, _ = core.make_dirs(tmp)
             name = '{}m{}_{}_{}.txt'.format(add_to_name,
-                                            PARS['device']['id'],
+                                            core.PARS['device']['id'],
                                             type_of_measurement,
                                             date.strftime('%Y%m%d'))
             if not os.path.exists(os.path.join(path, name)) or create_new_file:
                 with open(os.path.join(path, name), 'w') as f:
-                    print(header, file=f)
+                    f.write(header + '\n')
             with open(os.path.join(path, name), 'a') as f:
-                print(text_out, file=f)
+                f.write(text_out + '\n')
             return os.path.join(path, name)
     except Exception as err:
-        print('write_final_file: ', end='')
         text = "Error: {}, Line: {}".format(str(err), sys.exc_info()[-1].tb_lineno)
-        LOGGER.error(text)
+        print(text)
+        core.LOGGER.error(text)
 
 
 def write_analyse_file(chan, date_utc, sh, calc_result, add_to_name, create_new_file=True):
@@ -858,14 +885,14 @@ def write_analyse_file(chan, date_utc, sh, calc_result, add_to_name, create_new_
         sh (float): Sun height from measurement
         calc_result (dict): Ozone data
         add_to_name (str): Add text to the beginning of the filename
-        create_new_file (bool):
+        create_new_file (bool, optional): True by default
 
     Returns:
-
+        str:
     """
     try:
         date = datetime.strptime(date_utc, '%Y%m%d %H:%M:%S')
-        date_local = datetime.strftime(date + timedelta(hours=int(PARS["station"]["timezone"])),
+        date_local = datetime.strftime(date + timedelta(hours=int(core.PARS["station"]["timezone"])),
                                        '%Y%m%d %H:%M:%S')  # Local Datetime
         if chan == 'ZD':
             type_of_measurement = 'Ozone'
@@ -884,29 +911,31 @@ def write_analyse_file(chan, date_utc, sh, calc_result, add_to_name, create_new_
                                   *calc_result['additional_data_2'],
                                   calc_result['correct_2']]]).replace(".", ",")
             name = '{}m{}_{}_{}.csv'.format(add_to_name,
-                                            PARS['device']['id'],
+                                            core.PARS['device']['id'],
                                             type_of_measurement,
                                             datetime.strftime(date, '%Y%m%d'))
-            path = make_dirs(measure_month_dir(date, type_of_measurement))
+            tmp = core.measure_month_dir(date, type_of_measurement)
+            path, _ = core.make_dirs(tmp)
             if not os.path.exists(os.path.join(path, name)) or create_new_file:
                 with open(os.path.join(path, name), 'w') as f:
-                    print(header, file=f)
+                    f.write(header + '\n')
             with open(os.path.join(path, name), 'a') as f:
-                print(text_out, file=f)
+                f.write(text_out + '\n')
             return os.path.join(path, name)
     except Exception as err:
-        print('write_analyse_file: ', end='')
         text = "Error: {}, Line: {}".format(str(err), sys.exc_info()[-1].tb_lineno)
-        LOGGER.error(text)
+        # ic(text)
+        core.LOGGER.error(text)
 
 
-CONF_Z = PARS['calibration']['nm(pix)']['Z']
-CONF_S = PARS['calibration']['nm(pix)']['S']
-LAMBDA_CONSTS = {pair: PARS['calibration']['points']['o3_pair_{}'.format(pair)] +
-                       PARS['calibration']['points']['cloud_pair_{}'.format(pair)] for pair in ["1", "2"]}
-P1_UVA, P2_UVA = nm2pix(315, CONF_S, 0), nm2pix(400, CONF_S, 0)
-P1_UVB, P2_UVB = nm2pix(280, CONF_S, 0), nm2pix(315, CONF_S, 0)
+CONF_Z = core.PARS['calibration']['nm(pix)']['Z']
+CONF_S = core.PARS['calibration']['nm(pix)']['S']
+LAMBDA_CONSTS = {pair: core.PARS['calibration']['points']['o3_pair_{}'.format(pair)] +
+                       core.PARS['calibration']['points']['cloud_pair_{}'.format(pair)]
+                 for pair in ["1", "2"]}
+P1_UVA, P2_UVA = nm2pix(315, CONF_S), nm2pix(400, CONF_S)
+P1_UVB, P2_UVB = nm2pix(280, CONF_S), nm2pix(315, CONF_S)
 P1_UVE, P2_UVE = 0, 3691
-P_ZERO = {pair: nm2pix(nm, CONF_Z, 0) for pair, nm in zip(["1", "2"], [290, 295])}
-P_LAMST = nm2pix(290, CONF_Z, 0)
-LAMBDA_CONSTS_PIX = {pair: [nm2pix(i, CONF_Z, 0) for i in const] for pair, const in LAMBDA_CONSTS.items()}
+P_ZERO = {pair: nm2pix(nm, CONF_Z) for pair, nm in zip(["1", "2"], [290, 295])}
+P_LAMST = nm2pix(290, CONF_Z)
+LAMBDA_CONSTS_PIX = {pair: [nm2pix(i, CONF_Z) for i in const] for pair, const in LAMBDA_CONSTS.items()}

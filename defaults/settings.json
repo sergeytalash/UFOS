@@ -80,7 +80,11 @@
     "uve_koef": 1
   },
   "calibration2": {
+    "coorect_mu_eff_end": 3,
+    "coorect_mu_eff_start": 2,
     "description": {
+      "coorect_mu_eff_end": "",
+      "coorect_mu_eff_start": "",
       "kzLarger1": "List of coefficients. Can be unlimited",
       "kzLess1": "List of coefficients. Can be unlimited",
       "kz_obl1": "List of coefficients. Can be unlimited",
@@ -124,8 +128,8 @@
       -2.2256
     ],
     "pix+-": 2,
-    "mu_effect_1": 2,
-    "mu_effect_2": 2,
+    "mu_effect_1": 2.5,
+    "mu_effect_2": 2.5,
     "visible_sunheight_max": 5,
     "visible_sunheight_min": 5
   },
@@ -150,6 +154,7 @@
       "channel": "Names and order of channels to perform measurements",
       "graduation_expo": "Graduation exposition to get atmospheric values of spectr",
       "id": "Device identificator",
+      "pix_work_interval": "Work interval of pixels",
       "manual_expo": "auto_exposition=0. List of expositions to perform set of measurements"
     },
     "accummulate": 1,

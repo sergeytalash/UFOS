@@ -1,11 +1,15 @@
 # Version: 2.0
-# Modified: 17.03.2018
+# Modified: 13.08.2021
 # Author: Sergey Talash
-import os
+"""
+Script opens settings.json configuration file and fills out the GUI form.
+Turns all values back to json and saves the file when the button is pressed
+"""
 from tkinter import *
 from tkinter import ttk
 
-import procedures
+from lib import core
+from lib import gui
 
 
 class Gui:
@@ -25,7 +29,7 @@ class Gui:
             self.gui_ignore = ['calibration', 'calibration2', 'channel_names', 'device', 'version']
         else:
             self.gui_ignore = []
-        self.default_pars = procedures.Settings.get_defaults(os.getcwd())
+        self.default_pars = core.get_default_settings()
 
     def make_admin_entry(self):
         self.ent.grid(column=1, row=0, sticky='e', padx=self.padding_x, pady=self.padding_y)
@@ -80,7 +84,7 @@ class Gui:
                         description = description[i]
                     if not isinstance(description, dict):
                         try:
-                            procedures.HoverInfo(lab, description)
+                            gui.HoverInfo(lab, description)
                         except:
                             # Are there any missing descriptions in settings?
                             pass
@@ -115,11 +119,9 @@ class Gui:
                 exec("self.new_pars{0} = self.default_pars{0}".format(position))
                 old_fs = fs
             elif type(i) == ttk.Entry:
-                new = i.get()
-                # print([new])
                 position = ''.join(["['{}']".format(item) for item in tmp_queue])
                 # Inserting values from GUI
-                exec("self.new_pars{0} = self.retype(self.default_pars{0}, new)".format(position))
+                exec("self.new_pars{0} = self.retype(self.default_pars{0}, '{1}')".format(position, i.get()))
         for key in self.new_pars.keys():
             if isinstance(self.pars[key], str):
                 self.pars[key] = self.new_pars[key]
@@ -128,14 +130,13 @@ class Gui:
         self.new_pars = self.pars
 
         try:
-            procedures.Settings.set(os.getcwd(), self.new_pars, common_pars['device']['id'])
-            print('UFOS {}: New settings were written successfully.'.format(common_pars['device']['id']))
+            core.update_settings(self.new_pars)
+            print('UFOS {}: New settings have been written successfully.'.format(core.get_device_id()))
         except Exception as err:
             print('ERROR! New settings are incorrect! {}'.format(err))
 
     def make_buttons(self):
         but_save = ttk.Button(root, text='Сохранить', command=self.save_params)
-        # but_save.grid(column=self.column, row=self.max_row * 2, sticky='we', padx=self.padding_x, pady=self.padding_y)
         but_save.grid(column=1, row=0, sticky='w', padx=self.padding_x, pady=self.padding_y)
 
 
@@ -156,23 +157,23 @@ def start_with_all_settings(*event):
     GUI.make_buttons()
 
 
-"""============== GUI Structure =============="""
+if __name__ == "__main__":
+    """============== GUI Structure =============="""
 
-# Отображать только настройки для наблюдателей станции
-show_settings_for_station = True
-global_separator = ' '
+    # Отображать только настройки для наблюдателей станции
+    show_settings_for_station = True
+    global_separator = ' '
 
-root = Tk()
-root.title('УФОС Настройка')
-root.geometry('+200+10')
-root.resizable(True, True)
+    root = Tk()
+    root.title('УФОС Настройка')
+    root.geometry('+200+10')
+    root.resizable(True, True)
 
-common_pars = procedures.Settings.get_common(os.getcwd())
-params = procedures.Settings.get_device(os.getcwd(), common_pars['device']['id'])
+    params = core.get_settings()
 
-GUI = Gui(params, 0, 0, show_settings_for_station)
-GUI.make_labels(params)
-GUI.make_admin_entry()
-GUI.make_buttons()
+    GUI = Gui(params, 0, 0, show_settings_for_station)
+    GUI.make_labels(params)
+    GUI.make_admin_entry()
+    GUI.make_buttons()
 
-root.mainloop()
+    root.mainloop()

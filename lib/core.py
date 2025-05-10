@@ -1,8 +1,18 @@
+import inspect
 import json
 import logging
 import logging.handlers as handlers
 import os
+import string
+import sys
 from datetime import datetime
+
+
+def print_error(err):
+    print(inspect.currentframe().f_code.co_name)
+    text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
+    print(text)
+    LOGGER.error(text)
 
 
 def measure_year_dir(dt, dir_type, deep=False):
@@ -35,13 +45,14 @@ def measure_month_dir(dt, dir_type, deep=False):
         list | str
     """
     dirs_list = measure_year_dir(dt, dir_type, True) + [dt.strftime('%Y-%m')]
-    if deep:
-        return dirs_list
-    else:
-        return os.path.join(*dirs_list)
+    return dirs_list
+    # if deep:
+    #     return dirs_list
+    # else:
+    #     return os.path.join(*dirs_list)
 
 
-def measure_day_dir(dt, dir_type, deep=False):
+def measure_day_dir(dt, dir_type='Mesurements', deep=False):
     """
     Args:
         dt (datetime):
@@ -65,7 +76,7 @@ def get_device_id():
     Returns:
         Int
     """
-    with open(os.path.join(HOME, 'common_settings.json'), 'r') as f:
+    with open(os.path.join(HOME, DEVICE_ID_FILE), 'r') as f:
         return json.load(f)['device']['id']
 
 
@@ -147,8 +158,8 @@ def read_nomographs(o3_num):
     if os.path.exists(filename):
         with open(filename, 'r') as fr:
             ozone_number = 0
-            mueff_number = 0
-            mueff_step = 0.05
+            # mueff_number = 0
+            # mueff_step = 0.05
             # TODO: Refactor nomograph file for better operations
             while True:
                 line = fr.readline()
@@ -175,6 +186,7 @@ def read_nomographs(o3_num):
                     break
                 else:
                     r12_list_str = line.split('\t')[:ozone_number]
+                    # print(">>>",  r12_list_str, ">>>", ozone_number)
                     r12_list_float = [float(r12) for r12 in r12_list_str]
                     # r12_list_float_reversed = list(reversed(r12_list_float))
                     r12_list.append(list(reversed(r12_list_float)))
@@ -214,24 +226,36 @@ def make_dirs(dirs, reset_counter=False):
     if out:
         return path, 1
     else:
-        return path
+        return path, None
 
 
 def make_list():
-    global disks
-    if os.name == 'posix':
+    if not WINDOWS_OS:
         disks = '/'
     else:
-        alp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-               'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        alp = string.ascii_uppercase
         disks = []
         for i in alp:
             try:
                 os.chdir(i + ':\\')
                 disks.append(os.getcwd()[:1])
-            except:
+            except OSError:
                 pass
     return tuple(disks)
+
+
+def get_home():
+    current = os.getcwd()
+    path_list = current.split(SEP)
+    if "UFOS" in path_list:
+        i = path_list.index("UFOS")
+        current = SEP.join(path_list[:i + 1])
+    for d in [".", "UFOS", "..", f"..{SEP}.."]:
+        path = os.path.join(current, d)
+        if DEVICE_ID_FILE in os.listdir(path):
+            return os.path.normpath(path)
+    else:
+        raise OSError("Can't find UFOS root directory.")
 
 
 # class Profiler(object):
@@ -248,12 +272,11 @@ else:
     WINDOWS_OS = True
     SEP = '\\'
 
-NOW = datetime.now
-HOME = os.getcwd()
+DEVICE_ID_FILE = 'common_settings.json'
+# os.chdir("../UFOS")
+HOME = get_home()
 PATH = HOME
-TMP_PATH = HOME
 LAST_DIR = []
-DISKS = []
 DEVICE_ID = get_device_id()
 SETTINGS_DIR = os.path.join(HOME, 'Ufos_{}'.format(DEVICE_ID), 'Settings')
 DEVICE_SETTINGS_PATH = os.path.join(SETTINGS_DIR, 'settings.json')
