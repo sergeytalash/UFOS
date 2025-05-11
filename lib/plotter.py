@@ -463,7 +463,7 @@ class Main:
 
             # Admin Menu
             self.chk_var_sens_z = IntVar()
-            self.chk_var_sens_z.set(1)
+            self.chk_var_sens_z.set(0)
             self.chk_sens_z = ttk.Checkbutton(
                 self.admin_panel,
                 text='SensZ',
