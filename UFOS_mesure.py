@@ -2,10 +2,9 @@
 # Modified: 11.05.2025
 # Author: Sergey Talash
 
-try:
-    from lib import calculations as calc, measure, core
-except ModuleNotFoundError as err:
-    import calculations as calc, measure, core
+from lib import calculations as calc
+from lib import core
+from lib import measure
 
 from datetime import datetime
 

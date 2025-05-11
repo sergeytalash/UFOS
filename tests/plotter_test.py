@@ -49,18 +49,18 @@ class TestProcedures(unittest.TestCase):
                          (['1', '1', '1', '1', '1', '0', '0', '1', '0', '1'], 5.22, 276))
 
     def test_finalfile_prepare_a_datetime_string(self):
-        init = UFOS_plotter.FinalFile(self.settings_dict, '.', True, '')
+        init = UFOS_plotter.SaveFile(self.settings_dict, '.', True, '')
         self.assertEqual(init.prepare('20181203 06:43:55', {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}),
                          ('20181203 06:43:55', 5.475, {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}))
 
     def test_finalfile_prepare_b_datetime_datetime(self):
-        init = UFOS_plotter.FinalFile(self.settings_dict, '.', True, '')
+        init = UFOS_plotter.SaveFile(self.settings_dict, '.', True, '')
         self.assertEqual(init.prepare(datetime.datetime.strptime('20181203 06:43:55', '%Y%m%d %H:%M:%S'),
                                       {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}),
                          ('20181203 06:43:55', 5.475, {'o3_1': 713, 'o3_2': 279, 'correct_1': 0, 'correct_2': 1}))
 
     def test_finalfile_save_a(self):
-        init = UFOS_plotter.FinalFile(self.settings_dict, '.', True, '')
+        init = UFOS_plotter.SaveFile(self.settings_dict, '.', True, '')
         ozone_file = os.path.join('{}Ufos_14'.format(get_tests_dir()), 'Ozone', '2018', '2018-12',
                                   'New_m14_Ozone_20181203.txt')
         if os.path.exists(ozone_file):

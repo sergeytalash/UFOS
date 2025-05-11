@@ -80,11 +80,11 @@
     "uve_koef": 1
   },
   "calibration2": {
-    "coorect_mu_eff_end": 3,
-    "coorect_mu_eff_start": 2,
+    "correct_mu_eff_end": 3,
+    "correct_mu_eff_start": 2,
     "description": {
-      "coorect_mu_eff_end": "",
-      "coorect_mu_eff_start": "",
+      "correct_mu_eff_end": "",
+      "correct_mu_eff_start": "",
       "kzLarger1": "List of coefficients. Can be unlimited",
       "kzLarger2": "List of coefficients. Can be unlimited",
       "kzLess1": "List of coefficients. Can be unlimited",

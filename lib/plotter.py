@@ -26,10 +26,13 @@ from tkinter import ttk
 import numpy as np
 
 try:
-    from lib import calculations as calc, gui, core
+    from lib import calculations as calc
+    from lib import core
+    from lib import gui
 except (ImportError, ModuleNotFoundError):
-    import calculations as calc, gui, core
-
+    import calculations as calc
+    import core
+    import gui
 
 if sys_pf == 'darwin':
     import matplotlib
@@ -47,16 +50,16 @@ else:
 
 
 class PlotClass:
-    def __init__(self, root, window, o3_mode, plotx, ploty, recalculate_value,
-                 show_all, use_sensitivity_z, use_sensitivity_s, var_top, psZ,
-                 psS, canvs):
+    def __init__(self, root, window, o3_mode, plot_x, plot_y, recalculate_value,
+                 show_all, use_sensitivity_z, use_sensitivity_s, var_top, ps_z,
+                 ps_s, canvas_list):
         """
 
         Args:
             window (ttk.Frame):  where graph is created
             o3_mode (str): Mode of measurements ('spectr', 'ozone', 'uva', 'uvb', 'uve')
-            plotx (int): Width of picture in pixels
-            ploty (int): Height of picture in pixels
+            plot_x (int): Width of picture in pixels
+            plot_y (int): Height of picture in pixels
             recalculate_value (int): Read measured files (1 or 0)
             show_all (int): Show all calculated values, ignore correction filters (1 or 0)
             use_sensitivity_z (int): Use sensitivity (1 or 0)
@@ -67,10 +70,10 @@ class PlotClass:
         self.use_sensitivity_z = use_sensitivity_z
         self.use_sensitivity_s = use_sensitivity_s
         self.var_top = var_top
-        self.canvs = canvs
+        self.canvas_list = canvas_list
         self.recalculate_value = recalculate_value
-        self.plotx = plotx
-        self.ploty = ploty
+        self.plot_x = plot_x
+        self.plot_y = plot_y
         self.window = window
         self.o3_mode = o3_mode
         self.date_time = ''
@@ -84,16 +87,16 @@ class PlotClass:
         self.max_y = 4096
         self.spectr = []
         self.uvs_or_o3 = {}
-        self.ozon = 0
+        self.ozone = 0
         self.fig, self.ax = plt.subplots(1)
         plt.subplots_adjust(left=0.07, right=0.97, bottom=0.07, top=0.95)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         self.nexday_allow_flag = 0
         self.dates = []
         self.hss = []
-        self.ozons = []
+        self.ozone_list = []
         self.spectrum = []
-        self.oldfilelist = os.listdir(core.PATH)
+        self.old_file_list = os.listdir(core.PATH)
         self.hours = mdates.HourLocator()
         self.minutes = mdates.MinuteLocator()
         self.DateFmt = mdates.DateFormatter('%H:%M')
@@ -101,21 +104,16 @@ class PlotClass:
             self.point = 'o'
         elif self.o3_mode == 'spectr':
             self.point = '-'
-        self.psZ = psZ
-        self.psS = psS
+        self.psZ = ps_z
+        self.psS = ps_s
         # Calc ozone
         self.o3 = {}
         self.uvs_or_o3['ZD'] = {}
         self.prom = int(core.PARS['calibration2']['pix+-'] / eval(calc.CONF_Z[1]))
-        self.f = core.PARS['station']['latitude']
-        self.l = core.PARS['station']['longitude']
-        self.pelt = int(core.PARS['station']['timezone'])
         self.y1 = []
         self.y2 = []
         self.x1 = []
         self.x2 = []
-        # self.sh1 = []
-        # self.sh2 = []
         # Calc UV
         self.uv = 0
         self.uvs_or_o3['SD'] = {}
@@ -126,14 +124,14 @@ class PlotClass:
         self.sensitivityS = core.read_sensitivity("S")
         self.sensitivity_eritem = core.read_sensitivity("E")
 
-    def calc_ozon(self):
+    def calc_ozone(self):
         self.spectrum = calc.spectr2zero(self.data['spectr'])
         """Расчет озона"""
         self.o3 = {}
         correct = {}
-        addational_data = {}
+        additional_data = {}
         for pair, values in calc.LAMBDA_CONSTS.items():
-            self.o3[pair], correct[pair], addational_data[pair] = calc.pre_calc_o3(
+            self.o3[pair], correct[pair], additional_data[pair] = calc.pre_calc_o3(
                 calc.LAMBDA_CONSTS[pair],
                 calc.LAMBDA_CONSTS_PIX[pair],
                 self.spectrum,
@@ -144,8 +142,8 @@ class PlotClass:
                                 'o3_2': self.o3["2"],
                                 'correct_1': correct["1"],
                                 'correct_2': correct["2"],
-                                'additional_data_1': addational_data["1"],
-                                'additional_data_2': addational_data["2"]}
+                                'additional_data_1': additional_data["1"],
+                                'additional_data_2': additional_data["2"]}
         if self.o3_mode != 'spectr':
             if self.show_all or correct["1"] == 1:
                 self.x1.append(self.data['datetime'])
@@ -195,25 +193,28 @@ class PlotClass:
         try:
             with open(file_path, errors='ignore') as f:
                 data = json.load(f)
-                if flag:
-                    new_data = {'spectr': data['spectr'],
-                                'datetime': datetime.strptime(data['mesurement']['datetime_local'],
-                                                              '%Y%m%d %H:%M:%S'),
-                                'hs': data['calculated']['sunheight'],
-                                'amas': data['calculated']['amas'],
-                                'mu': data['calculated']['mu'],
-                                'expo': data['mesurement']['exposition'],
-                                'accumulate': data['mesurement']['accummulate'],
-                                'channel': data['mesurement']['channel']
-                                }
-                    try:
-                        new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
-                        new_data['temperature_poly'] = data['mesurement']['temperature_poly']
-                    except KeyError:
-                        new_data['temperature_ccd'] = 'None'
-                        new_data['temperature_poly'] = 'None'
-                else:
-                    new_data = data
+            if flag:
+                new_data = {'spectr': data['spectr'],
+                            'datetime': datetime.strptime(data['mesurement']['datetime_local'],
+                                                          '%Y%m%d %H:%M:%S'),
+                            'hs': data['calculated']['sunheight'],
+                            'amas': data['calculated']['amas'],
+                            'mu': data['calculated']['mu'],
+                            'expo': data['mesurement']['exposition'],
+                            'accumulate': data['mesurement']['accummulate'],
+                            'channel': data['mesurement']['channel'],
+                            'latitude': data['mesurement']['latitude'],
+                            'longitude': data['mesurement']['longitude'],
+                            'timezone': data['mesurement']['timezone']
+                            }
+                try:
+                    new_data['temperature_ccd'] = data['mesurement']['temperature_ccd']
+                    new_data['temperature_poly'] = data['mesurement']['temperature_poly']
+                except KeyError:
+                    new_data['temperature_ccd'] = 'None'
+                    new_data['temperature_poly'] = 'None'
+            else:
+                new_data = data
             return new_data
         except json.decoder.JSONDecodeError as err:
             gui.show_error_in_separate_window(err, "Ufos measurement file is invalid.")
@@ -265,14 +266,14 @@ class PlotClass:
         return self.data
 
     def fig_prepare(self):
-        while len(self.canvs) > 0:
-            canvas_i, fig_i = self.canvs.pop()
+        while len(self.canvas_list) > 0:
+            canvas_i, fig_i = self.canvas_list.pop()
             fig_i.clf()
             canvas_i.get_tk_widget().destroy()
         self.fig.clf()
         plt.close()
         gc.collect()
-        self.plotx, self.ploty = gui.update_geometry(self.root)
+        self.plot_x, self.plot_y = gui.update_geometry(self.root)
         self.fig, self.ax = plt.subplots(1)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
 
@@ -307,7 +308,7 @@ class PlotClass:
         self.zen_path = path
         self.fig_prepare()
 
-        self.fig.set_size_inches(self.plotx / 82, self.ploty / 80)
+        self.fig.set_size_inches(self.plot_x / 82, self.plot_y / 80)
         self.fig.set_dpi(80)
 
         if self.o3_mode == 'first':
@@ -320,8 +321,8 @@ class PlotClass:
         # ====================== Spectr ======================
         elif self.o3_mode == 'spectr':
             print('show spectr')
-            self.ax.set_xlabel('nm')
-            self.ax.set_ylabel('mV')
+            self.ax.set_xlabel('нм')
+            self.ax.set_ylabel('мВ')
             if 'Z' in self.data['channel']:
                 conf = calc.CONF_Z
                 if self.use_sensitivity_z:
@@ -330,7 +331,7 @@ class PlotClass:
                 conf = calc.CONF_S
                 if self.use_sensitivity_s:
                     self.apply_sensitivity(self.sensitivityS)
-            self.ax.set_ylabel('mWt/m^2*nm')
+            self.ax.set_ylabel('мВт/м^2*нм')
             self.ax.plot([calc.pix2nm(index, conf) for index, value in enumerate(self.spectrum)],
                          self.spectrum, self.point, color='k')
             if self.var_top.get():
@@ -358,27 +359,22 @@ class PlotClass:
                 self.ax.set_ylabel('o3')
             # ====================== UV =========================
             elif self.o3_mode == 'uva':
-                self.ax.set_ylabel('mWt/m^2')
+                self.ax.set_ylabel('мВт/м^2')
                 print('show uva')
             elif self.o3_mode == 'uvb':
-                self.ax.set_ylabel('mWt/m^2')
+                self.ax.set_ylabel('мВт/м^2')
                 print('show uvb')
             elif self.o3_mode == 'uve':
-                self.ax.set_ylabel('mWt/m^2')
+                self.ax.set_ylabel('мВт/м^2')
                 print('show uve')
             # ===================================================
             for x_mas, y_mas, color in zip([self.x1, self.x2], [self.y1, self.y2], ['blue', 'green']):
                 if y_mas:
                     tmp_y = []
                     tmp_x = []
-                    # print([_sh])
                     for x, y in zip(x_mas, y_mas):
                         if y < 0:
                             y = 0
-                        # print([var_settings["calibration2"]["visible_sunheight_min"],
-                        #        s,
-                        #        var_settings["calibration2"]["visible_sunheight_max"]])
-                        # if var_settings["calibration2"]["visible_sunheight_min"] < s < var_settings["calibration2"]["visible_sunheight_max"]:
                         tmp_y.append(y)
                         tmp_x.append(x)
                     y_mas = tmp_y
@@ -387,16 +383,19 @@ class PlotClass:
                     self.set_plot_limits(x_mas, y_mas, min(x_mas), min(x_mas) + timedelta(hours=2), 'hour')
             self.ax.grid(True)
             self.fig.canvas.draw()
-            gui.canvs_destroy(self.canvs)
+            gui.canvs_destroy(self.canvas_list)
 
         canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
-        self.canvs.append((canvas, self.fig))
+        self.canvas_list.append((canvas, self.fig))
         canvas.draw()
 
 
 class Main:
     def __init__(self, show_ozone_pairs):
+        self.dirs_list = None
+        self.disk_list = None
+        self.dir_list_widget_window = None
         self.show_ozone_pairs = show_ozone_pairs
         self.human_error_text = ""
         self.ts, self.shs, self.calc_results = [], [], []
@@ -417,7 +416,7 @@ class Main:
         self.bit = 1
         self.ok = 1
         self.scale_printed = 0
-        self.canvs = []
+        self.canvas_list = []
         self.last_dir = []
         self.last_path = core.last_used_path(core.HOME, core.PATH, 'r')
         try:
@@ -493,8 +492,12 @@ class Main:
             self.but_make_mean_file = ttk.Button(self.admin_panel, text='Сохранить в файл среднего')
             self.var_scale = IntVar()
             self.var_scale.set(1)
-            self.rad_4096 = ttk.Radiobutton(self.admin_panel, text='Единая шкала', variable=self.var_scale, value=0)
-            self.rad_ytop = ttk.Radiobutton(self.admin_panel, text='Оптимальная шкала', variable=self.var_scale, value=1)
+            self.rad_4096_scale = ttk.Radiobutton(self.admin_panel,
+                                                  text='Единая шкала',
+                                                  variable=self.var_scale, value=0)
+            self.rad_dynamic_scale = ttk.Radiobutton(self.admin_panel,
+                                                     text='Оптимальная шкала',
+                                                     variable=self.var_scale, value=1)
 
             self.but_plot_more = ttk.Button(self.admin_panel, text='Подробный просмотр', command=self.plot_more)
             self.uv = IntVar()
@@ -504,14 +507,14 @@ class Main:
 
             # Annual ozone calculations
             self.ent_year = ttk.Entry(self.admin_panel)
-            self.ent_year.insert(0, "2018")
+            self.ent_year.insert(0, "2024")
             self.but_annual_ozone = ttk.Button(self.admin_panel, text='Сохранить озон за год')
 
             self.admin_menu_obj = [self.chk_sens_z, self.chk_sens_s, self.chk_show_all, self.chk_show_correct1,
                                    self.chk_recalculate_source_files,
                                    self.but_save_to_final_file,
                                    self.but_make_mean_file,
-                                   self.rad_4096, self.rad_ytop, self.but_plot_more, self.but_remake,
+                                   self.rad_4096_scale, self.rad_dynamic_scale, self.but_plot_more, self.but_remake,
                                    # but_send
                                    self.ent_year, self.but_annual_ozone
                                    ]
@@ -539,9 +542,9 @@ class Main:
             self.file_list = Listbox(self.left_panel, selectmode=SINGLE, height=16, width=28)
             self.scr_lefty = ttk.Scrollbar(self.left_panel, command=self.file_list.yview)
             self.file_list.configure(yscrollcommand=self.scr_lefty.set)
-            self.lab_currnt_data = ttk.Label(self.left_panel, text='Данные: ')
-            self.currnt_data = ttk.Label(self.left_panel, text='')
-            self.lab_ozon = ttk.Label(self.left_panel, text='', foreground='blue', font=self.appHighlightFont)
+            self.lab_current_data = ttk.Label(self.left_panel, text='Данные: ')
+            self.current_data = ttk.Label(self.left_panel, text='')
+            self.lab_ozone = ttk.Label(self.left_panel, text='', foreground='blue', font=self.appHighlightFont)
             self.lab_uva = ttk.Label(self.left_panel, text=': ', foreground='blue')
             self.lab_uvb = ttk.Label(self.left_panel, text=': ', foreground='blue')
             self.lab_uve = ttk.Label(self.left_panel, text=': ', foreground='blue')
@@ -557,7 +560,7 @@ class Main:
             self.but_refresh.grid(row=0, column=0, sticky='w')
             self.but_dir.grid(row=0, column=1, sticky='w')
 
-            self.obj_grid()
+            self.draw_panels()
 
             # but_send.grid(row=0, column=10, sticky='w')
             self.ent_code.grid(row=0, column=13, sticky='e')
@@ -565,13 +568,13 @@ class Main:
             self.left_panel.grid(row=1, column=0, sticky='nwse', padx=1)
             self.file_list.grid(row=0, column=0, sticky='nwse', padx=1)
             self.scr_lefty.grid(row=0, column=1, sticky='nws')
-            self.lab_currnt_data.grid(row=2, column=0, sticky='we', padx=1)
-            self.lab_ozon.grid(row=3, column=0, sticky='we', padx=1)
+            self.lab_current_data.grid(row=2, column=0, sticky='we', padx=1)
+            self.lab_ozone.grid(row=3, column=0, sticky='we', padx=1)
             self.lab_uva.grid(row=4, column=0, sticky='we', padx=1)
             self.lab_uvb.grid(row=5, column=0, sticky='we', padx=1)
             self.lab_uve.grid(row=6, column=0, sticky='we', padx=1)
             self.lab_sun.grid(row=7, column=0, sticky='we', padx=1)
-            self.currnt_data.grid(row=8, column=0, sticky='we', padx=1)
+            self.current_data.grid(row=8, column=0, sticky='we', padx=1)
             """=============================================================="""
             calc.CONF_Z = core.PARS['calibration']['nm(pix)']['Z']
             calc.CONF_S = core.PARS['calibration']['nm(pix)']['S']
@@ -596,14 +599,12 @@ class Main:
             self.start = self.first_clear_plot(self.root, self.plotx, self.ploty, self.right_panel)
 
             # Скрыть следующие кнопки
-            self.common = [self.rad_4096, self.rad_ytop, self.but_plot_more, self.but_remake]
-            self.sertification = [self.rad_4096, self.rad_ytop, self.but_plot_more, self.rad_uva, self.rad_uvb,
-                                  self.rad_uve, self.but_remake,
+            self.common = [self.rad_4096_scale, self.rad_dynamic_scale, self.but_plot_more, self.but_remake]
+            self.certification = [self.rad_4096_scale, self.rad_dynamic_scale, self.but_plot_more,
+                                  self.rad_uva, self.rad_uvb, self.rad_uve, self.but_remake,
                                   self.chk_recalculate_source_files,
                                   self.but_save_to_final_file, self.but_make_mean_file]
-
-            # Uncomment after debug will be finished
-            self.change_privileges(self.common, 0)
+            self.admin_panel.grid_forget()
 
             """=============================================================="""
             self.downline.grid(row=6, column=0, sticky='nswe', columnspan=4)
@@ -626,16 +627,15 @@ class Main:
             print("show_error_in_separate_window", str(err))
         finally:
             pass
-            # self.root.destroy()
 
     def check_code(self, *event):
         code = self.ent_code.get()
         if code == '9':
-            self.obj_grid()
+            self.draw_panels()
         else:
-            self.change_privileges(self.common, 0)
+            self.admin_panel.grid_forget()
 
-    def obj_grid(self):
+    def draw_panels(self):
         r = 0
         c = 0
         self.bit = 1
@@ -657,10 +657,6 @@ class Main:
                 r += 1
                 c = 0
                 self.bit = 0
-
-    def change_privileges(self, priv, on_off):
-        """Скрыть сервисную панель"""
-        self.admin_panel.grid_forget()
 
     def window_closed(self):
         self.root.quit()
@@ -708,7 +704,8 @@ class Main:
         self.but_remake.config(text='Новый формат Z-D')
         self.refresh_txtlist(core.PATH)
 
-    def analyze(self, text1, file):
+    @staticmethod
+    def analyze(text1, file):
         tmp = 0
         len_t = len(text1)
         while tmp < 100:
@@ -728,7 +725,7 @@ class Main:
                           False,
                           False,
                           self.var_scale, self.psZ, self.psS,
-                          self.canvs)
+                          self.canvas_list)
         start.plot(core.PATH)
         return start
 
@@ -764,7 +761,7 @@ class Main:
         self.uv.set(4)
         for i in self.buttons:
             i.configure(state=DISABLED)
-        self.lab_ozon.configure(text='Значение озона: ')
+        self.lab_ozone.configure(text='Значение озона: ')
         for mode, var in zip(['uva', 'uvb', 'uve'], [self.lab_uva, self.lab_uvb, self.lab_uve]):
             var.configure(text='Значение UV-{}: '.format(mode[-1].upper()))
         self.root.update()
@@ -772,7 +769,7 @@ class Main:
         start = PlotClass(self.root, self.right_panel, 'spectr', plotx, ploty, True, False,
                           self.chk_var_sens_z.get(),
                           self.chk_var_sens_s.get(),
-                          self.var_scale, self.psZ, self.psS, self.canvs)
+                          self.var_scale, self.psZ, self.psS, self.canvas_list)
         try:
             file = self.file_list.selection_get()
         except TclError:
@@ -781,8 +778,8 @@ class Main:
         start.data = start.get_spectr(os.path.join(core.PATH, file))
         if start.data['channel'].count("Z-D") > 0 or start.data['channel'].count("ZD") > 0:
             try:
-                start.calc_ozon()
-                self.lab_ozon.configure(text='\n'.join(
+                start.calc_ozone()
+                self.lab_ozone.configure(text='\n'.join(
                     ['Значение озона'] + ['(P{}): {} е.Д.'.format(pair, start.o3[pair]) for pair in
                                           self.show_ozone_pairs]))
             except TclError:
@@ -793,12 +790,12 @@ class Main:
                 var.configure(text='Значение UV-{}: {} мВт/м^2'.format(mode[-1].upper(), int(start.uv)))
         data = (
             """Канал: {}
-    Дата Время: {}
-    Высота Солнца: {} (mu={})
-    Темп. CCD: {}
-    Темп. Полихроматора: {}
-    Экспозиция: {}
-    Число суммирований: {}""".format(
+Дата Время: {}
+Высота Солнца: {} (mu={})
+Темп. CCD: {}
+Темп. Полихроматора: {}
+Экспозиция: {}
+Число суммирований: {}""".format(
                 start.data['channel'],
                 start.data['datetime'],
                 start.data['hs'],
@@ -807,7 +804,7 @@ class Main:
                 start.data['temperature_poly'],
                 start.data['expo'],
                 start.data['accumulate']))
-        self.currnt_data.configure(text=data)
+        self.current_data.configure(text=data)
         start.x2 = range(len(start.spectrum))
         start.y2 = start.spectrum
         start.plot(core.PATH)
@@ -887,7 +884,7 @@ class Main:
             self.refresh_txtlist(core.PATH)
             self.dir_list_opened = False
         else:
-            self.dir_list_widget(core.PATH)
+            self.dir_list_widget()
             self.refresh_txtlist(core.PATH)
             self.dir_list_opened = True
 
@@ -897,16 +894,16 @@ class Main:
             self.refresh_txtlist(core.PATH)
             self.dir_list_opened = False
 
-    def dir_list_widget(self, set_dir):
+    def dir_list_widget(self):
         self.dir_list_widget_window = Toplevel()
         self.dir_list_opened = True
         self.dir_list_widget_window.deiconify()
         self.dir_list_widget_window.title('Каталог')
         self.dir_list_widget_window.protocol('WM_DELETE_WINDOW', self.dirs_window_destroy)
         geom = self.root.geometry().split('+')
-        AxB = '200x320+'
+        window_size = '200x320+'
         da, db = 25, 65
-        self.dir_list_widget_window.geometry('{0}{1}+{2}'.format(AxB, int(geom[1]) + da, int(geom[2]) + db))
+        self.dir_list_widget_window.geometry('{0}{1}+{2}'.format(window_size, int(geom[1]) + da, int(geom[2]) + db))
         self.dir_list_widget_window.resizable(False, False)
         lab_disk = ttk.Label(self.dir_list_widget_window, text='Выбор диска:')
         self.disk_list = ttk.Combobox(self.dir_list_widget_window, values=self.make_list(), width=6)
@@ -928,7 +925,8 @@ class Main:
     def refresh(self):
         self.refresh_txtlist(core.PATH)
 
-    def normalize(self, var):
+    @staticmethod
+    def normalize(var):
         var = str(var)
         if len(var) == 1:
             return var.zfill(2)
@@ -951,7 +949,7 @@ class Main:
         recalculate_source_files_value = self.var_recalculate_source_files.get()
         show_all_value = self.var_show_all.get()
         show_correct1_value = self.chk_var_show_correct1.get()
-        gui.canvs_destroy(self.canvs)
+        gui.canvs_destroy(self.canvas_list)
         try:
             self.refresh_txtlist(core.PATH)
             self.dir_list_opened = False
@@ -975,8 +973,8 @@ class Main:
         elif mode == 3:
             o3_mode = 'uve'
             tex = 'Идет пересчёт УФ-Э'
-        self.currnt_data.configure(text='')
-        self.lab_ozon.configure(text=tex)
+        self.current_data.configure(text='')
+        self.lab_ozone.configure(text=tex)
         self.root.update()
         plotx, ploty = gui.update_geometry(self.root)
         txt = make_txt_list_ZSD(core.PATH)
@@ -985,7 +983,7 @@ class Main:
                           show_all_value,
                           self.chk_var_sens_z.get(),
                           self.chk_var_sens_s.get(),
-                          self.var_scale, self.psZ, self.psS, self.canvs)
+                          self.var_scale, self.psZ, self.psS, self.canvas_list)
         if recalculate_source_files_value == 0:  # Чтение из файла
             column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
             # datetime_index = 0 # UTC
@@ -1088,27 +1086,23 @@ class Main:
         else:  # Пересчёт
             mean_file = 0
             self.ts, self.shs, self.calc_results = [], [], []
-            saving = calc.FinalFile(annual_file=False, but_make_mean_file=self.but_make_mean_file)
+            save_class = calc.SaveFile(annual_file=False, but_make_mean_file=self.but_make_mean_file)
             for i in txt:
                 start.uvs_or_o3['ZD'] = {}
                 start.uvs_or_o3['SD'] = {}
 
                 chan = ''
-                if i.count("Z-D") > 0 or i.count("ZD") > 0:
-                    color = 'black'
-                else:
-                    color = 'blue'
                 file = os.path.join(core.PATH, i)
                 if o3_mode == 'ozone':
                     chan = 'ZD'
                     if i.count("Z-D") > 0 or i.count("ZD") > 0:
                         start.data = start.get_spectr(file)
-                        start.calc_ozon()
+                        start.calc_ozone()
                         # t - datetime utc
                         # sh - sunheight
                         # cr - o3
-                        t, sh, cr = saving.prepare(start.data['datetime'],
-                                                   start.uvs_or_o3['ZD'])
+                        t, sh, cr = save_class.prepare(start.data,
+                                                       start.uvs_or_o3['ZD'])
                         self.ts.append(t)
                         self.shs.append(sh)
                         self.calc_results.append(cr)
@@ -1124,19 +1118,19 @@ class Main:
                         # t - datetime utc
                         # sh - sunheight
                         # cr - uv
-                        t, sh, cr = saving.prepare(start.data['datetime'],
-                                                   start.uvs_or_o3['SD'])
+                        t, sh, cr = save_class.prepare(start.data,
+                                                       start.uvs_or_o3['SD'])
                         self.ts.append(t)
                         self.shs.append(sh)
                         self.calc_results.append(cr)
             if start.x1:
                 self.but_save_to_final_file.configure(
-                    command=lambda: saving.save(chan, self.ts, self.shs, self.calc_results))
+                    command=lambda: save_class.save(chan, self.ts, self.shs, self.calc_results))
             else:
                 tex = 'Файлов измерений\nне найдено'
         try:
             if start.x1:
-                self.lab_currnt_data.configure(text='Дата: {0}'.format(start.x1[0]))
+                self.lab_current_data.configure(text='Дата: {0}'.format(start.x1[0]))
                 if o3_mode == 'ozone':
                     s = {"1": {"o3": start.y1}, "2": {"o3": start.y2}}
                     for o3_pair in ["1", "2"]:
@@ -1168,7 +1162,7 @@ class Main:
             raise err
 
         finally:
-            self.lab_ozon.configure(text=tex)
+            self.lab_ozone.configure(text=tex)
             self.lab_uva.configure(text='')
             self.lab_uvb.configure(text='')
             self.lab_uve.configure(text='')
