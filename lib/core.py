@@ -158,7 +158,7 @@ def read_nomographs(o3_num):
         filename = NOMOGRAPH_2_PATH
     ozone_list = []
     r12_list = []
-    mueff_list = []
+    mu_effective_list = []
     if os.path.exists(filename):
         with open(filename, 'r') as fr:
             ozone_number = 0
@@ -194,9 +194,9 @@ def read_nomographs(o3_num):
                     r12_list_float = [float(r12) for r12 in r12_list_str]
                     # r12_list_float_reversed = list(reversed(r12_list_float))
                     r12_list.append(list(reversed(r12_list_float)))
-                    mueff = line.split('\t')[ozone_number:ozone_number + 1:1][0]
-                    mueff_list.append(float(mueff))
-            return mueff_list, r12_list, ozone_list
+                    mu_effective = line.split('\t')[ozone_number:ozone_number + 1:1][0]
+                    mu_effective_list.append(float(mu_effective))
+            return mu_effective_list, r12_list, ozone_list
     else:
         human_text = "File {} does not exist. Ozone is not calculated.".format(filename)
         print(human_text)

@@ -109,7 +109,8 @@ class PlotClass:
         # Calc ozone
         self.o3 = {}
         self.uvs_or_o3['ZD'] = {}
-        self.prom = int(core.PARS['calibration2']['pix+-'] / eval(calc.CONF_Z[1]))
+        # self.prom = int(core.PARS['calibration2']['pix+-'] / eval(calc.CONF_Z[1]))
+        self.prom = int(core.PARS['calibration']['pix_interval'])
         self.y1 = []
         self.y2 = []
         self.x1 = []

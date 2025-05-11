@@ -530,7 +530,7 @@ def get_polynomial_result(coefficients, x):
     return sum([float(k) * float(x) ** degree for k, degree in zip(coefficients, range(len(coefficients)))])
 
 
-def sumarize(a):
+def summarize(a):
     return round(sum([float(i) for i in a if i != '']), 3)
 
 
@@ -542,12 +542,12 @@ def find_index_value_greater_x(list, x):
     return index_value_high
 
 
-def get_ozone_by_nomographs(r12clear, mueff, o3_num):
+def get_ozone_by_nomographs(r12clear, mu_effective, o3_num):
     """
     Reads nomograph
     Args:
         r12clear ():
-        mueff ():
+        mu_effective ():
         o3_num ():
 
     Returns:
@@ -555,7 +555,7 @@ def get_ozone_by_nomographs(r12clear, mueff, o3_num):
     """
     mueff_list, r12_list, ozone_list = core.read_nomographs(o3_num)
     "Найти значения mueff, между которыми находится наше значение"
-    index_mueff_high = find_index_value_greater_x(mueff_list, mueff)
+    index_mueff_high = find_index_value_greater_x(mueff_list, mu_effective)
     index_mueff_low = index_mueff_high - 1
     "вычисление r12 на нижней и на верхней номограмме путём линейной интерполяции"
     r12high_index = find_index_value_greater_x(r12_list[index_mueff_high], r12clear)
@@ -563,13 +563,13 @@ def get_ozone_by_nomographs(r12clear, mueff, o3_num):
     r12low = (r12_list[index_mueff_low][r12low_index]
               + (r12_list[index_mueff_high][r12low_index]
                  - r12_list[index_mueff_low][r12low_index])
-              * (mueff - mueff_list[index_mueff_low])
+              * (mu_effective - mueff_list[index_mueff_low])
               / (mueff_list[index_mueff_high]
                  - mueff_list[index_mueff_low]))
     r12high = (r12_list[index_mueff_low][r12high_index]
                + (r12_list[index_mueff_high][r12high_index]
                   - r12_list[index_mueff_low][r12high_index])
-               * (mueff - mueff_list[index_mueff_low])
+               * (mu_effective - mueff_list[index_mueff_low])
                / (mueff_list[index_mueff_high]
                   - mueff_list[index_mueff_low]))
     ozone = (ozone_list[r12low_index]
@@ -660,7 +660,7 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
     #     correct_mu_eff_end = 30
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
-        s = sumarize(spectrum[jj - prom:jj + prom + 1])
+        s = summarize(spectrum[jj - prom:jj + prom + 1])
         if s:
             p_mas.append(s)
         else:
@@ -690,7 +690,8 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
 class CalculateOnly:
     # Calculate for mesurement
     def __init__(self):
-        self.prom = int(core.PARS['calibration2']['pix+-'] / eval(CONF_Z[1]))
+        # self.prom = int(core.PARS['calibration2']['pix+-'] / eval(CONF_Z[1]))
+        self.prom = int(core.PARS['calibration']['pix_interval'])
         self.curr_o3_dict = {'uva': [2, P1_UVA, P2_UVA],
                              'uvb': [3, P1_UVB, P2_UVB],
                              'uve': [4, P1_UVE, P2_UVE]}

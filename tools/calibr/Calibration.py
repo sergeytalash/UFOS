@@ -44,7 +44,8 @@ class Calc:
         self.Ls = {'sko': [], 'mean': [], 'mu': []}
         self.data2file = []
         self.confZ = pars['calibration']['nm(pix)']['Z']
-        self.prom = int(pars['calibration2']['pix+-'] / eval(self.confZ[1]))
+        # self.prom = int(pars['calibration2']['pix+-'] / eval(self.confZ[1]))
+        self.prom = int(pars['calibration']['pix_interval'])
         self.p_zero1 = calculations.nm2pix(290, self.confZ)
         self.p_zero2 = calculations.nm2pix(295, self.confZ)
         self.p_lamst = calculations.nm2pix(290, self.confZ)
@@ -163,10 +164,10 @@ class Calc:
                                 p2_2 = p2 + self.prom + 1
 
                                 I1 = spectr[p1_1:p1_2]
-                                I1_sr = calculations.sumarize(I1)
+                                I1_sr = calculations.summarize(I1)
                                 p_mas.append(I1_sr)
                                 I2 = spectr[p2_1:p2_2]
-                                I2_sr = calculations.sumarize(I2)
+                                I2_sr = calculations.summarize(I2)
                                 p_mas.append(I2_sr)
                                 I12 = round(I1_sr / I2_sr, 6)
                                 self.Ls[pair].append(I12)

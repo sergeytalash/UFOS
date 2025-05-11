@@ -39,7 +39,7 @@
         "274.469847172"
       ]
     },
-    "pix_interval": 51,
+    "pix_interval": 25,
     "points": {
       "Fraunhofer_pair": [
         393.37,
@@ -93,7 +93,6 @@
       "kz_obl2": "List of coefficients. Can be unlimited",
       "mu_effect_1": "...",
       "mu_effect_2": "...",
-      "pix+-": "Quantity of pixels to perform spectr interval around one pixel (left and right)",
       "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation",
       "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation"
     },
@@ -131,7 +130,6 @@
     ],
     "mu_effect_1": 1.8,
     "mu_effect_2": 1.6,
-    "pix+-": 2,
     "visible_sunheight_max": 60,
     "visible_sunheight_min": 5
   },
