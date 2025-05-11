@@ -1,5 +1,5 @@
 # Version: 2.0
-# Modified: 12.07.2019
+# Modified: 11.05.2025
 # Author: Sergey Talash
 import base64
 import datetime

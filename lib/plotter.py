@@ -1,6 +1,7 @@
 # Version: 2.0
-# Modified: 12.07.2019
+# Modified: 11.05.2025
 # Author: Sergey Talash
+
 import gc
 import json
 import os
@@ -24,8 +25,6 @@ from tkinter import ttk
 
 import numpy as np
 
-# from icecream import ic
-
 try:
     from lib import calculations as calc, gui, core
 except (ImportError, ModuleNotFoundError):
@@ -48,7 +47,8 @@ else:
 
 
 class PlotClass:
-    def __init__(self, root, window, o3_mode, plotx, ploty, recalculate_value, show_all, use_sensitivity, var_top, psZ,
+    def __init__(self, root, window, o3_mode, plotx, ploty, recalculate_value,
+                 show_all, use_sensitivity_z, use_sensitivity_s, var_top, psZ,
                  psS, canvs):
         """
 
@@ -57,13 +57,15 @@ class PlotClass:
             o3_mode (str): Mode of measurements ('spectr', 'ozone', 'uva', 'uvb', 'uve')
             plotx (int): Width of picture in pixels
             ploty (int): Height of picture in pixels
-            recalculate_value (bool): Read measured files (1 or 0)
-            show_all (bool): Show all calculated values, ignore correction filters (1 or 0)
-            use_sensitivity (bool): Use sensitivity (1 or 0)
+            recalculate_value (int): Read measured files (1 or 0)
+            show_all (int): Show all calculated values, ignore correction filters (1 or 0)
+            use_sensitivity_z (int): Use sensitivity (1 or 0)
+            use_sensitivity_s (int): Use sensitivity (1 or 0)
         """
         self.root = root
         self.show_all = show_all
-        self.use_sensitivity = use_sensitivity
+        self.use_sensitivity_z = use_sensitivity_z
+        self.use_sensitivity_s = use_sensitivity_s
         self.var_top = var_top
         self.canvs = canvs
         self.recalculate_value = recalculate_value
@@ -79,6 +81,7 @@ class PlotClass:
         self.hs = 0
         self.mu = 0
         self.amas = 0
+        self.max_y = 4096
         self.spectr = []
         self.uvs_or_o3 = {}
         self.ozon = 0
@@ -160,14 +163,14 @@ class PlotClass:
         ultraviolet = 0
         try:
             if uv_mode in ['uva', 'uvb']:
-                if self.use_sensitivity:
+                if self.use_sensitivity_s:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]) * np.array(self.sensitivityS[p1:p2]))
                 else:
                     ultraviolet = sum(np.array(self.spectrum[p1:p2]))
                 ultraviolet *= float(eval(calc.CONF_S[1])) * core.PARS['device']['graduation_expo'] / \
                                self.data['expo']
             elif uv_mode == 'uve':
-                if self.use_sensitivity:
+                if self.use_sensitivity_s:
                     ultraviolet = sum([float(self.spectrum[i]) *
                                        self.sensitivity_eritem[i] *
                                        self.sensitivityS[i] for i in range(p1, p2, 1)]
@@ -273,17 +276,13 @@ class PlotClass:
         self.fig, self.ax = plt.subplots(1)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
 
-    def set_x_limit(self, x, y, x_min, x_max, y_min, y_max, mode):
+    def set_plot_limits(self, x, y, x_min, x_max, mode):
+        if max(x) > x_max: x_max = max(x)
+        if min(x) < x_min: x_min = min(x)
         if self.o3_mode != 'ozone':
-            if max(x) > x_max: x_max = max(x)
-            if min(x) < x_min: x_min = min(x)
-            # if max(y) > y_max: y_max = max(y) * 1.05
-            y_max = max(y[slice(*core.PARS['device']['pix_work_interval'])])
-            # if min(y) < y_min: y_min = min(y) * 0.95
-            y_min = min(y)
+            y_max = max(y) * 1.05
+            y_min = min(y) * 0.95
         else:
-            if max(x) > x_max: x_max = max(x)
-            if min(x) < x_min: x_min = min(x)
             y_max = self.ozone_y_max
             y_min = self.ozone_y_min
         if mode == 'hour':
@@ -296,6 +295,13 @@ class PlotClass:
         elif mode == 'degree':
             self.ax.set(xlim=[x_min - 0.5, x_max + 0.5], ylim=[y_min, y_max])
             self.ax.xaxis.set_minor_locator(MultipleLocator(0.1))
+
+    def apply_sensitivity(self, sensitivity):
+        new_spectr = []
+        for index, value in enumerate(self.spectrum):
+            new_spectr.append(
+                value * sensitivity[index] * core.PARS['device']['graduation_expo'] / self.data['expo'])
+        self.spectrum = new_spectr
 
     def plot(self, path):
         self.zen_path = path
@@ -313,29 +319,22 @@ class PlotClass:
             pass
         # ====================== Spectr ======================
         elif self.o3_mode == 'spectr':
+            print('show spectr')
             self.ax.set_xlabel('nm')
             self.ax.set_ylabel('mV')
             if 'Z' in self.data['channel']:
                 conf = calc.CONF_Z
-                sensitivity = self.sensitivityZ
+                if self.use_sensitivity_z:
+                    self.apply_sensitivity(self.sensitivityZ)
             else:
                 conf = calc.CONF_S
-                sensitivity = self.sensitivityS
+                if self.use_sensitivity_s:
+                    self.apply_sensitivity(self.sensitivityS)
             self.ax.set_ylabel('mWt/m^2*nm')
-            if self.use_sensitivity:
-                new_spectr = []
-                for index, value in enumerate(self.spectrum):
-                    new_spectr.append(
-                        value * sensitivity[index] * core.PARS['device']['graduation_expo'] / self.data['expo'])
-                self.spectrum = new_spectr
             self.ax.plot([calc.pix2nm(index, conf) for index, value in enumerate(self.spectrum)],
-                         self.spectrum,
-                         self.point,
-                         color='k')
+                         self.spectrum, self.point, color='k')
             if self.var_top.get():
                 self.max_y = max(self.spectrum[slice(*core.PARS['device']['pix_work_interval'])]) + 100
-            else:
-                self.max_y = 4096
             if 'Z' in self.data['channel']:
                 ps = self.psZ
             else:
@@ -355,18 +354,18 @@ class PlotClass:
             self.ax.set_xlabel('Time')
             # ====================== Ozone ======================
             if self.o3_mode == 'ozone':
-                print('new ozone')
+                print('show ozone')
                 self.ax.set_ylabel('o3')
             # ====================== UV =========================
             elif self.o3_mode == 'uva':
                 self.ax.set_ylabel('mWt/m^2')
-                print('new uva')
+                print('show uva')
             elif self.o3_mode == 'uvb':
                 self.ax.set_ylabel('mWt/m^2')
-                print('new uvb')
+                print('show uvb')
             elif self.o3_mode == 'uve':
                 self.ax.set_ylabel('mWt/m^2')
-                print('new uve')
+                print('show uve')
             # ===================================================
             for x_mas, y_mas, color in zip([self.x1, self.x2], [self.y1, self.y2], ['blue', 'green']):
                 if y_mas:
@@ -385,10 +384,7 @@ class PlotClass:
                     y_mas = tmp_y
                     x_mas = tmp_x
                     self.ax.plot(x_mas, y_mas, self.point, color=color)
-                    self.set_x_limit(x_mas, y_mas, min(x_mas), min(x_mas) + timedelta(hours=2),
-                                     100,
-                                     600,
-                                     'hour')
+                    self.set_plot_limits(x_mas, y_mas, min(x_mas), min(x_mas) + timedelta(hours=2), 'hour')
             self.ax.grid(True)
             self.fig.canvas.draw()
             gui.canvs_destroy(self.canvs)
@@ -397,19 +393,6 @@ class PlotClass:
         canvas.get_tk_widget().grid(row=0, column=0, sticky='nswe')
         self.canvs.append((canvas, self.fig))
         canvas.draw()
-
-
-# def send_all_files_plotter():
-#     lab_err.configure(text='')
-#     root.update()
-#     for i in os.listdir(path):
-#         if i.find('-D') != -1:
-#             file2send = os.path.join(path, i)
-#             tex = send_files(home, file2send)
-#             if tex != 'OK':
-#                 print(tex)
-#             lab_err.configure(text=i + tex)
-#             root.update()
 
 
 class Main:
@@ -440,8 +423,6 @@ class Main:
         try:
             if core.PATH != self.last_path and os.path.exists(self.last_path):
                 core.PATH = self.last_path
-            else:
-                pass
         except:
             core.PATH = core.HOME
         self.curr_o3 = [0, 0, 0, 0, 0]
@@ -481,12 +462,20 @@ class Main:
             self.canvas = Canvas(self.right_panel, bg="white", width=self.plotx, height=self.ploty)  # white
 
             # Admin Menu
-            self.chk_var_with_sens = IntVar()
-            self.chk_var_with_sens.set(1)
-            self.chk_with_sens = ttk.Checkbutton(
+            self.chk_var_sens_z = IntVar()
+            self.chk_var_sens_z.set(1)
+            self.chk_sens_z = ttk.Checkbutton(
                 self.admin_panel,
-                text='Использовать чувствительность',
-                variable=self.chk_var_with_sens)
+                text='SensZ',
+                variable=self.chk_var_sens_z)
+
+            self.chk_var_sens_s = IntVar()
+            self.chk_var_sens_s.set(1)
+            self.chk_sens_s = ttk.Checkbutton(
+                self.admin_panel,
+                text='SensS',
+                variable=self.chk_var_sens_s)
+
             self.var_recalculate_source_files = IntVar()
             self.var_recalculate_source_files.set(0)
             self.chk_recalculate_source_files = ttk.Checkbutton(
@@ -502,10 +491,10 @@ class Main:
                                                      variable=self.chk_var_show_correct1)
             self.but_save_to_final_file = ttk.Button(self.admin_panel, text='Сохранить в файл')
             self.but_make_mean_file = ttk.Button(self.admin_panel, text='Сохранить в файл среднего')
-            self.var_top = IntVar()
-            self.var_top.set(1)
-            self.rad_4096 = ttk.Radiobutton(self.admin_panel, text='Единая шкала', variable=self.var_top, value=0)
-            self.rad_ytop = ttk.Radiobutton(self.admin_panel, text='Оптимальная шкала', variable=self.var_top, value=1)
+            self.var_scale = IntVar()
+            self.var_scale.set(1)
+            self.rad_4096 = ttk.Radiobutton(self.admin_panel, text='Единая шкала', variable=self.var_scale, value=0)
+            self.rad_ytop = ttk.Radiobutton(self.admin_panel, text='Оптимальная шкала', variable=self.var_scale, value=1)
 
             self.but_plot_more = ttk.Button(self.admin_panel, text='Подробный просмотр', command=self.plot_more)
             self.uv = IntVar()
@@ -518,7 +507,7 @@ class Main:
             self.ent_year.insert(0, "2018")
             self.but_annual_ozone = ttk.Button(self.admin_panel, text='Сохранить озон за год')
 
-            self.admin_menu_obj = [self.chk_with_sens, self.chk_show_all, self.chk_show_correct1,
+            self.admin_menu_obj = [self.chk_sens_z, self.chk_sens_s, self.chk_show_all, self.chk_show_correct1,
                                    self.chk_recalculate_source_files,
                                    self.but_save_to_final_file,
                                    self.but_make_mean_file,
@@ -664,7 +653,7 @@ class Main:
         for i in self.admin_menu_obj:
             i.grid(row=r, column=c, sticky='we')
             c += 1
-            if self.admin_menu_obj.index(i) > 4 and self.bit:
+            if self.admin_menu_obj.index(i) > 5 and self.bit:
                 r += 1
                 c = 0
                 self.bit = 0
@@ -733,7 +722,12 @@ class Main:
     def first_clear_plot(self, root, plotx, ploty, some_root):
         self.refresh_txtlist(core.PATH)
         self.dir_list_opened = False
-        start = PlotClass(root, some_root, 'first', plotx, ploty, True, False, False, self.var_top, self.psZ, self.psS,
+        start = PlotClass(root, some_root, 'first', plotx, ploty,
+                          True,
+                          False,
+                          False,
+                          False,
+                          self.var_scale, self.psZ, self.psS,
                           self.canvs)
         start.plot(core.PATH)
         return start
@@ -776,8 +770,9 @@ class Main:
         self.root.update()
         plotx, ploty = gui.update_geometry(self.root)
         start = PlotClass(self.root, self.right_panel, 'spectr', plotx, ploty, True, False,
-                          self.chk_var_with_sens.get(),
-                          self.var_top, self.psZ, self.psS, self.canvs)
+                          self.chk_var_sens_z.get(),
+                          self.chk_var_sens_s.get(),
+                          self.var_scale, self.psZ, self.psS, self.canvs)
         try:
             file = self.file_list.selection_get()
         except TclError:
@@ -958,7 +953,6 @@ class Main:
         show_correct1_value = self.chk_var_show_correct1.get()
         gui.canvs_destroy(self.canvs)
         try:
-            self.dir_list_dirs_window.destroy()
             self.refresh_txtlist(core.PATH)
             self.dir_list_opened = False
         except:
@@ -967,7 +961,8 @@ class Main:
         for i in self.buttons:
             i.configure(state=DISABLED)
         mode = self.uv.get()
-        #    mode=0
+        o3_mode = ''
+        tex = ''
         if mode == 0:
             o3_mode = 'ozone'
             tex = 'Идет пересчёт озона'
@@ -988,7 +983,9 @@ class Main:
         mean_file = 0
         start = PlotClass(self.root, self.right_panel, o3_mode, plotx, ploty, recalculate_source_files_value,
                           show_all_value,
-                          self.chk_var_with_sens.get(), self.var_top, self.psZ, self.psS, self.canvs)
+                          self.chk_var_sens_z.get(),
+                          self.chk_var_sens_s.get(),
+                          self.var_scale, self.psZ, self.psS, self.canvs)
         if recalculate_source_files_value == 0:  # Чтение из файла
             column = {'ozone': -2, 'uva': -3, 'uvb': -2, 'uve': -1}
             # datetime_index = 0 # UTC
@@ -1021,14 +1018,12 @@ class Main:
                         # Read manual saved file
                         name = 'New_' + name0
                         file = os.path.join(directory, name)
-                # ic("Read:", file)
             elif mode == 'UV':
                 if not os.path.exists(file):
                     # Read manual saved file
                     name = 'New_' + name0
                     file = os.path.join(directory, name)
             if os.path.exists(file):
-                # ic(mode)
                 with open(file, errors='ignore') as f:
                     file_opened = 1
                     data_raw = f.readlines()

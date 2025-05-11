@@ -1,3 +1,7 @@
+# Version: 2.0
+# Modified: 11.05.2025
+# Author: Sergey Talash
+
 import inspect
 import json
 import logging
@@ -86,7 +90,7 @@ def get_settings():
     Returns:
         Dict
     """
-    with open(os.path.join(HOME, DEVICE_SETTINGS_PATH), 'r') as f:
+    with open(os.path.join(HOME, DEVICE_SETTINGS_PATH)) as f:
         return json.load(f)
 
 
