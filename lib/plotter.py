@@ -320,14 +320,16 @@ class PlotClass:
             print('show spectr')
             self.ax.set_xlabel('нм')
             self.ax.set_ylabel('мВ')
-            if 'Z' in self.data['channel']:
+            if 'z' in self.data['channel'].lower():
                 conf = calc.CONF_Z
                 if self.use_sensitivity_z:
                     self.spectrum = calc.apply_sensitivity(self.spectrum, self.sensitivityZ, self.data['expo'])
-            else:
+            elif 's' in self.data['channel'].lower():
                 conf = calc.CONF_S
                 if self.use_sensitivity_s:
                     self.spectrum = calc.apply_sensitivity(self.spectrum, self.sensitivityS, self.data['expo'])
+            else:
+                conf = None
             self.ax.set_ylabel('мВт/м^2*нм')
             self.ax.plot([calc.pix2nm(index, conf) for index, value in enumerate(self.spectrum)],
                          self.spectrum, self.point, color='k')
