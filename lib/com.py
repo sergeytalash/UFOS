@@ -60,7 +60,7 @@ class UfosConnection:
         except (WindowsError, FileNotFoundError):
             text = "Кабель не подключен к ПК!                   "
             print(text, end='\r')
-            core.LOGGER.error(text)
+            # core.LOGGER.error(text)
 
     def get_com_obj(self, test=False):
         if not test:
@@ -162,14 +162,14 @@ class UfosDataToCom:
                     if tries_done > 0:
                         text = 'Внимание! Данные не получены (Проверьте подключение кабеля к УФОС).\nПробуем ещё раз...'
                         print(text)
-                        core.LOGGER.warning(text)
+                        # core.LOGGER.warning(text)
             except Exception as err:
                 # print(f"(com.device_ask) Error: {err} Line: {sys.exc_info()[2].tb_lineno}")
                 raise err
             tries_done += 1
         text = 'Сбой! Данные не получены (Проверьте подключение кабеля к УФОС)'
         print(text)
-        core.LOGGER.error(text)
+        # core.LOGGER.error(text)
         return [0], 0, 0, '', tries_done
 
 # UfosConnection().get_com_port()

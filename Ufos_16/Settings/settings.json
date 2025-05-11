@@ -39,7 +39,7 @@
         "274.469847172"
       ]
     },
-    "pix_interval": 25,
+    "pix_interval": 50,
     "points": {
       "Fraunhofer_pair": [
         393.37,
@@ -93,6 +93,14 @@
       "kz_obl2": "List of coefficients. Can be unlimited",
       "mu_effect_1": "...",
       "mu_effect_2": "...",
+      "kzLarger_norm1": "List of coefficients. Can be unlimited",
+      "kzLarger_norm2": "List of coefficients. Can be unlimited",
+      "kzLess_norm1": "List of coefficients. Can be unlimited",
+      "kzLess_norm2": "List of coefficients. Can be unlimited",
+      "kz_obl_norm1": "List of coefficients. Can be unlimited",
+      "kz_obl_norm2": "List of coefficients. Can be unlimited",
+      "mu_effect_norm_1": "...",
+      "mu_effect_norm_2": "...",
       "visible_sunheight_max": "Maximum sun height of data to show on chart and to be used in daily mean calculation",
       "visible_sunheight_min": "Minimum sun height of data to show on chart and to be used in daily mean calculation"
     },
@@ -130,6 +138,40 @@
     ],
     "mu_effect_1": 1.8,
     "mu_effect_2": 1.6,
+    "kzLarger_norm1": [
+      1.2567092018,
+      -0.2168866087,
+      0.0362240555,
+      -0.0023605118
+    ],
+    "kzLarger_norm2": [
+      1.4964237554,
+      -0.1838965176,
+      0.030534673,
+      -0.0018500688
+    ],
+    "kzLess_norm1": [
+      1.1148620353,
+      -0.0530654049,
+      -0.0150459984
+    ],
+    "kzLess_norm2": [
+      1.2029674988,
+      0.1788396406,
+      -0.0845680424
+    ],
+    "kz_obl_norm1": [
+      1.02239,
+      -0.99179,
+      0.96107
+    ],
+    "kz_obl_norm2": [
+      1.02239,
+      -0.99179,
+      0.96107
+    ],
+    "mu_effect_norm_1": 1.8,
+    "mu_effect_norm_2": 1.6,
     "visible_sunheight_max": 60,
     "visible_sunheight_min": 5
   },

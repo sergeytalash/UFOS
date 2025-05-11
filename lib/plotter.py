@@ -138,7 +138,10 @@ class PlotClass:
                 self.spectrum,
                 self.prom,
                 self.data['mu'],
-                pair)
+                pair,
+                self.use_sensitivity_z,
+                self.sensitivityZ,
+                self.data['expo'])
         self.uvs_or_o3['ZD'] = {'o3_1': self.o3["1"],
                                 'o3_2': self.o3["2"],
                                 'correct_1': correct["1"],
@@ -298,13 +301,6 @@ class PlotClass:
             self.ax.set(xlim=[x_min - 0.5, x_max + 0.5], ylim=[y_min, y_max])
             self.ax.xaxis.set_minor_locator(MultipleLocator(0.1))
 
-    def apply_sensitivity(self, sensitivity):
-        new_spectr = []
-        for index, value in enumerate(self.spectrum):
-            new_spectr.append(
-                value * sensitivity[index] * core.PARS['device']['graduation_expo'] / self.data['expo'])
-        self.spectrum = new_spectr
-
     def plot(self, path):
         self.zen_path = path
         self.fig_prepare()
@@ -327,11 +323,11 @@ class PlotClass:
             if 'Z' in self.data['channel']:
                 conf = calc.CONF_Z
                 if self.use_sensitivity_z:
-                    self.apply_sensitivity(self.sensitivityZ)
+                    self.spectrum = calc.apply_sensitivity(self.spectrum, self.sensitivityZ, self.data['expo'])
             else:
                 conf = calc.CONF_S
                 if self.use_sensitivity_s:
-                    self.apply_sensitivity(self.sensitivityS)
+                    self.spectrum = calc.apply_sensitivity(self.spectrum, self.sensitivityS, self.data['expo'])
             self.ax.set_ylabel('мВт/м^2*нм')
             self.ax.plot([calc.pix2nm(index, conf) for index, value in enumerate(self.spectrum)],
                          self.spectrum, self.point, color='k')
@@ -647,7 +643,7 @@ class Main:
         c = 0
         self.admin_panel.grid(row=r, column=c, sticky='nwe')
         self.but_annual_ozone.configure(
-            command=lambda: calc.AnnualOzone(self.ent_year.get(), self.start, self.root, self.but_annual_ozone).run())
+            command=lambda: calc.AnnualOzone(self.ent_year.get(), self.chk_var_sens_z.get(), self.start, self.root, self.but_annual_ozone).run())
         if not self.var_recalculate_source_files.get():
             self.but_save_to_final_file.configure(state=DISABLED)
             self.but_make_mean_file.configure(state=DISABLED)
@@ -1126,7 +1122,7 @@ class Main:
                         self.calc_results.append(cr)
             if start.x1:
                 self.but_save_to_final_file.configure(
-                    command=lambda: save_class.save(chan, self.ts, self.shs, self.calc_results))
+                    command=lambda: save_class.save(chan, self.ts, self.shs, self.calc_results, self.chk_var_sens_z.get()))
             else:
                 tex = 'Файлов измерений\nне найдено'
         try:

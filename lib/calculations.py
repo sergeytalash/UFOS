@@ -58,7 +58,7 @@ class SaveFile:
                                  data_measurement["timezone"])
         return date_utc_str, sh, calc_result
 
-    def save(self, chan, ts, shs, calc_results):
+    def save(self, chan, ts, shs, calc_results, use_sensitivity_z):
         """
 
         Args:
@@ -66,31 +66,39 @@ class SaveFile:
             ts ():
             shs ():
             calc_results ():
+            use_sensitivity_z (int):
 
         Returns:
 
         """
         create_new_file = True
         analyse_file_name = ''
+        if use_sensitivity_z:
+            add_to_name = 'New_norm_'
+            add_to_analyse_name = 'Analyse_norm_'
+        else:
+            add_to_name = 'New_'
+            add_to_analyse_name = 'Analyse_'
         for date_utc, sh, calc_result in zip(ts, shs, calc_results):
             self.path_file = write_final_file(chan,
                                               date_utc,
                                               round(sh, 1),
                                               calc_result,
-                                              'New_',
+                                              add_to_name,
                                               create_new_file)
             if chan == 'ZD':
                 analyse_file_name = write_analyse_file(chan,
                                                        date_utc,
                                                        round(sh, 1),
                                                        calc_result,
-                                                       'Analyse_',
+                                                       add_to_analyse_name,
                                                        create_new_file)
             create_new_file = False
         if not self.annual_file:
             if self.but_make_mean_file:
                 self.but_make_mean_file.configure(
-                    command=lambda: calculate_final_files(self.path_file, chan, True, "file"))
+                    # ==== OK ==== calculate_final_files
+                    command=lambda: calculate_final_files(self.path_file, chan, True, "file", use_sensitivity_z))
                 self.but_make_mean_file.configure(state=NORMAL)
             print('1) Files saved:\n{}\n{}'.format(self.path_file, analyse_file_name))
         return self.path_file
@@ -99,8 +107,9 @@ class SaveFile:
 class AnnualOzone:
     # Procedure for annual ozone calculations (make_annual_ozone_file)
 
-    def __init__(self, year, data, root, but_annual_ozone):
+    def __init__(self, year, use_sensitivity_z, data, root, but_annual_ozone):
         self.year = year
+        self.use_sensitivity_z = use_sensitivity_z
         self.data = data
         self.annual_data = {}
         self.root = root
@@ -117,20 +126,22 @@ class AnnualOzone:
         self.root.update()
         print("Done.")
 
-    @staticmethod
-    def open_annual_files_for_write(year):
+    def open_annual_files_for_write(self, year):
         file_descriptors = {}
         dir_path, _ = core.make_dirs(core.DEVICE_DIR_L + ["Ozone"])
         if os.path.exists(dir_path):
             for pair in ["1", "2"]:
-                annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(core.DEVICE_ID, year[:4], pair)
+                if self.use_sensitivity_z:
+                    annual_file_name = "Ufos_{}_ozone_norm_{}_pair_{}.txt".format(core.DEVICE_ID, year[:4], pair)
+                else:
+                    annual_file_name = "Ufos_{}_ozone_{}_pair_{}.txt".format(core.DEVICE_ID, year[:4], pair)
                 path = os.path.join(dir_path, annual_file_name)
                 if not os.path.exists(path):
                     with open(path, 'w') as f:
                         f.write("Date\t" +
                                 "Mean_All\tSigma_All\tO3_Count\t" +
                                 "Mean_Morning\tSigma_Morning\tO3_Count\t" +
-                                "Mean_Evening\tSigma_Evening\tO3_Count")
+                                "Mean_Evening\tSigma_Evening\tO3_Count\n")
                 file_descriptors[pair] = open(path, 'a')
         return file_descriptors
 
@@ -165,6 +176,7 @@ class AnnualOzone:
         calc_result, chan = main.add_calculated_line_to_final_file(data["spectr"],
                                                                    data["calculated"]["mu"],
                                                                    data["mesurement"]["exposition"],
+                                                                   self.use_sensitivity_z,
                                                                    self.data.sensitivityZ,
                                                                    self.data.sensitivityS,
                                                                    self.data.sensitivity_eritem, False)
@@ -194,50 +206,50 @@ class AnnualOzone:
         self.print_line(out, debug)
         return out
 
-    def process_one_file_threading(self, main, save_class, queue_in, queue_out, debug=False):
-        while True:
-            if queue_in.empty():
-                # sleep(1)
-                pass
-            else:
-                item = queue_in.get()
-                if item is None:
-                    break
-                file_path, num, day = item
-                data = self.data.get_spectr(file_path, False)
-                calc_result, chan = main.add_calculated_line_to_final_file(data["spectr"],
-                                                                           data["calculated"]["mu"],
-                                                                           data["mesurement"]["exposition"],
-                                                                           self.data.sensitivityZ,
-                                                                           self.data.sensitivityS,
-                                                                           self.data.sensitivity_eritem, False)
-                # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
-                try:
-                    data["mesurement"]["datetime_local"]
-                except KeyError:
-                    data["mesurement"]["datetime_local"] = datetime.strptime(
-                        data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + timedelta(
-                        hours=int(data["mesurement"]['timezone']))
-
-                # Prepare daily ozone
-                date_utc_str, sh, calc_result = save_class.prepare(data["mesurement"], calc_result)
-                # Prepare day for annual ozone
-                day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
-                                                              data["mesurement"]["datetime_local"],
-                                                              data["calculated"]["sunheight"],
-                                                              calc_result[chan]["o3_1"],
-                                                              calc_result[chan]["correct_1"],
-                                                              calc_result[chan]["o3_2"],
-                                                              calc_result[chan]["correct_2"]
-                                                              ]
-                                             ]
-                                            )
-                              }
-                out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
-                self.print_line(out, debug)
-                out = json.dumps(out)
-                queue_out.put(out)
-                queue_in.task_done()
+    # def process_one_file_threading(self, main, save_class, queue_in, queue_out, debug=False):
+    #     while True:
+    #         if queue_in.empty():
+    #             # sleep(1)
+    #             pass
+    #         else:
+    #             item = queue_in.get()
+    #             if item is None:
+    #                 break
+    #             file_path, num, day = item
+    #             data = self.data.get_spectr(file_path, False)
+    #             calc_result, chan = main.add_calculated_line_to_final_file(data["spectr"],
+    #                                                                        data["calculated"]["mu"],
+    #                                                                        data["mesurement"]["exposition"],
+    #                                                                        self.data.sensitivityZ,
+    #                                                                        self.data.sensitivityS,
+    #                                                                        self.data.sensitivity_eritem, False)
+    #             # Fix datetime_local of the file after Reformat procedure (datetime_local do not present in file)
+    #             try:
+    #                 data["mesurement"]["datetime_local"]
+    #             except KeyError:
+    #                 data["mesurement"]["datetime_local"] = datetime.strptime(
+    #                     data["mesurement"]['datetime'], "%Y%m%d %H:%M:%S") + timedelta(
+    #                     hours=int(data["mesurement"]['timezone']))
+    #
+    #             # Prepare daily ozone
+    #             date_utc_str, sh, calc_result = save_class.prepare(data["mesurement"], calc_result)
+    #             # Prepare day for annual ozone
+    #             day_string = {day: ";".join([str(i) for i in [data["mesurement"]['datetime'],
+    #                                                           data["mesurement"]["datetime_local"],
+    #                                                           data["calculated"]["sunheight"],
+    #                                                           calc_result[chan]["o3_1"],
+    #                                                           calc_result[chan]["correct_1"],
+    #                                                           calc_result[chan]["o3_2"],
+    #                                                           calc_result[chan]["correct_2"]
+    #                                                           ]
+    #                                          ]
+    #                                         )
+    #                           }
+    #             out = {str(num): [file_path, date_utc_str, sh, calc_result, day_string]}
+    #             self.print_line(out, debug)
+    #             out = json.dumps(out)
+    #             queue_out.put(out)
+    #             queue_in.task_done()
 
     @staticmethod
     def get_zd_count(year):
@@ -261,20 +273,21 @@ class AnnualOzone:
         threads = []
 
         for dir_path, dirs, files in os.walk(os.path.abspath(os.path.join(*core.MEASUREMENTS_DIR_L, year))):
+            create_annual_files = True
             annual_file_descriptors = {}
-            if self.type_of_parallel:
-                print('Running in parallel: ' + self.type_of_parallel)
+            # if self.type_of_parallel:
+            #     print('Running in parallel: ' + self.type_of_parallel)
             # if self.type_of_parallel == 'asyncio':
             # Asyncio
             # queue = asyncio.Queue()
-            if self.type_of_parallel == 'threading':
-                # Threading
-                threads = []
-                for i in range(self.num_worker_threads):
-                    t = threading.Thread(target=lambda: self.process_one_file_threading(
-                        measure, save_class, queue_th_input, queue_th_output, debug=self.debug))
-                    t.start()
-                    threads.append(t)
+            # if self.type_of_parallel == 'threading':
+            #     # Threading
+            #     threads = []
+            #     for i in range(self.num_worker_threads):
+            #         t = threading.Thread(target=lambda: self.process_one_file_threading(
+            #             measure, save_class, queue_th_input, queue_th_output, debug=self.debug))
+            #         t.start()
+            #         threads.append(t)
             daily_o3_to_file = {}
             create_daily_files = True
             num = 0
@@ -297,7 +310,9 @@ class AnnualOzone:
                         queue_th_input.put((file_path, num, day))
                     else:
                         line = self.process_one_file_none(file_path, measure, save_class, day, num, debug=self.debug)
+                        # print("Line:", [v[3]['ZD']['o3_1'] for v in line.values()])
                         all_data.update(line)
+
                     self.but_annual_ozone.configure(text=file[-16:-4])
                     self.root.update()
                     num += 1
@@ -305,40 +320,41 @@ class AnnualOzone:
                 self.but_annual_ozone.configure(text=files[-1][-16:-4])
                 self.root.update()
 
-                if self.type_of_parallel == 'threading':
-
-                    # Block until all Input tasks are done
-                    queue_th_input.join()
-                    # Stop workers
-                    for i in range(self.num_worker_threads):
-                        queue_th_input.put(None)
-                    for t in threads:
-                        t.join()
-                    # Collect data
-                    while not queue_th_output.empty():
-                        line = queue_th_output.get()
-                        queue_th_output.task_done()
-                        line = json.loads(line)
-                        all_data.update(line)
-                    # Block until all Output tasks are done
-                    queue_th_output.join()
-                else:
-                    pass
+                # if self.type_of_parallel == 'threading':
+                #
+                #     # Block until all Input tasks are done
+                #     queue_th_input.join()
+                #     # Stop workers
+                #     for i in range(self.num_worker_threads):
+                #         queue_th_input.put(None)
+                #     for t in threads:
+                #         t.join()
+                #     # Collect data
+                #     while not queue_th_output.empty():
+                #         line = queue_th_output.get()
+                #         queue_th_output.task_done()
+                #         line = json.loads(line)
+                #         all_data.update(line)
+                #     # Block until all Output tasks are done
+                #     queue_th_output.join()
+                # else:
+                #     pass
                 ts = [all_data[str(j)][1] for j in range(max_day_files)]
                 shs = [all_data[str(j)][2] for j in range(max_day_files)]
                 calc_results = [all_data[str(j)][3][measure.chan] for j in range(max_day_files)]
                 daily_o3_to_file[day] = [all_data[str(j)][4][day] for j in range(max_day_files)]
                 for day_string, day_data in daily_o3_to_file.items():
                     # Save ozone to daily file
-                    path_file = save_class.save(measure.chan, ts, shs, calc_results)
+                    path_file = save_class.save(measure.chan, ts, shs, calc_results, self.use_sensitivity_z)
                     if self.debug:
                         print('1) Daily File Saved: {}'.format(path_file))
                     # Save ozone to mean daily file
-                    calculate_final_files(path_file, measure.chan, True, "file")
+                    calculate_final_files(path_file, measure.chan, True, "file", self.use_sensitivity_z)
                     # Save ozone to annual file
                     print("3) Writing to annual files...{}".format(day_string), end=' ')
                     for pair, fw in annual_file_descriptors.items():
-                        daily_data = calculate_final_files(day_data, measure.chan, False, "calculate")
+                        # ===== OK ====== calculate_final_files
+                        daily_data = calculate_final_files(day_data, measure.chan, False, "calculate", self.use_sensitivity_z)
                         self.write_annual_line(fw, day_string, daily_data[pair])
                         print(pair, end=' ')
                     print()
@@ -474,7 +490,7 @@ class Correction:
         return o3s_k2
 
 
-def calculate_final_files(source, mode, write_daily_file, data_source_flag):
+def calculate_final_files(source, mode, write_daily_file, data_source_flag, use_sensitivity_z):
     """
 
     Args:
@@ -482,6 +498,7 @@ def calculate_final_files(source, mode, write_daily_file, data_source_flag):
         mode (str): "ZD" or "SD"
         write_daily_file (bool): Allow writing file with mean ozone, else just calculate (True or False)
         data_source_flag (str): Select source of data: read from file or get ozone from variable ("file" or "calculate")
+        use_sensitivity_z (int):
 
     Returns:
         dict
@@ -490,6 +507,8 @@ def calculate_final_files(source, mode, write_daily_file, data_source_flag):
     all_data = []
     data = []
     corr = Correction(data)
+    # if use_sensitivity_z:
+    add_to_name = 'mean_'
     if source:
         try:
             if data_source_flag == "file":
@@ -505,7 +524,8 @@ def calculate_final_files(source, mode, write_daily_file, data_source_flag):
                     # === Second correction check ===
                     o3s_k2 = corr.second_correction(o3s_k1)
                     if write_daily_file is True and data_source_flag == "file":
-                        with open(os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source)), 'w') as f:
+                        file_path = os.path.join(os.path.dirname(source), add_to_name + os.path.basename(source))
+                        with open(file_path, 'w') as f:
                             f.write(';'.join(all_data[:1]))
                             for line, correct1, correct2 in zip(lines_arr_raw_to_file, o3s_k2["1"]["all"]['k'],
                                                                 o3s_k2["2"]["all"]['k']):
@@ -513,8 +533,7 @@ def calculate_final_files(source, mode, write_daily_file, data_source_flag):
                                 part2 = line[-2:-1]
                                 f.write(';'.join(part1 + [str(correct1)] + part2 + [str(correct2)]) + '\n')
                             f.write(o3s_k2['1']['all']['text'] + o3s_k2['2']['all']['text'] + '\n')
-                            print('2) Mean File Saved:\n{}'.format(
-                                os.path.join(os.path.dirname(source), 'mean_' + os.path.basename(source))))
+                            print('2) Mean File Saved:\n{}'.format(file_path))
                     for pair in ['1', '2']:
                         for part_of_day in ["all", "morning", "evening"]:
                             o3s_k2[pair][part_of_day]["o3_count"] = len(o3s_k2[pair][part_of_day]["o3"])
@@ -542,18 +561,18 @@ def find_index_value_greater_x(list, x):
     return index_value_high
 
 
-def get_ozone_by_nomographs(r12clear, mu_effective, o3_num):
+def get_ozone_by_nomographs(r12clear, mu_effective, o3_num, use_sensitivity_z):
     """
     Reads nomograph
     Args:
         r12clear ():
         mu_effective ():
         o3_num ():
-
+        use_sensitivity_z (int):
     Returns:
 
     """
-    mueff_list, r12_list, ozone_list = core.read_nomographs(o3_num)
+    mueff_list, r12_list, ozone_list = core.read_nomographs(o3_num, use_sensitivity_z)
     "Найти значения mueff, между которыми находится наше значение"
     index_mueff_high = find_index_value_greater_x(mueff_list, mu_effective)
     index_mueff_low = index_mueff_high - 1
@@ -648,7 +667,7 @@ def spectr2zero(spectr):
         return spectrum
 
 
-def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
+def pre_calc_o3(lambda_consts, lambda_consts_pix, spectr, prom, mu, o3_num, use_sensitivity_z, sensitivity_z, expo):
     p_mas = []
     j = 0
     # try:
@@ -658,9 +677,11 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
     # except KeyError:
     #     correct_mu_eff_start = 0
     #     correct_mu_eff_end = 30
+    if use_sensitivity_z:
+        spectr = apply_sensitivity(spectr, sensitivity_z, expo)
     while j < len(lambda_consts):
         jj = lambda_consts_pix[j]  # in Pixels
-        s = summarize(spectrum[jj - prom:jj + prom + 1])
+        s = summarize(spectr[jj - prom:jj + prom + 1])
         if s:
             p_mas.append(s)
         else:
@@ -669,14 +690,25 @@ def pre_calc_o3(lambda_consts, lambda_consts_pix, spectrum, prom, mu, o3_num):
     r12m = p_mas[0] / p_mas[1]
     r23m = p_mas[2] / p_mas[3]
     mu_effective = (1 + mu) / 2
-    if mu_effective < core.PARS['calibration2']["mu_effect_" + o3_num]:
-        r23clean = get_polynomial_result(core.PARS['calibration2']['kzLess' + o3_num], mu_effective)
+    if use_sensitivity_z:
+        mu_effect = "mu_effect_norm_" + o3_num
+        kz_less = "kzLess_norm" + o3_num
+        kz_larger = "kzLarger_norm" + o3_num
+        kz_obl = "kz_obl_norm" + o3_num
     else:
-        r23clean = get_polynomial_result(core.PARS['calibration2']['kzLarger' + o3_num], mu_effective)
-    kz_obl_f = get_polynomial_result(core.PARS['calibration2']['kz_obl' + o3_num], (r23clean / r23m))
+        mu_effect = "mu_effect_" + o3_num
+        kz_less = "kzLess" + o3_num
+        kz_larger = "kzLarger" + o3_num
+        kz_obl = "kz_obl" + o3_num
+
+    if mu_effective < core.PARS['calibration2'][mu_effect]:
+        r23clean = get_polynomial_result(core.PARS['calibration2'][kz_less], mu_effective)
+    else:
+        r23clean = get_polynomial_result(core.PARS['calibration2'][kz_larger], mu_effective)
+    kz_obl_f = get_polynomial_result(core.PARS['calibration2'][kz_obl], (r23clean / r23m))
     r12clear = kz_obl_f * r12m
     try:
-        o3 = int(get_ozone_by_nomographs(r12clear, mu_effective, o3_num))
+        o3 = int(get_ozone_by_nomographs(r12clear, mu_effective, o3_num, use_sensitivity_z))
     except Exception as err:
         print("Ozone can't be calculated: {} (line: {})".format(err, sys.exc_info()[-1].tb_lineno))
         o3 = -1
@@ -696,14 +728,16 @@ class CalculateOnly:
                              'uvb': [3, P1_UVB, P2_UVB],
                              'uve': [4, P1_UVE, P2_UVE]}
 
-    def calc_ozone(self, spectr, mu):
+    def calc_ozone(self, spectr, mu, use_sensitivity_z, sensitivity_z, expo):
         """
         Расчет озона
 
         spectr (list): data['spectr'] => spectrum
         mu (float): data['mu']
+        use_sensitivity_z (int): Use Z sensitivity
+        sensitivity_z (list): Z sensitivity
         """
-        spectrum = spectr2zero(spectr)
+        spectr = spectr2zero(spectr)
 
         o3 = {}
         correct = {}
@@ -712,10 +746,13 @@ class CalculateOnly:
             o3[pair], correct[pair], additional_data[pair] = pre_calc_o3(
                 LAMBDA_CONSTS[pair],
                 LAMBDA_CONSTS_PIX[pair],
-                spectrum,
+                spectr,
                 self.prom,
                 mu,
-                pair)
+                pair,
+                use_sensitivity_z,
+                sensitivity_z,
+                expo)
         return o3, correct, additional_data
 
     def calc_uv(self, uv_mode, spectr, expo, sensitivity, sens_eritem):
@@ -858,7 +895,7 @@ def write_final_file(chan, date_utc, sh, calc_result, add_to_name, create_new_fi
     except Exception as err:
         text = "Error: {}, Line: {}".format(str(err), sys.exc_info()[-1].tb_lineno)
         print(text)
-        core.LOGGER.error(text)
+        # core.LOGGER.error(text)
 
 
 def write_analyse_file(chan, date_utc, sh, calc_result, add_to_name, create_new_file=True):
@@ -909,7 +946,15 @@ def write_analyse_file(chan, date_utc, sh, calc_result, add_to_name, create_new_
             return os.path.join(path, name)
     except Exception as err:
         text = "Error: {}, Line: {}".format(str(err), sys.exc_info()[-1].tb_lineno)
-        core.LOGGER.error(text)
+        # core.LOGGER.error(text)
+
+
+def apply_sensitivity(spectr, sensitivity, expo):
+    new_spectr = []
+    for index, value in enumerate(spectr):
+        new_spectr.append(
+            value * sensitivity[index] * core.PARS['device']['graduation_expo'] / expo)
+    return new_spectr
 
 
 CONF_Z = core.PARS['calibration']['nm(pix)']['Z']

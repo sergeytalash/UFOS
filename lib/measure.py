@@ -67,7 +67,7 @@ class MeasureClass:
             time_now_local = time_now + timedelta(hours=int(core.PARS["station"]["timezone"]))  # Local Datetime
             mu, amas, sh = calc.sunheight(core.PARS["station"]["latitude"],
                                           core.PARS["station"]["longitude"],
-                                          time_now,
+                                          time_now,  # TODO: Change to ZorS datetime
                                           core.PARS["station"]["timezone"])
             """Header"""
             self.all_measured_data = {
@@ -129,7 +129,7 @@ class MeasureClass:
         except Exception as err:
             text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
             print(text)
-            core.LOGGER.error(text)
+            # core.LOGGER.error(text)
 
     @staticmethod
     def pix2nm(pix):
@@ -146,7 +146,7 @@ class MeasureClass:
             pix += 1
         return pix
 
-    def add_calculated_line_to_final_file(self, spectr, mu, expo, sensitivity_z, sensitivity_s,
+    def add_calculated_line_to_final_file(self, spectr, mu, expo, use_sensitivity_z, sensitivity_z, sensitivity_s,
                                           sensitivity_eritem, print_o3_to_console):
         """
 
@@ -154,6 +154,7 @@ class MeasureClass:
             spectr (list):
             mu (float):
             expo (int):
+            use_sensitivity_z (int):
             sensitivity_z (list):
             sensitivity_s (list):
             sensitivity_eritem (list):
@@ -165,8 +166,7 @@ class MeasureClass:
         calc_only = calc.CalculateOnly()
         o3_dict = {}
         if self.chan == 'ZD':
-
-            o3, correct, additional_data = calc_only.calc_ozone(spectr, mu)
+            o3, correct, additional_data = calc_only.calc_ozone(spectr, mu, use_sensitivity_z, sensitivity_z, expo)
             for pair in ["1", "2"]:
                 for text, value in zip(["o3", "correct", "additional_data"],
                                        [int(o3[pair]), correct[pair], additional_data[pair]]):
@@ -200,12 +200,13 @@ class MeasureClass:
                 json.dump(self.all_measured_data, f, ensure_ascii=False,
                           indent='', sort_keys=True)
                 print('\n>>> {}'.format(self.name))
-                core.LOGGER.info('\n>>> {}'.format(self.name))
+                # core.LOGGER.info('\n>>> {}'.format(self.name))
             if self.chan in ['ZD', 'SD']:
                 self.file2send[self.chan] = self.name
                 self.add_calculated_line_to_final_file(self.all_measured_data['spectr'],
                                                        self.all_measured_data['calculated']['mu'],
                                                        self.all_measured_data['mesurement']['exposition'],
+                                                       False,
                                                        self.sensitivityZ,
                                                        self.sensitivityS,
                                                        self.sensitivity_eritem,
@@ -230,7 +231,7 @@ class MeasureClass:
         except Exception as err:
             text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
             print(text)
-            core.LOGGER.error(text)
+            # core.LOGGER.error(text)
 
     def change_channel(self, chan):
         core.LOGGER.debug('Переключение на канал {}.'.format(
@@ -441,7 +442,7 @@ class MeasureClass:
                                 self.expo, core.PARS['device']['accummulate'], chan, 'S').device_ask()
                             text = response
                             print(text)
-                            core.LOGGER.info(text)
+                            # core.LOGGER.info(text)
                             spectr_max = max(self.zs_spectr[core.PIX_WORK_INTERVAL])
                             if amp_max > spectr_max > amp_min:
                                 break
@@ -452,7 +453,7 @@ class MeasureClass:
                         except Exception as err:
                             text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
                             print(text)
-                            core.LOGGER.error(text)
+                            # core.LOGGER.error(text)
                             raise err
 
                     else:
@@ -467,7 +468,7 @@ class MeasureClass:
                         text = response
                         # print('\r{}'.format(text))
                         print(text)
-                        core.LOGGER.info(text)
+                        # core.LOGGER.info(text)
                     self.chan = chan
                     self.analyze_spectr(self.zs_spectr)
                     self.write_file()
@@ -483,7 +484,7 @@ class MeasureClass:
                         self.expo, core.PARS['device']['accummulate'], 'D', 'S').device_ask()
                     text += ' ' + response
                     print('\r{}'.format(text), end=' ')
-                    core.LOGGER.info(text)
+                    # core.LOGGER.info(text)
                     self.analyze_spectr(self.d_spectr)
                     self.write_file()
 
@@ -491,7 +492,7 @@ class MeasureClass:
                     self.chan = chan + 'D'
                     text = 'Расчёт спектра {}.'.format(self.chan)
                     print(text, end=' ')
-                    core.LOGGER.info(text)
+                    # core.LOGGER.info(text)
                     self.zd_spectr = np.array(self.zs_spectr) - np.array(self.d_spectr)
                     self.analyze_spectr(self.zd_spectr)
                     self.write_file()
@@ -512,7 +513,7 @@ class MeasureClass:
                             self.expo, core.PARS['device']['accummulate'], chan, 'S').device_ask()
                         text += ' ' + response
                         print('\r{}'.format(text), end=' ')
-                        core.LOGGER.info(text)
+                        # core.LOGGER.info(text)
                         self.chan = chan
                         self.analyze_spectr(self.zs_spectr)
                         self.write_file()
@@ -528,7 +529,7 @@ class MeasureClass:
                             self.expo, core.PARS['device']['accummulate'], 'D', 'S').device_ask()
                         text += ' ' + response
                         print('\r{}'.format(text), end=' ')
-                        core.LOGGER.info(text)
+                        # core.LOGGER.info(text)
                         self.analyze_spectr(self.d_spectr)
                         self.write_file()
 
@@ -536,7 +537,7 @@ class MeasureClass:
                         self.chan = chan + 'D'
                         text = 'Расчёт спектра {}.'.format(self.chan)
                         print(text, end=' ')
-                        core.LOGGER.info(text)
+                        # core.LOGGER.info(text)
                         self.zd_spectr = np.array(self.zs_spectr) - np.array(self.d_spectr)
                         self.analyze_spectr(self.zd_spectr)
                         self.write_file()
@@ -545,9 +546,9 @@ class MeasureClass:
             # print("No data from UFOS", str(err))
             pass
         except Exception as err:
-            # text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
-            # print(text)
-            core.LOGGER.error(traceback.format_exc())
+            text = "(measure) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
+            print(text)
+            # core.LOGGER.error(traceback.format_exc())
             raise err
 
 
@@ -582,7 +583,7 @@ class CheckSunAndMeasure:
                         print('Кабель подключен к ПК, но не подключен к УФОС!', end='\r')
                         sleep(10)
                     else:
-                        calc.calculate_final_files(main.last_file_o3, 'ZD', True, "file")
+                        calc.calculate_final_files(main.last_file_o3, 'ZD', True, "file", 0)
                         main.make_line()
                         print('========================')
                         next_time = self.time_now_local + timedelta(minutes=core.PARS["station"]["interval"])
@@ -599,7 +600,7 @@ class CheckSunAndMeasure:
                             if dtm.now() + self.timezone < next_time and send_ok:
                                 sending_file = os.path.join(main.path_sending, file2send)
                                 tex = main.send_file(sending_file)
-                                core.LOGGER.debug(str(tex))
+                                # core.LOGGER.debug(str(tex))
                                 for status in tex.keys():
                                     if tex[status] == 'OK':
                                         os.remove(sending_file)
@@ -612,7 +613,7 @@ class CheckSunAndMeasure:
                 else:
                     # Высота Солнца менее заданного параметра
                     if self.end_calculation:
-                        calc.calculate_final_files(main.last_file_o3, 'ZD', True, "file")
+                        calc.calculate_final_files(main.last_file_o3, 'ZD', True, "file", 0)
                         self.end_calculation = False
                     print('\rСледующее измерение: {}, '.format(
                         calc.get_time_next_start(core.PARS["station"]["latitude"],
@@ -624,7 +625,7 @@ class CheckSunAndMeasure:
             except (serial.serialutil.SerialException, TypeError, Exception) as err:
                 text = "(measure.start SerialException) Error: {}, Line: {}".format(err, sys.exc_info()[-1].tb_lineno)
                 print(f"\r{text}", end="")
-                core.LOGGER.error(traceback.format_exc())
+                # core.LOGGER.error(traceback.format_exc())
             except ValueError as err:
                 if "COM" in str(err):
                     raise err

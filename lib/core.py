@@ -151,11 +151,17 @@ def read_sensitivity(mode):
             return [1] * 3691
 
 
-def read_nomographs(o3_num):
+def read_nomographs(o3_num, use_sensitivity_z):
     if o3_num == "1":
-        filename = NOMOGRAPH_1_PATH
+        if use_sensitivity_z:
+            filename = NOMOGRAPH_NORM_1_PATH
+        else:
+            filename = NOMOGRAPH_1_PATH
     else:
-        filename = NOMOGRAPH_2_PATH
+        if use_sensitivity_z:
+            filename = NOMOGRAPH_NORM_2_PATH
+        else:
+            filename = NOMOGRAPH_2_PATH
     ozone_list = []
     r12_list = []
     mu_effective_list = []
@@ -289,6 +295,8 @@ SENSITIVITY_S_PATH = os.path.join(SETTINGS_DIR, 'sensitivityS{}.txt'.format(DEVI
 SENSITIVITY_ERITEMA_PATH = os.path.join(SETTINGS_DIR, 'senseritem{}.txt'.format(DEVICE_ID))
 NOMOGRAPH_1_PATH = os.path.join(SETTINGS_DIR, 'nomograph{}_1.txt'.format(DEVICE_ID))
 NOMOGRAPH_2_PATH = os.path.join(SETTINGS_DIR, 'nomograph{}_2.txt'.format(DEVICE_ID))
+NOMOGRAPH_NORM_1_PATH = os.path.join(SETTINGS_DIR, 'nomograph_norm{}_1.txt'.format(DEVICE_ID))
+NOMOGRAPH_NORM_2_PATH = os.path.join(SETTINGS_DIR, 'nomograph_norm{}_2.txt'.format(DEVICE_ID))
 
 PARS = get_settings()
 CONNECT_PARS = read_connect()
